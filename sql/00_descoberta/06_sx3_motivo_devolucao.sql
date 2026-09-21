@@ -1,0 +1,16 @@
+-- FASE 0 · 3.1 · campos candidatos a MOTIVO DE DEVOLUCAO (case-insensitive: banco e BIN)
+-- SPEC cita SC5; ampliei para SF1 (cabecalho da NF de entrada/devolucao) e SD1 (item).
+SELECT RTRIM(X3_ARQUIVO) ARQ, RTRIM(X3_CAMPO) CAMPO, RTRIM(X3_TITULO) TITULO,
+       RTRIM(X3_DESCRIC) DESCRICAO, X3_TIPO TIPO, X3_TAMANHO TAM
+FROM SX3010
+WHERE D_E_L_E_T_=''
+  AND X3_ARQUIVO IN ('SC5','SF1','SD1')
+  AND ( X3_TIPO='M'
+     OR X3_CAMPO   COLLATE Latin1_General_CI_AI LIKE '%OBS%'
+     OR X3_CAMPO   COLLATE Latin1_General_CI_AI LIKE '%MEN%'
+     OR X3_CAMPO   COLLATE Latin1_General_CI_AI LIKE '%MOT%'
+     OR X3_TITULO  COLLATE Latin1_General_CI_AI LIKE '%MOTIV%'
+     OR X3_DESCRIC COLLATE Latin1_General_CI_AI LIKE '%MOTIV%'
+     OR X3_TITULO  COLLATE Latin1_General_CI_AI LIKE '%DEVOL%'
+     OR X3_DESCRIC COLLATE Latin1_General_CI_AI LIKE '%DEVOL%')
+ORDER BY X3_ARQUIVO, X3_CAMPO;
