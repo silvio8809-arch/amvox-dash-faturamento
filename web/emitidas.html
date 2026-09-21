@@ -1,0 +1,107 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Notas emitidas</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">NF</div><h1>Notas emitidas</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Competência</label><select id="fMes"></select></div>
+  <div class="campo"><label>Status</label><select id="fStatus">
+    <option value="">Todos</option><option>ENTREGUE</option><option>EM_TRANSITO</option>
+    <option>DEVOLVIDA_PARCIAL</option><option>DEVOLVIDA_TOTAL</option><option>CANCELADA</option></select></div>
+  <div class="campo"><label>UF</label><select id="fUf"><option value="">Todas</option></select></div>
+  <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="cards" id="cards"></div>
+  <div class="colunas">
+    <div class="painel"><h2>Notas emitidas <span id="tSub"></span></h2><div id="tabela"></div></div>
+    <div class="lado">
+      <div class="painel"><h2>Emissão por dia</h2><div class="corpo" id="porDia"></div></div>
+      <div class="painel"><h2>Por UF</h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
+      <div class="painel"><h2>Por status</h2><div class="corpo"><div class="linhab" id="porStatus"></div></div></div>
+    </div>
+  </div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+const ETIQ = {ENTREGUE:'et-ent',EM_TRANSITO:'et-tra',CANCELADA:'et-can',DEVOLVIDA_TOTAL:'et-dev',DEVOLVIDA_PARCIAL:'et-dev'};
+const rotulo = s => ({ENTREGUE:'Entregue',EM_TRANSITO:'Em trânsito',CANCELADA:'Cancelada',
+  DEVOLVIDA_TOTAL:'Devolvida total',DEVOLVIDA_PARCIAL:'Devolvida parcial'})[s] || s;
+let TAB;
+const COLS = [
+  {k:'nf', t:'NF', esq:true, cls:'forte'},
+  {k:'serie', t:'Série'},
+  {k:'emissao', t:'Emissão', fmt:F.data},
+  {k:'cliente_nome', t:'Cliente', esq:true},
+  {k:'uf', t:'UF'},
+  {k:'valor_faturado', t:'Valor', fmt:F.moeda, cls:'forte'},
+  {k:'dt_entrega', t:'Entrega', fmt:F.data},
+  {k:'dt_entrega_origem', t:'Fonte'},
+  {k:'status', t:'Status', html:r => `<span class="et ${ETIQ[r.status]||''}">${rotulo(r.status)}</span>`},
+];
+function filtrar(){
+  const mes = $('fMes').value, st = $('fStatus').value, uf = $('fUf').value,
+        cli = $('fCli').value.trim().toLowerCase();
+  return CACHE.nfs.filter(x =>
+    (!mes || (x.emissao||'').startsWith(mes)) &&
+    (!st  || x.status === st) &&
+    (!uf  || x.uf === uf) &&
+    (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
+}
+function pintar(){
+  const l = filtrar(), vivas = l.filter(x => x.status !== 'CANCELADA');
+  const fat = vivas.reduce((s,x)=>s+(+x.valor_faturado||0),0);
+  const canc = l.filter(x => x.status === 'CANCELADA');
+  kpis('cards',[
+    {titulo:'Notas no período', valor:F.int(vivas.length), nota:`${F.int(l.length)} incluindo canceladas`},
+    {titulo:'Valor faturado', valor:F.curto(fat), nota:'sem as canceladas'},
+    {titulo:'Ticket médio por NF', valor:vivas.length ? F.curto(fat/vivas.length) : '—', nota:'faturado ÷ notas'},
+    {titulo:'Canceladas', valor:F.int(canc.length), alerta:canc.length>0,
+     nota:canc.length ? F.curto(canc.reduce((s,x)=>s+(+x.valor_faturado||0),0)) + ' anulados' : 'nenhuma'},
+  ]);
+  $('tSub').textContent = `${F.int(l.length)} registros · ordene clicando no cabeçalho`;
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao', porPagina:40}));
+  const dia = {}; vivas.forEach(x => dia[x.emissao] = (dia[x.emissao]||0)+1);
+  const dias = Object.keys(dia).sort(), max = Math.max(1,...Object.values(dia));
+  $('porDia').innerHTML = dias.length
+    ? `<div style="display:flex;align-items:flex-end;gap:3px;height:120px">` + dias.map(d =>
+        `<div title="${F.data(d)}: ${dia[d]}" style="flex:1;background:var(--laranja);border-radius:2px 2px 0 0;height:${dia[d]/max*100}%"></div>`).join('')
+      + `</div><div style="display:flex;justify-content:space-between;color:var(--cinza);font-size:11px;margin-top:6px">`
+      + `<span>${F.dia(dias[0])}</span><span>${F.dia(dias[dias.length-1])}</span></div>`
+    : '<div class="vazio" style="padding:18px">Sem dados.</div>';
+  const porUf = {}; vivas.forEach(x => porUf[x.uf||'—'] = (porUf[x.uf||'—']||0)+(+x.valor_faturado||0));
+  barras('porUf', Object.entries(porUf).sort((a,b)=>b[1]-a[1]).slice(0,6)
+    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})));
+  const porSt = {}; l.forEach(x => porSt[x.status] = (porSt[x.status]||0)+1);
+  barras('porStatus', Object.entries(porSt).sort((a,b)=>b[1]-a[1])
+    .map(([k,v]) => ({nome:rotulo(k), v, rot:F.int(v)})), 'vm');
+}
+iniciarPagina(async () => {
+  const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+    meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('fMes').value = meses[0] || '';
+  $('fUf').innerHTML = '<option value="">Todas</option>' +
+    [...new Set(CACHE.nfs.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
+  $('bAplicar').onclick = pintar;
+  $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
+  $('bXls').onclick = () => exportarXLSX(
+    `AMVOX_NOTAS_EMITIDAS_${hojeArq()}.xlsx`, 'Notas emitidas',
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    [{t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:8},{t:'EMISSÃO',k:'emissao',w:12},
+     {t:'CLIENTE',k:'cliente_nome',w:38},{t:'UF',k:'uf',w:6},
+     {t:'VALOR',k:'valor_faturado',w:15,tipo:'n'},{t:'ENTREGA',k:'dt_entrega',w:12},
+     {t:'FONTE DA ENTREGA',k:'dt_entrega_origem',w:16},{t:'STATUS',k:'status',w:18}],
+    TAB.atual());
+  pintar();
+});
+</script></body></html>
