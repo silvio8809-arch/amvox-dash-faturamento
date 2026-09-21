@@ -259,7 +259,7 @@ def main():
     try:
         log("gravando no Supabase...")
         n1 = upsert("dash_nf_saida", nfs, chave, "filial,nf,serie")
-        n2 = upsert("dash_devolucao", devs, chave, "filial,nf_dev,serie_dev")
+        n2 = upsert("dash_devolucao", devs, chave, "filial,nf_dev,serie_dev,cliente_cod,cliente_loja")
     except Exception as e:
         log(f"ERRO na carga: {e}")
         grava_log(chave, started_at=inicio.isoformat(),
