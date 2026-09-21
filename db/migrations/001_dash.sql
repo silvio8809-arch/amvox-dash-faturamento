@@ -55,8 +55,11 @@ create table if not exists dash_devolucao (
   serie_dev           text not null,
   emissao_dev         date not null,
   origem_nf           text,          -- AMVOX (F1_FORMUL='S') | CLIENTE — atributo, não filtro
-  cliente_cod         text,
-  cliente_loja        text,
+  -- ⚠️ cliente entra na CHAVE: a numeração da NF de devolução é do CLIENTE, então dois
+  -- clientes podem emitir o mesmo número+série (caso real: 000001148/01 — MAGAZINE ARAGAO
+  -- e FUJIMUSIC). A chave do Protheus na SF1 é FILIAL+DOC+SERIE+FORNECE+LOJA.
+  cliente_cod         text not null default '',
+  cliente_loja        text not null default '',
   cliente_nome        text,
   cnpj_raiz           text,
   uf                  text,
@@ -71,7 +74,7 @@ create table if not exists dash_devolucao (
   motivo_causa        text,          -- causa extraída do texto — SEM taxonomia fixa
                                      -- (decisão Silvio: listar o que está na base)
   updated_at          timestamptz not null default now(),
-  primary key (filial, nf_dev, serie_dev)
+  primary key (filial, nf_dev, serie_dev, cliente_cod, cliente_loja)
 );
 
 create index if not exists ix_dash_dev_emissao on dash_devolucao (emissao_dev desc);
