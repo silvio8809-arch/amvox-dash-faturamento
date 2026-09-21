@@ -74,15 +74,21 @@ SELECT
         D.TEM_MOTIVO                                        TEM_MOTIVO,
         LTRIM(RTRIM(ISNULL(D.F1_MENNOTA,'')))               TEXTO_NF,
         -- causa sem o sufixo de OS/CHAMADO, para agrupar no painel
-        TRIM(' .:-/' FROM CASE
+        -- corta no marcador de OS/chamado e depois remove numero solto no fim
+        -- (ex.: "QUANTIDADE DUPLICADA 19362" -> "QUANTIDADE DUPLICADA"), para agrupar direito
+        TRIM(' .:-/' FROM
+          CASE WHEN PATINDEX('% [0-9][0-9][0-9][0-9]%', C.T + ' ') > 1
+               THEN LEFT(C.T, PATINDEX('% [0-9][0-9][0-9][0-9]%', C.T + ' ') - 1)
+               ELSE C.T END)                                MOTIVO_CAUSA
+FROM        DEV D
+CROSS APPLY (SELECT TRIM(' .:-/' FROM CASE
             WHEN CHARINDEX('OS', D.MOTIVO_BRUTO COLLATE Latin1_General_CI_AI) > 1
                  THEN LEFT(D.MOTIVO_BRUTO, CHARINDEX('OS', D.MOTIVO_BRUTO COLLATE Latin1_General_CI_AI)-1)
             WHEN CHARINDEX('CH', D.MOTIVO_BRUTO COLLATE Latin1_General_CI_AI) > 1
                  THEN LEFT(D.MOTIVO_BRUTO, CHARINDEX('CH', D.MOTIVO_BRUTO COLLATE Latin1_General_CI_AI)-1)
             WHEN CHARINDEX('-',  D.MOTIVO_BRUTO) > 1
                  THEN LEFT(D.MOTIVO_BRUTO, CHARINDEX('-', D.MOTIVO_BRUTO)-1)
-            ELSE D.MOTIVO_BRUTO END)                        MOTIVO_CAUSA
-FROM        DEV D
+            ELSE D.MOTIVO_BRUTO END) T) C
 LEFT JOIN   ITENS I   ON I.FIL=D.F1_FILIAL AND I.DOC=D.F1_DOC AND I.SER=D.F1_SERIE
                      AND I.FORN=D.F1_FORNECE AND I.LOJA=D.F1_LOJA
 LEFT JOIN   SA1010 A1 ON A1.D_E_L_E_T_='' AND A1.A1_COD=D.F1_FORNECE AND A1.A1_LOJA=D.F1_LOJA
