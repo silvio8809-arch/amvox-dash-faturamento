@@ -26,7 +26,9 @@ create table if not exists dash_nf_saida (
   valor_ipi           numeric(18,2),
   -- entrega: Financeiro (SE1.E1_DTSAIDA) primeiro, GFE (GWU.GWU_DTENT) como fallback
   dt_entrega          date,
-  dt_entrega_origem   text,          -- FIN | GFE | SEM
+  dt_entrega_origem   text,          -- FIN | GFE | BAIXA | SEM
+                                     -- BAIXA: título quitado (saldo 0) prova a entrega —
+                                     -- o cliente não paga sem receber e assinar o canhoto
   dt_prevista         date,          -- GWU_DTPENT  (previsto × realizado)
   dt_prevista_orig    date,          -- GWU_DTPENO
   -- cobrança: entrega em branco = boleto não gerado = risco de caixa

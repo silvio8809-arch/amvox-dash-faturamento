@@ -45,7 +45,8 @@ const COLS = [
   {k:'uf', t:'UF'},
   {k:'valor_faturado', t:'Valor', fmt:F.moeda, cls:'forte'},
   {k:'dt_entrega', t:'Entrega', fmt:F.data},
-  {k:'dt_entrega_origem', t:'Fonte'},
+  {k:'dt_entrega_origem', t:'Fonte da entrega', esq:true,
+   fmt:v => ({FIN:'Financeiro', GFE:'GFE (logística)', BAIXA:'Baixa — título quitado', SEM:'—'})[v] || v},
   {k:'status', t:'Status', html:r => `<span class="et ${ETIQ[r.status]||''}">${rotulo(r.status)}</span>`},
 ];
 function filtrar(){

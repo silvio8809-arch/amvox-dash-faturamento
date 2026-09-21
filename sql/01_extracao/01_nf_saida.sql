@@ -25,6 +25,7 @@ FIN AS (
             SUM(E1_VALOR)                  VLR_TITULOS,
             SUM(E1_SALDO)                  SALDO_ABERTO,
             MAX(NULLIF(E1_VENCREA,''))     VENC_REAL,
+            MIN(NULLIF(E1_BAIXA,''))       DT_BAIXA,      -- 1ª baixa = prova mais antiga de recebimento
             COUNT(*)                       QTD_PARCELAS
     FROM    SE1010
     WHERE   D_E_L_E_T_ = ''
@@ -32,15 +33,20 @@ FIN AS (
 ),
 -- GFE: entrega realizada (fallback) e previsão. Uma linha por trecho → agregar.
 GFE AS (
-    SELECT  GWU_FILIAL                     FIL,
-            LTRIM(RTRIM(GWU_NRDC))         NRDC,
-            MAX(NULLIF(GWU_DTENT,''))      DT_ENTREGA_GFE,
-            MAX(NULLIF(GWU_DTPENT,''))     DT_PREVISTA,
-            MAX(NULLIF(GWU_DTPENO,''))     DT_PREVISTA_ORIG,
-            MAX(NULLIF(GWU_CDTRP,''))      TRANSPORTADOR_GFE  -- GWU_NMTRP existe no SX3 mas NAO na tabela fisica
-    FROM    GWU010
-    WHERE   D_E_L_E_T_ = ''
-    GROUP BY GWU_FILIAL, LTRIM(RTRIM(GWU_NRDC))
+    SELECT  GW.GWU_FILIAL                  FIL,
+            LTRIM(RTRIM(GW.GWU_NRDC))      NRDC,
+            MAX(NULLIF(GW.GWU_DTENT,''))   DT_ENTREGA_GFE,
+            MAX(NULLIF(GW.GWU_DTPENT,''))  DT_PREVISTA,
+            MAX(NULLIF(GW.GWU_DTPENO,''))  DT_PREVISTA_ORIG,
+            MAX(NULLIF(GW.GWU_CDTRP,''))   TRANSPORTADOR_GFE, -- GWU_NMTRP existe no SX3 mas NAO na tabela fisica
+            -- nome real da transportadora: GU3010 e o cadastro de emitentes do GFE.
+            -- GWU_NMTRP nao existe fisicamente, por isso o join pelo codigo.
+            MAX(NULLIF(RTRIM(U3.GU3_NMFAN),'')) TRANSP_NOME_GFE
+    FROM    GWU010 GW
+    LEFT JOIN GU3010 U3 ON U3.D_E_L_E_T_ = ''
+                       AND LTRIM(RTRIM(U3.GU3_CDEMIT)) = LTRIM(RTRIM(GW.GWU_CDTRP))
+    WHERE   GW.D_E_L_E_T_ = ''
+    GROUP BY GW.GWU_FILIAL, LTRIM(RTRIM(GW.GWU_NRDC))
 ),
 -- Cancelamento. ⚠️ EXCEÇÃO CONSCIENTE à regra do D_E_L_E_T_: o evento de cancelamento
 -- precisa ser visto mesmo quando a linha foi excluída (SPEC 3.3). Só notas de SAÍDA:
@@ -71,15 +77,21 @@ SELECT
         LEFT(RTRIM(ISNULL(A1.A1_CGC,'')),8)                        CNPJ_RAIZ,
         RTRIM(ISNULL(A1.A1_EST,''))                                UF,
         RTRIM(ISNULL(A1.A1_TIPO,''))                               A1_TIPO,        -- canal: F/R [confirmar regra]
-        RTRIM(ISNULL(A4.A4_NREDUZ, ISNULL(G.TRANSPORTADOR_GFE,''))) TRANSPORTADORA,
+        -- TRANSPORTADORA (decisao Silvio 21/09): o GFE manda. O cadastro SA4 e generico
+        -- (1.640 de 1.849 NF apontam para o codigo 0169 = 'TERCEIROS'), entao A4_NREDUZ
+        -- so entra como fallback quando o GFE nao tem o nome.
+        RTRIM(ISNULL(G.TRANSP_NOME_GFE,
+              ISNULL(A4.A4_NREDUZ, ISNULL(G.TRANSPORTADOR_GFE,'')))) TRANSPORTADORA,
         CAST(F2.F2_VALFAT  AS DECIMAL(18,2))                       VALOR_FATURADO,
         CAST(F2.F2_VALMERC AS DECIMAL(18,2))                       VALOR_MERCADORIA,
         CAST(F2.F2_VALIPI  AS DECIMAL(18,2))                       VALOR_IPI,
         ISNULL(C.CFOP,'')                                          CFOP,
         -- ---------- data de entrega: Financeiro primeiro, GFE como fallback ----------
-        COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE)             DT_ENTREGA,
+        COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE,
+                 CASE WHEN ISNULL(FIN.SALDO_ABERTO,-1) = 0 THEN FIN.DT_BAIXA END) DT_ENTREGA,
         CASE WHEN FIN.DT_ENTREGA_FIN IS NOT NULL THEN 'FIN'
              WHEN G.DT_ENTREGA_GFE   IS NOT NULL THEN 'GFE'
+             WHEN ISNULL(FIN.SALDO_ABERTO,-1) = 0 AND FIN.DT_BAIXA IS NOT NULL THEN 'BAIXA'
              ELSE 'SEM' END                                        DT_ENTREGA_ORIGEM,
         G.DT_PREVISTA                                              DT_PREVISTA,
         G.DT_PREVISTA_ORIG                                         DT_PREVISTA_ORIG,
@@ -92,15 +104,18 @@ SELECT
         -- ---------- status derivado (ordem da SPEC seção 4) ----------
         CASE
             WHEN CANC.DT_CANCELAMENTO IS NOT NULL                          THEN 'CANCELADA'
-            WHEN COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE) IS NOT NULL THEN 'ENTREGUE'
+            WHEN COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE,
+                      CASE WHEN ISNULL(FIN.SALDO_ABERTO,-1) = 0 THEN FIN.DT_BAIXA END) IS NOT NULL THEN 'ENTREGUE'
             ELSE 'EM_TRANSITO'
         END                                                        STATUS_BASE,
         -- ---------- dias e faixa (só quando ainda não há entrega) ----------
         CASE WHEN CANC.DT_CANCELAMENTO IS NULL
-              AND COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE) IS NULL
+              AND COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE,
+                     CASE WHEN ISNULL(FIN.SALDO_ABERTO,-1) = 0 THEN FIN.DT_BAIXA END) IS NULL
              THEN DATEDIFF(DAY, CONVERT(DATE, F2.F2_EMISSAO, 112), GETDATE()) END  DIAS_SEM_ENTREGA,
         CASE WHEN CANC.DT_CANCELAMENTO IS NULL
-              AND COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE) IS NULL
+              AND COALESCE(FIN.DT_ENTREGA_FIN, G.DT_ENTREGA_GFE,
+                     CASE WHEN ISNULL(FIN.SALDO_ABERTO,-1) = 0 THEN FIN.DT_BAIXA END) IS NULL
              THEN CASE
                     WHEN DATEDIFF(DAY, CONVERT(DATE,F2.F2_EMISSAO,112), GETDATE()) <= 2  THEN '0-2'
                     WHEN DATEDIFF(DAY, CONVERT(DATE,F2.F2_EMISSAO,112), GETDATE()) <= 7  THEN '3-7'
