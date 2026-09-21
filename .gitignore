@@ -1,0 +1,10 @@
+# credenciais — nunca versionar
+.env
+*.env
+!.env.exemplo
+.claude/scripts/*token*.txt
+.claude/scripts/*key*.txt
+# ruído
+__pycache__/
+*.pyc
+.DS_Store
