@@ -1,0 +1,100 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Notas sem data de entrega</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">SE</div><h1>Notas sem data de entrega</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Faixa</label><select id="fFaixa">
+    <option value="">Todas</option><option value="0-2">0–2 dias</option><option value="3-7">3–7 dias</option>
+    <option value="8-15">8–15 dias</option><option value=">15">Acima de 15 dias</option></select></div>
+  <div class="campo"><label>UF</label><select id="fUf"><option value="">Todas</option></select></div>
+  <div class="campo"><label>Transportadora</label><select id="fTr"><option value="">Todas</option></select></div>
+  <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="cards" id="cards"></div>
+  <div class="colunas">
+    <div class="painel"><h2>Fila de ação — mais antigas primeiro <span id="tSub"></span></h2><div id="tabela"></div></div>
+    <div class="lado">
+      <div class="painel"><h2>Top clientes sem entrega</h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+      <div class="painel"><h2>Por transportadora <span>acima de 7 dias</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
+      <div class="painel"><h2>Saldo em aberto por faixa</h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
+    </div>
+  </div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+const CLSF = {'0-2':'et-0-2','3-7':'et-3-7','8-15':'et-8-15','>15':'et-15'};
+let TAB;
+const COLS = [
+  {k:'nf', t:'NF', esq:true, cls:'forte'},
+  {k:'emissao', t:'Emissão', fmt:F.data},
+  {k:'cliente_nome', t:'Cliente', esq:true},
+  {k:'uf', t:'UF'},
+  {k:'transportadora', t:'Transportadora', esq:true, fmt:v => v || '—'},
+  {k:'valor_faturado', t:'Valor', fmt:F.moeda},
+  {k:'saldo_aberto', t:'Saldo em aberto', fmt:F.moeda, cls:'forte'},
+  {k:'vencimento_real', t:'Vencimento', fmt:F.data},
+  {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${CLSF[r.faixa_entrega]||''}">${r.dias_sem_entrega} d</span>`},
+];
+function filtrar(){
+  const fx = $('fFaixa').value, uf = $('fUf').value, tr = $('fTr').value,
+        cli = $('fCli').value.trim().toLowerCase();
+  return CACHE.nfs.filter(x => x.faixa_entrega && x.status !== 'CANCELADA' &&
+    (!fx || x.faixa_entrega === fx) && (!uf || x.uf === uf) &&
+    (!tr || (x.transportadora||'—') === tr) &&
+    (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
+}
+function pintar(){
+  const l = filtrar();
+  const FX = [['0-2','0–2 dias · normal'],['3-7','3–7 dias · acompanhar'],
+              ['8-15','8–15 dias · cobrar transportadora'],['>15','acima de 15 dias · risco']];
+  kpis('cards', FX.map(([k,rot]) => {
+    const g = l.filter(x => x.faixa_entrega === k);
+    return {titulo:rot, valor:F.int(g.length), alerta:(k==='8-15'||k==='>15'),
+            nota:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0)) + ' em aberto'};
+  }));
+  $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(l.reduce((s,x)=>s+(+x.saldo_aberto||0),0))} em aberto`;
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40}));
+  const cli = {}; l.forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
+  barras('porCli', Object.entries(cli).sort((a,b)=>b[1]-a[1]).slice(0,6)
+    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm');
+  const tr = {}; l.filter(x => (x.dias_sem_entrega||0) > 7)
+    .forEach(x => tr[x.transportadora||'(sem transportadora)'] = (tr[x.transportadora||'(sem transportadora)']||0)+1);
+  barras('porTr', Object.entries(tr).sort((a,b)=>b[1]-a[1]).slice(0,6)
+    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm');
+  barras('porFx', FX.map(([k,rot]) => {
+    const g = l.filter(x => x.faixa_entrega === k);
+    return {nome:rot.split(' · ')[0], v:g.reduce((s,x)=>s+(+x.saldo_aberto||0),0),
+            rot:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0))};
+  }));
+}
+iniciarPagina(async () => {
+  const sem = CACHE.nfs.filter(x => x.faixa_entrega);
+  $('fUf').innerHTML = '<option value="">Todas</option>' +
+    [...new Set(sem.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
+  $('fTr').innerHTML = '<option value="">Todas</option>' +
+    [...new Set(sem.map(x=>x.transportadora||'—'))].sort().map(t=>`<option>${t}</option>`).join('');
+  $('bAplicar').onclick = pintar;
+  $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
+  $('bXls').onclick = () => exportarXLSX(
+    `AMVOX_SEM_ENTREGA_${hojeArq()}.xlsx`, 'Notas sem data de entrega',
+    'Fila de cobrança · últimos 120 dias',
+    [{t:'NF',k:'nf',w:12},{t:'EMISSÃO',k:'emissao',w:12},{t:'CLIENTE',k:'cliente_nome',w:38},
+     {t:'UF',k:'uf',w:6},{t:'TRANSPORTADORA',k:'transportadora',w:24},
+     {t:'VALOR',k:'valor_faturado',w:15,tipo:'n'},{t:'SALDO EM ABERTO',k:'saldo_aberto',w:17,tipo:'n'},
+     {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS SEM ENTREGA',k:'dias_sem_entrega',w:17},
+     {t:'FAIXA',k:'faixa_entrega',w:10}],
+    TAB.atual());
+  pintar();
+});
+</script></body></html>
