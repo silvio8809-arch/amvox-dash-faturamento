@@ -1,0 +1,116 @@
+/* ============================================================================
+   Painel TV Faturamento & Logística — estilo comum às 4 páginas de detalhe
+   Paleta e fontes conforme o protótipo aprovado (21/09/2026).
+   ========================================================================== */
+:root{
+  --navy:#1A1F2E; --laranja:#F5A623; --fundo:#F4F6FA; --card:#FFFFFF; --borda:#E3E7EF;
+  --cinza:#5B6478; --linha:#EEF1F6;
+  --verde:#2E9E6B; --vermelho:#D64545; --vinho:#8E2A2A;
+  --am-suave:#FFF4DF; --vm-suave:#FCE9E9; --vd-suave:#E6F4EE;
+  --cond:'Barlow Condensed',sans-serif; --texto:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--fundo);color:var(--navy);font:15px/1.5 var(--texto)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- login (idêntico ao app de preços) ---------- */
+#login{position:fixed;inset:0;background:#121214;display:none;flex-direction:column;
+  align-items:center;justify-content:center;padding:24px;z-index:60}
+#login .marca{font:800 30px var(--cond);letter-spacing:.05em;color:#fff}
+#login .marca b{color:#D71920}
+#login .subm{font:600 11px var(--cond);letter-spacing:.22em;text-transform:uppercase;color:#9A9A97;margin-top:6px}
+#login .card{width:100%;max-width:380px;background:#1C1C1F;border:1px solid #2C2C30;border-radius:12px;padding:26px;margin-top:26px}
+#login label{display:block;font:600 11px var(--cond);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97;margin:14px 0 6px}
+#login input{width:100%;padding:11px 13px;border:1px solid #3A3A3E;border-radius:8px;background:#121214;color:#fff;font:15px var(--texto)}
+#login input:focus{outline:2px solid #D71920}
+#login .pww{position:relative} #login .pww input{padding-right:46px}
+#login .pweye{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:17px;color:#9A9A97;padding:6px 8px}
+#login .pweye:hover{color:#fff}
+#login .btn{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:#D71920;color:#fff;font:700 14px var(--cond);letter-spacing:.05em;cursor:pointer}
+#login .ghost{background:none;border:0;color:#9A9A97;font:600 12px var(--texto);cursor:pointer;margin-top:14px;text-decoration:underline;padding:0}
+#login .msg{margin-top:14px;font-size:13px;color:#9A9A97;min-height:18px}
+#login .msg.err{color:#FF7A7E} #login .msg.ok{color:#7BD88F}
+#login .rodape{margin-top:34px;font:500 10.5px var(--cond);letter-spacing:.08em;text-transform:uppercase;color:#5A5A5E}
+
+/* ---------- HeaderBar ---------- */
+header{background:var(--navy);color:#fff;padding:0 30px;height:68px;display:flex;align-items:center;gap:18px;
+  position:sticky;top:0;z-index:20}
+header .voltar{display:flex;align-items:center;gap:7px;background:#2A3142;border:1px solid #3C4459;color:#fff;
+  border-radius:8px;padding:7px 14px;font:600 12px var(--cond);letter-spacing:.1em;text-transform:uppercase;
+  text-decoration:none}
+header .voltar:hover{background:#343C52}
+header .ic{width:34px;height:34px;border-radius:8px;background:var(--laranja);color:var(--navy);
+  display:grid;place-items:center;font:700 16px var(--cond)}
+header h1{font:600 22px var(--cond);letter-spacing:.09em;text-transform:uppercase}
+header .dir{margin-left:auto;text-align:right;font-size:12.5px;color:#C5CBDA;line-height:1.45}
+header .dir b{color:#fff;font-weight:600}
+
+/* ---------- FilterBar ---------- */
+.filtros{background:var(--card);border-bottom:1px solid var(--borda);padding:14px 30px;
+  display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;position:sticky;top:68px;z-index:19}
+.campo label{display:block;font:600 10px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--cinza);margin-bottom:4px}
+.campo input,.campo select{padding:8px 11px;border:1px solid var(--borda);border-radius:7px;font:14px var(--texto);
+  background:#fff;color:var(--navy);min-width:150px}
+.campo input:focus,.campo select:focus{outline:2px solid var(--laranja)}
+.acoes{margin-left:auto;display:flex;gap:9px}
+.bt{border:1px solid var(--borda);background:#fff;color:var(--navy);border-radius:7px;padding:9px 16px;
+  font:600 12px var(--cond);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.bt:hover{border-color:var(--navy)}
+.bt.pri{background:var(--laranja);border-color:var(--laranja)}
+.bt:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- conteúdo ---------- */
+main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.kpi{background:var(--card);border:1px solid var(--borda);border-radius:13px;padding:18px 20px}
+.kpi .t{font:600 10.5px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--cinza)}
+.kpi .v{font:700 40px/1.05 var(--cond);margin-top:8px}
+.kpi .n{font-size:12.5px;color:var(--cinza);margin-top:6px;min-height:17px}
+.kpi.al .v{color:var(--vermelho)}
+.colunas{display:grid;grid-template-columns:1fr 400px;gap:18px;margin-top:18px;align-items:start}
+.painel{background:var(--card);border:1px solid var(--borda);border-radius:13px;overflow:hidden}
+.painel h2{font:600 12px var(--cond);letter-spacing:.14em;text-transform:uppercase;padding:15px 20px;
+  border-bottom:1px solid var(--linha);display:flex;justify-content:space-between;align-items:baseline}
+.painel h2 span{font:400 12px var(--texto);letter-spacing:0;text-transform:none;color:var(--cinza)}
+.painel .corpo{padding:16px 20px}
+.lado{display:flex;flex-direction:column;gap:18px}
+
+/* ---------- tabela ---------- */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{background:#F7F9FC;font:600 10.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--cinza);padding:10px 14px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--borda);
+  cursor:pointer;user-select:none;position:sticky;top:0}
+.tbl th:first-child,.tbl th.esq{text-align:left}
+.tbl th.ord::after{content:' ▾';color:var(--laranja)}
+.tbl th.ord.asc::after{content:' ▴'}
+.tbl td{padding:9px 14px;border-bottom:1px solid var(--linha);text-align:right;white-space:nowrap;font-size:13.5px}
+.tbl td:first-child,.tbl td.esq{text-align:left}
+.tbl tbody tr:hover td{background:#FAFBFD}
+.tbl .forte{font-weight:600}
+.rolar{max-height:560px;overflow:auto}
+.pag{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;
+  border-top:1px solid var(--linha);font-size:12.5px;color:var(--cinza)}
+.pag button{border:1px solid var(--borda);background:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;
+  font:600 12px var(--texto);margin-left:6px}
+.pag button:disabled{opacity:.4;cursor:not-allowed}
+
+/* etiquetas de status */
+.et{display:inline-block;padding:2px 9px;border-radius:99px;font:600 11px var(--texto);white-space:nowrap}
+.et-ent{background:var(--vd-suave);color:#14603F}
+.et-tra{background:var(--am-suave);color:#8A5B00}
+.et-can{background:#EEF1F6;color:var(--cinza)}
+.et-dev{background:var(--vm-suave);color:var(--vinho)}
+.et-0-2{background:var(--vd-suave);color:#14603F}
+.et-3-7{background:var(--am-suave);color:#8A5B00}
+.et-8-15{background:var(--vm-suave);color:var(--vermelho)}
+.et-15{background:#F7DADA;color:var(--vinho)}
+
+/* barras dentro de painel lateral */
+.linhab{display:flex;flex-direction:column;gap:10px}
+.linhab .it{font-size:13.5px}
+.linhab .tp{display:flex;justify-content:space-between;gap:10px}
+.linhab .tp .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linhab .br{height:8px;border-radius:4px;background:var(--laranja);margin-top:5px}
+.linhab .br.vm{background:var(--vermelho)}
+.vazio{padding:40px 20px;text-align:center;color:var(--cinza);font-size:14px}
+#erro{position:fixed;left:0;right:0;bottom:0;background:var(--vinho);color:#fff;padding:9px 30px;font-size:13px;display:none;z-index:40}
