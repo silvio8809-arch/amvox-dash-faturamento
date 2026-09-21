@@ -17,16 +17,32 @@
 *{box-sizing:border-box;margin:0}
 body{background:var(--fundo);color:var(--navy);font-family:var(--texto);
      width:1920px;height:1080px;overflow:hidden}
-/* ---------- login (só fora do modo TV) ---------- */
-#login{position:fixed;inset:0;background:var(--navy);display:none;align-items:center;justify-content:center;z-index:50}
-#login .cx{background:#fff;border-radius:14px;padding:34px 38px;width:420px}
-#login h1{font:700 26px var(--cond);letter-spacing:.04em}
-#login p{color:var(--cinza);font-size:14px;margin-top:6px}
-#login label{display:block;font:600 11px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--cinza);margin:16px 0 5px}
-#login input{width:100%;padding:11px 13px;border:1px solid var(--borda);border-radius:8px;font:15px var(--texto)}
-#login button{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:var(--laranja);
-  color:var(--navy);font:700 14px var(--cond);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
-#login .err{color:var(--vermelho);font-size:13px;margin-top:12px;min-height:18px}
+/* ---------- login — MESMO padrão do app.ctrl_amvox (Preços) ---------- */
+#login{position:fixed;inset:0;background:#121214;display:none;flex-direction:column;
+  align-items:center;justify-content:center;padding:24px;z-index:50;font-family:var(--texto)}
+#login .marca{font:800 30px var(--cond);letter-spacing:.05em;color:#fff}
+#login .marca b{color:#D71920}
+#login .subm{font:600 11px var(--cond);letter-spacing:.22em;text-transform:uppercase;color:#9A9A97;margin-top:6px}
+#login .card{width:100%;max-width:380px;background:#1C1C1F;border:1px solid #2C2C30;border-radius:12px;
+  padding:26px;margin-top:26px}
+#login label{display:block;font:600 11px var(--cond);letter-spacing:.08em;text-transform:uppercase;
+  color:#9A9A97;margin:14px 0 6px}
+#login input{width:100%;padding:11px 13px;border:1px solid #3A3A3E;border-radius:8px;background:#121214;
+  color:#fff;font:15px var(--texto)}
+#login input:focus{outline:2px solid #D71920}
+#login .pww{position:relative}
+#login .pww input{padding-right:46px}
+#login .pweye{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:0;
+  cursor:pointer;font-size:17px;color:#9A9A97;padding:6px 8px;line-height:1}
+#login .pweye:hover{color:#fff}
+#login .btn{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:#D71920;color:#fff;
+  font:700 14px var(--cond);letter-spacing:.05em;cursor:pointer}
+#login .btn:hover{background:#B3131A}
+#login .ghost{background:none;border:0;color:#9A9A97;font:600 12px var(--texto);cursor:pointer;
+  margin-top:14px;text-decoration:underline;padding:0}
+#login .msg{margin-top:14px;font-size:13px;color:#9A9A97;min-height:18px}
+#login .msg.err{color:#FF7A7E} #login .msg.ok{color:#7BD88F}
+#login .rodape{margin-top:34px;font:500 10.5px var(--cond);letter-spacing:.08em;text-transform:uppercase;color:#5A5A5E}
 /* ---------- cabeçalho ---------- */
 header{background:var(--navy);color:#fff;height:78px;display:flex;align-items:center;gap:22px;padding:0 34px}
 .logo{width:46px;height:46px;border-radius:9px;background:var(--laranja);color:var(--navy);
@@ -97,14 +113,34 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 </style></head>
 <body>
 
-<div id="login"><div class="cx">
-  <h1>AMVOX — Painel TV</h1>
-  <p>Faturamento &amp; Logística · acesso restrito</p>
-  <label for="em">E-mail</label><input id="em" type="email" autocomplete="username">
-  <label for="pw">Senha</label><input id="pw" type="password" autocomplete="current-password">
-  <button id="bt">Entrar</button>
-  <div class="err" id="msg"></div>
-</div></div>
+<div id="login">
+  <div class="marca">AMVO<b>X</b></div>
+  <div class="subm">Faturamento &amp; Logística · Controladoria</div>
+  <div class="card">
+    <div id="fLogin">
+      <label for="em">E-mail</label><input id="em" type="email" autocomplete="username">
+      <label for="pw">Senha</label>
+      <div class="pww"><input id="pw" type="password" autocomplete="current-password"><button type="button" class="pweye" data-alvo="pw" aria-label="Mostrar senha" title="Mostrar/ocultar senha">👁</button></div>
+      <button class="btn" id="bEntrar">Entrar</button>
+      <button class="ghost" id="bEsqueci">Esqueci / quero definir minha senha</button>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #2C2C30">
+        <div style="font-size:12px;color:#9A9A97;line-height:1.5">O acesso é por convite da Controladoria. Ainda não tem usuário?</div>
+        <a class="ghost" style="display:inline-block" href="mailto:gerente.contabil@amvox.com.br?subject=Solicita%C3%A7%C3%A3o%20de%20acesso%20%E2%80%94%20Painel%20TV%20Faturamento&body=Ol%C3%A1%2C%20Silvio!%0A%0ASolicito%20acesso%20ao%20Painel%20TV%20de%20Faturamento%20%26%20Log%C3%ADstica.%0A%0ANome%3A%20%0A%C3%81rea%2Fcargo%3A%20%0AE-mail%3A%20%0A%0AObrigado!">Solicitar acesso ao administrador</a>
+      </div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div id="fSenha" style="display:none">
+      <p style="font-size:14px;color:#C9C9C5">Defina a sua senha de acesso.</p>
+      <label for="np">Nova senha (mín. 8 caracteres)</label>
+      <div class="pww"><input id="np" type="password" autocomplete="new-password"><button type="button" class="pweye" data-alvo="np" aria-label="Mostrar senha">👁</button></div>
+      <label for="np2">Repita a senha</label>
+      <div class="pww"><input id="np2" type="password" autocomplete="new-password"><button type="button" class="pweye" data-alvo="np2" aria-label="Mostrar senha">👁</button></div>
+      <button class="btn" id="bSalvarSenha">Salvar senha e entrar</button>
+      <div class="msg" id="mSenha"></div>
+    </div>
+  </div>
+  <div class="rodape">AMVOX · Reistar — acesso restrito</div>
+</div>
 
 <header>
   <div class="logo">AV</div>
@@ -351,18 +387,57 @@ async function montar(mesEscolhido){
 /* ---------------- sessão + recarga automática ---------------- */
 async function iniciar(){
   const { data:{ session } } = await SB.auth.getSession();
-  if(!session){ $('login').style.display='flex'; return; }
+  if(!session || ehConvite){ $('login').style.display='flex'; return; }
   $('login').style.display='none';
   try{ await montar($('mesSel').value || null); }
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }
-$('bt').onclick = async () => {
-  $('msg').textContent = 'Entrando…';
-  const { error } = await SB.auth.signInWithPassword({ email:$('em').value.trim(), password:$('pw').value.trim() });
-  $('msg').textContent = error ? 'E-mail ou senha incorretos.' : '';
-  if(!error) iniciar();
+/* olhinho mostrar/ocultar senha (mesmo padrão do app de preços) */
+document.querySelectorAll('#login .pweye').forEach(b => {
+  b.onclick = () => { const i = $(b.dataset.alvo); const mostra = i.type === 'password';
+    i.type = mostra ? 'text' : 'password'; b.textContent = mostra ? '🙈' : '👁'; i.focus(); };
+});
+
+const ehConvite = /type=(invite|recovery|signup)/.test(location.hash);
+
+$('bEntrar').onclick = async () => {
+  const m = $('msg'); m.className = 'msg'; m.textContent = 'Entrando…';
+  /* trim também na senha: colar de e-mail/WhatsApp costuma trazer espaço invisível */
+  const { error } = await SB.auth.signInWithPassword({
+    email: $('em').value.trim(), password: $('pw').value.trim() });
+  if(error){ m.className = 'msg err'; m.textContent = 'Não foi possível entrar: e-mail ou senha incorretos.'; }
+  else { m.textContent = ''; iniciar(); }
 };
-$('pw').addEventListener('keydown', e => { if(e.key==='Enter') $('bt').click(); });
+$('pw').addEventListener('keydown', e => { if(e.key==='Enter') $('bEntrar').click(); });
+
+$('bEsqueci').onclick = async () => {
+  const m = $('msg'); const email = $('em').value.trim();
+  if(!email){ m.className='msg err'; m.textContent='Digite o e-mail acima e clique de novo.'; return; }
+  const { error } = await SB.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  m.className = error ? 'msg err' : 'msg ok';
+  m.textContent = error
+    ? 'Não foi possível enviar: ' + error.message + ' — fale com a Controladoria.'
+    : 'Enviado! Abra o link do e-mail para definir a senha. O link é de uso único e vale por pouco tempo; se não chegar, fale com a Controladoria.';
+};
+
+$('bSalvarSenha').onclick = async () => {
+  const m = $('mSenha'); const p1 = $('np').value.trim(), p2 = $('np2').value.trim();
+  if(p1.length < 8){ m.className='msg err'; m.textContent='A senha precisa ter pelo menos 8 caracteres.'; return; }
+  if(p1 !== p2){ m.className='msg err'; m.textContent='As senhas não conferem.'; return; }
+  m.className='msg'; m.textContent='Salvando…';
+  const { error } = await SB.auth.updateUser({ password: p1 });
+  if(error){ m.className='msg err'; m.textContent='Erro: ' + error.message; return; }
+  m.className='msg ok'; m.textContent='Senha salva!';
+  history.replaceState(null,'',location.pathname);
+  iniciar();
+};
+
+/* link de convite/recuperação abre direto a tela de definir senha */
+SB.auth.onAuthStateChange((evento, sessao) => {
+  if(evento === 'PASSWORD_RECOVERY' || (sessao && ehConvite)){
+    $('login').style.display='flex'; $('fLogin').style.display='none'; $('fSenha').style.display='block';
+  }
+});
 
 iniciar();
 setInterval(iniciar, 5*60*1000);          // refaz a leitura a cada 5 min
