@@ -70,6 +70,7 @@ create table if not exists dash_devolucao (
   qtd_itens           integer,
   valor               numeric(18,2),
   tem_motivo          boolean,
+  devolucao_venda     boolean,       -- true = devolução comercial (origem com receita, sem CONSERTO)
   texto_nf            text,          -- F1_MENNOTA bruto (prova)
   motivo_causa        text,          -- causa extraída do texto — SEM taxonomia fixa
                                      -- (decisão Silvio: listar o que está na base)
