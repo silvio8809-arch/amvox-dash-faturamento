@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Painel TV Faturamento &amp; Logística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --navy:#1A1F2E; --laranja:#F5A623; --fundo:#F4F6FA; --card:#FFFFFF; --borda:#E3E7EF;
+  --cinza:#5B6478; --linha:#EEF1F6;
+  --verde:#2E9E6B; --vermelho:#D64545; --vinho:#8E2A2A;
+  --am-suave:#FFF4DF; --vm-suave:#FCE9E9;
+  --cond:'Barlow Condensed',sans-serif; --texto:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--fundo);color:var(--navy);font-family:var(--texto);
+     width:1920px;height:1080px;overflow:hidden}
+/* ---------- login (só fora do modo TV) ---------- */
+#login{position:fixed;inset:0;background:var(--navy);display:none;align-items:center;justify-content:center;z-index:50}
+#login .cx{background:#fff;border-radius:14px;padding:34px 38px;width:420px}
+#login h1{font:700 26px var(--cond);letter-spacing:.04em}
+#login p{color:var(--cinza);font-size:14px;margin-top:6px}
+#login label{display:block;font:600 11px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--cinza);margin:16px 0 5px}
+#login input{width:100%;padding:11px 13px;border:1px solid var(--borda);border-radius:8px;font:15px var(--texto)}
+#login button{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:var(--laranja);
+  color:var(--navy);font:700 14px var(--cond);letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+#login .err{color:var(--vermelho);font-size:13px;margin-top:12px;min-height:18px}
+/* ---------- cabeçalho ---------- */
+header{background:var(--navy);color:#fff;height:78px;display:flex;align-items:center;gap:22px;padding:0 34px}
+.logo{width:46px;height:46px;border-radius:9px;background:var(--laranja);color:var(--navy);
+  display:grid;place-items:center;font:700 22px var(--cond);letter-spacing:.02em}
+header h1{font:600 27px var(--cond);letter-spacing:.09em;text-transform:uppercase}
+header .dir{margin-left:auto;text-align:right;font-size:13px;color:#C5CBDA;line-height:1.5}
+header .dir b{color:#fff;font-weight:600}
+/* ---------- grade ---------- */
+main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+     gap:24px;height:calc(1080px - 78px)}
+.bloco{background:var(--card);border:1px solid var(--borda);border-radius:16px;padding:26px 30px;
+  display:grid;grid-template-columns:118px 1fr;gap:26px;overflow:hidden}
+.icone{border-radius:14px;display:grid;place-items:center;align-self:start;height:118px}
+.icone svg{width:58px;height:58px}
+.icone span{font:600 11px var(--cond);letter-spacing:.13em;text-transform:uppercase;text-align:center;
+  line-height:1.25;margin-top:8px}
+.i-emit{background:var(--am-suave);color:#8A5B00}
+.i-top {background:var(--am-suave);color:#8A5B00}
+.i-sem {background:var(--vm-suave);color:var(--vinho)}
+.i-dev {background:var(--vm-suave);color:var(--vinho)}
+.icw{display:flex;flex-direction:column;align-items:center}
+.num{font:700 86px/0.92 var(--cond);letter-spacing:-.01em}
+.sub{color:var(--cinza);font-size:15px;margin-top:8px}
+.frase{font-size:17px;line-height:1.45;margin-top:14px;max-width:62ch}
+.frase b{font-weight:700}
+.frase .up{color:var(--verde)} .frase .down{color:var(--vermelho)}
+.rod{margin-top:auto;padding-top:14px;display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid var(--linha);color:var(--cinza);font-size:12.5px}
+.rod a{color:var(--navy);font-weight:600;text-decoration:none}
+.corpo{display:flex;flex-direction:column;min-height:0}
+/* barras diárias */
+.barras{display:flex;align-items:flex-end;gap:5px;height:104px;margin-top:16px;position:relative}
+.barras .b{flex:1;background:#D9DEEA;border-radius:3px 3px 0 0;min-height:3px}
+.barras .b.hoje{background:var(--navy)}
+.media{position:absolute;left:0;right:0;border-top:2px dashed var(--laranja)}
+.media span{position:absolute;right:0;top:-17px;font:600 10.5px var(--cond);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--laranja)}
+/* ranking */
+.rank{margin-top:12px;display:flex;flex-direction:column;gap:9px}
+.rank .l{display:grid;grid-template-columns:20px 1fr 96px;align-items:center;gap:11px;font-size:14px}
+.rank .pos{color:var(--cinza);font:600 13px var(--cond)}
+.rank .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank .br{height:9px;background:var(--laranja);border-radius:5px;margin-top:4px}
+.rank .vl{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+/* faixas */
+.faixas{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.faixa{border-radius:11px;padding:13px 14px;color:#fff}
+.faixa .q{font:700 38px/1 var(--cond)} .faixa .t{font-size:11.5px;margin-top:5px;opacity:.95}
+.faixa .v{font-size:12px;margin-top:3px;opacity:.9;font-variant-numeric:tabular-nums}
+.f1{background:var(--verde)} .f2{background:var(--laranja);color:var(--navy)}
+.f3{background:var(--vermelho)} .f4{background:var(--vinho)}
+/* devoluções */
+.dev{display:grid;grid-template-columns:150px 1fr;gap:22px;margin-top:14px;align-items:center}
+.donut{position:relative;width:150px;height:150px}
+.donut .c{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.donut .c b{font:700 34px/1 var(--cond)} .donut .c span{font-size:11px;color:var(--cinza)}
+.legenda{display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+.legenda .li{display:grid;grid-template-columns:11px 1fr auto;gap:9px;align-items:center}
+.legenda .pt{width:11px;height:11px;border-radius:3px}
+.quem{border-left:1px solid var(--linha);padding-left:20px}
+.quem h4{font:600 11px var(--cond);letter-spacing:.13em;text-transform:uppercase;color:var(--cinza);margin-bottom:9px}
+.quem .l{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0}
+#erro{position:fixed;left:0;right:0;bottom:0;background:var(--vinho);color:#fff;padding:9px 34px;font-size:13px;display:none}
+</style></head>
+<body>
+
+<div id="login"><div class="cx">
+  <h1>AMVOX — Painel TV</h1>
+  <p>Faturamento &amp; Logística · acesso restrito</p>
+  <label for="em">E-mail</label><input id="em" type="email" autocomplete="username">
+  <label for="pw">Senha</label><input id="pw" type="password" autocomplete="current-password">
+  <button id="bt">Entrar</button>
+  <div class="err" id="msg"></div>
+</div></div>
+
+<header>
+  <div class="logo">AV</div>
+  <h1 id="titulo">Faturamento &amp; Entregas</h1>
+  <div class="dir">
+    Última atualização: <b id="atualizado">—</b><br>
+    <span id="proxima"></span>
+  </div>
+</header>
+
+<main>
+  <!-- 1 · NOTAS EMITIDAS -->
+  <section class="bloco">
+    <div class="icw"><div class="icone i-emit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/><path d="M9 12h6M9 16h6M9 8h2"/></svg></div>
+      <span>Notas<br>emitidas</span></div>
+    <div class="corpo">
+      <div class="num" id="e_num">—</div>
+      <div class="sub" id="e_sub">carregando…</div>
+      <div class="frase" id="e_frase"></div>
+      <div class="barras" id="e_barras"></div>
+      <div class="rod"><span>Dias com emissão no mês · última barra = hoje</span><a href="emitidas.html">Ver detalhes →</a></div>
+    </div>
+  </section>
+
+  <!-- 2 · TOP 10 CLIENTES -->
+  <section class="bloco">
+    <div class="icw"><div class="icone i-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+      <span>Top 10<br>clientes</span></div>
+    <div class="corpo">
+      <div class="frase" id="t_frase" style="margin-top:0"></div>
+      <div class="rank" id="t_rank"></div>
+      <div class="rod"><span id="t_sub">—</span><a href="clientes.html">Ver ranking completo →</a></div>
+    </div>
+  </section>
+
+  <!-- 3 · SEM DATA DE ENTREGA -->
+  <section class="bloco">
+    <div class="icw"><div class="icone i-sem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M1 7h13v9H1zM14 10h4l3 3v3h-7z"/><circle cx="5.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/></svg></div>
+      <span>Sem data<br>de entrega</span></div>
+    <div class="corpo">
+      <div class="num" id="s_num" style="color:var(--vermelho)">—</div>
+      <div class="sub" id="s_sub"></div>
+      <div class="frase" id="s_frase"></div>
+      <div class="faixas" id="s_faixas"></div>
+      <div class="rod"><span>Faixas por dias desde a emissão · valor = saldo em aberto</span><a href="sem-entrega.html">Ver notas e clientes →</a></div>
+    </div>
+  </section>
+
+  <!-- 4 · DEVOLUÇÕES -->
+  <section class="bloco">
+    <div class="icw"><div class="icone i-dev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></div>
+      <span>Devoluções</span></div>
+    <div class="corpo">
+      <div class="num" id="d_num" style="color:var(--vermelho)">—</div>
+      <div class="sub" id="d_sub"></div>
+      <div class="frase" id="d_frase"></div>
+      <div class="dev">
+        <div class="donut" id="d_donut"><div class="c"><b id="d_donut_n">—</b><span>notas</span></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div class="legenda" id="d_legenda"></div>
+          <div class="quem"><h4>Quem mais devolve</h4><div id="d_quem"></div></div>
+        </div>
+      </div>
+      <div class="rod"><span id="d_rod">Devolução de venda: exclui conserto e origem sem receita</span><a href="devolucoes.html">Ver devoluções →</a></div>
+    </div>
+  </section>
+</main>
+<div id="erro"></div>
+
+<script>
+"use strict";
+const SUPABASE_URL = 'https://dzxekwdpktvishdsmiep.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_i59McYEiS6vZq6lfLUqB2w_NRVQ6DWN';
+const SB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const brl  = v => v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+const milhoes = v => v >= 1e6 ? 'R$ ' + (v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' mi'
+                              : 'R$ ' + (v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0}) + ' mil';
+const inteiro = v => v.toLocaleString('pt-BR');
+
+/* -------- busca paginada (PostgREST devolve no máximo 1000 por vez) -------- */
+async function tudo(tabela, campos, ordem){
+  const out = []; let de = 0;
+  for(;;){
+    const { data, error } = await SB.from(tabela).select(campos).order(ordem).range(de, de+999);
+    if(error) throw error;
+    out.push(...data);
+    if(data.length < 1000) break;
+    de += 1000;
+  }
+  return out;
+}
+
+function proximaRodada(){
+  // 09h–16h de hora em hora + 16h30, seg a sex
+  const ag = new Date(); const dia = ag.getDay(); const h = ag.getHours(); const m = ag.getMinutes();
+  const p2 = n => String(n).padStart(2,'0');
+  if(dia >= 1 && dia <= 5){
+    if(h < 9) return '09:00';
+    if(h < 16) return p2(h+1) + ':00';
+    if(h === 16 && m < 30) return '16:30';
+  }
+  return 'amanhã 09:00';
+}
+
+async function montar(){
+  const hoje = new Date();
+  const mesAtual = hoje.toISOString().slice(0,7);
+  const ant = new Date(hoje.getFullYear(), hoje.getMonth()-1, 1);
+  const mesAnt = ant.toISOString().slice(0,7);
+  $('titulo').textContent = `Faturamento & Entregas — ${MESES[hoje.getMonth()]} ${hoje.getFullYear()}`;
+
+  const [nfs, devs, logs] = await Promise.all([
+    tudo('dash_nf_saida','emissao,valor_faturado,cliente_nome,cnpj_raiz,status,faixa_entrega,saldo_aberto,dias_sem_entrega','nf'),
+    tudo('dash_devolucao','emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda','nf_dev'),
+    SB.from('dash_refresh_log').select('finished_at,ok').eq('ok', true).order('finished_at',{ascending:false}).limit(1)
+  ]);
+
+  const ultimo = logs.data && logs.data[0] ? new Date(logs.data[0].finished_at) : null;
+  $('atualizado').textContent = ultimo
+    ? ultimo.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+    : '—';
+  $('proxima').textContent = '· próxima ' + proximaRodada();
+
+  const doMes = (lista, campo, mes) => lista.filter(x => (x[campo]||'').startsWith(mes));
+  const vivas = nfs.filter(x => x.status !== 'CANCELADA');
+
+  /* ---------------- 1 · notas emitidas ---------------- */
+  const mes = doMes(vivas,'emissao',mesAtual);
+  const fatMes = mes.reduce((s,x)=> s + (+x.valor_faturado||0), 0);
+  const antMes = doMes(vivas,'emissao',mesAnt);
+  const fatAnt = antMes.reduce((s,x)=> s + (+x.valor_faturado||0), 0);
+  $('e_num').textContent = inteiro(mes.length);
+  $('e_sub').textContent = `notas no mês · ${milhoes(fatMes)}`;
+
+  const porDia = {}; mes.forEach(x => porDia[x.emissao] = (porDia[x.emissao]||0) + 1);
+  const dias = Object.keys(porDia).sort();
+  const media = dias.length ? mes.length/dias.length : 0;
+  const ultimoDia = dias[dias.length-1];
+  const qtdHoje = porDia[ultimoDia] || 0;
+  const varia = media ? (qtdHoje/media - 1) * 100 : 0;
+  const cls = varia >= 0 ? 'up' : 'down';
+  $('e_frase').innerHTML = `No último dia com emissão saíram <b>${qtdHoje} notas</b> — `
+    + `<b class="${cls}">${varia >= 0 ? '+' : ''}${varia.toFixed(0)}%</b> vs a média diária do mês `
+    + `(${media.toFixed(0)}/dia). Mês anterior: ${inteiro(antMes.length)} notas · ${milhoes(fatAnt)}.`;
+
+  const maxDia = Math.max(1, ...dias.map(d=>porDia[d]));
+  $('e_barras').innerHTML = dias.map((d,i) =>
+      `<div class="b ${i===dias.length-1?'hoje':''}" style="height:${Math.max(3, porDia[d]/maxDia*100)}%" title="${d}: ${porDia[d]}"></div>`
+    ).join('') + `<div class="media" style="bottom:${media/maxDia*100}%"><span>média ${media.toFixed(0)}</span></div>`;
+
+  /* ---------------- 2 · top 10 clientes ---------------- */
+  const porCli = {};
+  mes.forEach(x => {
+    const k = x.cnpj_raiz || x.cliente_nome || '—';
+    if(!porCli[k]) porCli[k] = {nome: x.cliente_nome || '—', v: 0, n: 0};
+    porCli[k].v += (+x.valor_faturado||0); porCli[k].n++;
+  });
+  const top = Object.values(porCli).sort((a,b)=>b.v-a.v);
+  const top3 = top.slice(0,3).reduce((s,x)=>s+x.v,0);
+  $('t_frase').innerHTML = `Os <b>3 maiores concentram ${fatMes ? (100*top3/fatMes).toFixed(0) : 0}%</b> do faturamento do mês.`;
+  const maxV = top.length ? top[0].v : 1;
+  $('t_rank').innerHTML = top.slice(0,5).map((c,i) => `
+    <div class="l"><span class="pos">${i+1}</span>
+      <span><span class="nm">${c.nome}</span><div class="br" style="width:${Math.max(4, c.v/maxV*100)}%"></div></span>
+      <span class="vl">${milhoes(c.v)}</span></div>`).join('');
+  $('t_sub').textContent = `${inteiro(top.length)} clientes ativos no mês · posições 6–10 no detalhe`;
+
+  /* ---------------- 3 · sem data de entrega ---------------- */
+  const sem = vivas.filter(x => x.faixa_entrega);
+  const saldo = sem.reduce((s,x)=> s + (+x.saldo_aberto||0), 0);
+  $('s_num').textContent = inteiro(sem.length);
+  $('s_sub').textContent = `notas sem data de entrega · ${milhoes(saldo)} em aberto`;
+  const mais7 = sem.filter(x => (x.dias_sem_entrega||0) > 7);
+  const cliSem = {}; mais7.forEach(x => cliSem[x.cliente_nome||'—'] = (cliSem[x.cliente_nome||'—']||0)+1);
+  const topSem = Object.entries(cliSem).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  $('s_frase').innerHTML = `<b>${mais7.length} notas passaram de 7 dias</b> sem baixa — o boleto não é gerado.`
+    + (topSem.length ? ` Atenção com <b>${topSem.map(c=>c[0]).join('</b> e <b>')}</b>.` : '');
+  const FX = [['0-2','0–2 dias','f1'],['3-7','3–7 dias','f2'],['8-15','8–15 dias','f3'],['>15','acima de 15 dias','f4']];
+  $('s_faixas').innerHTML = FX.map(([k,rot,c]) => {
+    const g = sem.filter(x=>x.faixa_entrega===k);
+    const v = g.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
+    return `<div class="faixa ${c}"><div class="q">${g.length}</div><div class="t">${rot}</div><div class="v">${milhoes(v)}</div></div>`;
+  }).join('');
+
+  /* ---------------- 4 · devoluções (só devolução de VENDA) ---------------- */
+  const devVenda = devs.filter(x => x.devolucao_venda);
+  const dMes = doMes(devVenda,'emissao_dev',mesAtual);
+  const dAnt = doMes(devVenda,'emissao_dev',mesAnt);
+  const vMes = dMes.reduce((s,x)=>s+(+x.valor||0),0);
+  const vAnt = dAnt.reduce((s,x)=>s+(+x.valor||0),0);
+  const pMes = fatMes ? 100*vMes/fatMes : 0;
+  const pAnt = fatAnt ? 100*vAnt/fatAnt : 0;
+  $('d_num').textContent = inteiro(dMes.length);
+  $('d_sub').textContent = `notas de devolução no mês · ${milhoes(vMes)}`;
+  const seta = pMes > pAnt ? '▲' : (pMes < pAnt ? '▼' : '=');
+  const causas = {}; dMes.forEach(x => causas[x.motivo_causa || 'Sem motivo informado'] = (causas[x.motivo_causa||'Sem motivo informado']||0)+1);
+  const topCausas = Object.entries(causas).sort((a,b)=>b[1]-a[1]);
+  $('d_frase').innerHTML = `Equivale a <b>${pMes.toFixed(1)}% do faturado</b> no mês `
+    + `(${seta} mês anterior: ${pAnt.toFixed(1)}%).`
+    + (topCausas.length ? ` Principal causa: <b>${topCausas[0][0].toLowerCase()}</b>.` : '');
+  $('d_donut_n').textContent = dMes.length;
+
+  const CORES = ['#D64545','#F5A623','#8E2A2A','#5B6478','#C5CBDA'];
+  let ac = 0; const fatias = topCausas.slice(0,5).map(([k,v],i) => {
+    const ini = ac/Math.max(1,dMes.length)*360; ac += v;
+    return `${CORES[i]} ${ini}deg ${ac/Math.max(1,dMes.length)*360}deg`;
+  }).join(',');
+  $('d_donut').style.background = `conic-gradient(${fatias || '#EEF1F6 0deg 360deg'})`;
+  $('d_donut').style.borderRadius = '50%';
+  $('d_donut').insertAdjacentHTML('beforeend',
+    '<div style="position:absolute;inset:26px;background:#fff;border-radius:50%"></div>');
+  $('d_donut').querySelector('.c').style.zIndex = 2;
+  $('d_legenda').innerHTML = topCausas.slice(0,5).map(([k,v],i) =>
+    `<div class="li"><span class="pt" style="background:${CORES[i]}"></span><span class="nm">${k}</span><b>${v}</b></div>`).join('');
+  const quem = {}; dMes.forEach(x => quem[x.cliente_nome||'—'] = (quem[x.cliente_nome||'—']||0)+1);
+  $('d_quem').innerHTML = Object.entries(quem).sort((a,b)=>b[1]-a[1]).slice(0,3)
+    .map(([k,v]) => `<div class="l"><span class="nm">${k}</span><b>${v}</b></div>`).join('') || '<div class="l">sem devoluções no mês</div>';
+}
+
+/* ---------------- sessão + recarga automática ---------------- */
+async function iniciar(){
+  const { data:{ session } } = await SB.auth.getSession();
+  if(!session){ $('login').style.display='flex'; return; }
+  $('login').style.display='none';
+  try{ await montar(); }
+  catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
+}
+$('bt').onclick = async () => {
+  $('msg').textContent = 'Entrando…';
+  const { error } = await SB.auth.signInWithPassword({ email:$('em').value.trim(), password:$('pw').value.trim() });
+  $('msg').textContent = error ? 'E-mail ou senha incorretos.' : '';
+  if(!error) iniciar();
+};
+$('pw').addEventListener('keydown', e => { if(e.key==='Enter') $('bt').click(); });
+
+iniciar();
+setInterval(iniciar, 5*60*1000);          // refaz a leitura a cada 5 min
+setInterval(()=>location.reload(), 60*60*1000);  // recarrega a página de hora em hora
+</script>
+</body></html>
