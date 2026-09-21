@@ -64,6 +64,11 @@ SELECT
         ISNULL(I.NF_ORIGEM,'')                              NF_ORIGEM,
         ISNULL(I.SERIE_ORIGEM,'')                           SERIE_ORIGEM,
         F2.F2_EMISSAO                                       EMISSAO_ORIGEM,
+        -- DEVOLUCAO DE VENDA (decisao Silvio 21/09): so o que e venda de verdade —
+        -- origem em nota de FATURAMENTO (receita, lote 008820) e SEM conserto (assistencia).
+        CASE WHEN F2.F2_DOC IS NOT NULL
+              AND D.F1_MENNOTA COLLATE Latin1_General_CI_AI NOT LIKE '%CONSERTO%'
+             THEN 1 ELSE 0 END                              DEVOLUCAO_VENDA,
         ISNULL(I.QTD_ITENS,0)                               QTD_ITENS,
         CAST(D.F1_VALBRUT AS DECIMAL(18,2))                 VALOR,
         D.TEM_MOTIVO                                        TEM_MOTIVO,
@@ -83,5 +88,6 @@ LEFT JOIN   ITENS I   ON I.FIL=D.F1_FILIAL AND I.DOC=D.F1_DOC AND I.SER=D.F1_SER
 LEFT JOIN   SA1010 A1 ON A1.D_E_L_E_T_='' AND A1.A1_COD=D.F1_FORNECE AND A1.A1_LOJA=D.F1_LOJA
 LEFT JOIN   SF2010 F2 ON F2.D_E_L_E_T_='' AND F2.F2_FILIAL=D.F1_FILIAL
                      AND F2.F2_DOC=I.NF_ORIGEM AND F2.F2_SERIE=I.SERIE_ORIGEM
+                     AND F2.F2_VALFAT > 0
 WHERE       ISNULL(I.CFOP,'') NOT IN ('2914','2949','2208')   -- retorno de remessa fora
 ORDER BY    D.F1_EMISSAO DESC, D.F1_DOC;
