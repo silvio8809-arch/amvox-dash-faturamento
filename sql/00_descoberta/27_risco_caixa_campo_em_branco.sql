@@ -1,0 +1,38 @@
+-- FASE 0 (revisao 21/09) · O Silvio informou que E1_DTSAIDA e o gatilho da COBRANCA (boleto).
+-- Logo, campo em branco NAO e so falta de apontamento logistico: e risco de CAIXA.
+-- Quantificar: titulos de NF de faturamento com a data em branco — quanto, ha quanto tempo, em aberto?
+DECLARE @DE CHAR(8); SET @DE='20260201';
+WITH TIT AS (
+  SELECT E1.E1_FILIAL FIL, E1.E1_NUM NUM, E1.E1_PREFIXO PRE, E1.E1_PARCELA PARC,
+         E1.E1_EMISSAO EMIS, E1.E1_DTSAIDA DTSAI, E1.E1_VENCREA VENC,
+         E1.E1_VALOR VALOR, E1.E1_SALDO SALDO, E1.E1_BAIXA BAIXA,
+         DATEDIFF(DAY, CONVERT(DATE,E1.E1_EMISSAO,112), GETDATE()) DIAS
+  FROM SE1010 E1
+  JOIN SF2010 F2 ON F2.F2_FILIAL=E1.E1_FILIAL AND F2.F2_DOC=E1.E1_NUM
+                AND F2.F2_SERIE=E1.E1_PREFIXO AND F2.D_E_L_E_T_='' AND F2.F2_VALFAT > 0
+  WHERE E1.D_E_L_E_T_='' AND E1.E1_EMISSAO >= @DE
+)
+SELECT CASE WHEN DTSAI = '' THEN 'SEM data (risco de cobranca)' ELSE 'com data' END SITUACAO,
+       COUNT(*) TITULOS,
+       CAST(SUM(VALOR) AS DECIMAL(18,2)) VALOR_TOTAL,
+       CAST(SUM(SALDO) AS DECIMAL(18,2)) SALDO_ABERTO,
+       SUM(CASE WHEN SALDO > 0 THEN 1 ELSE 0 END) TIT_EM_ABERTO,
+       AVG(DIAS) MEDIA_DIAS_DESDE_EMISSAO
+FROM TIT GROUP BY CASE WHEN DTSAI = '' THEN 'SEM data (risco de cobranca)' ELSE 'com data' END;
+
+-- os SEM data, por faixa de idade — e o que a TV precisa priorizar
+DECLARE @DE2 CHAR(8); SET @DE2='20260201';
+SELECT FAIXA, COUNT(*) TITULOS, CAST(SUM(VALOR) AS DECIMAL(18,2)) VALOR,
+       CAST(SUM(SALDO) AS DECIMAL(18,2)) SALDO_ABERTO
+FROM (
+  SELECT CASE WHEN D <= 2 THEN '0-2 dias' WHEN D <= 7 THEN '3-7 dias'
+              WHEN D <= 15 THEN '8-15 dias' ELSE 'mais de 15 dias' END FAIXA,
+         E1_VALOR VALOR, E1_SALDO SALDO
+  FROM (SELECT E1.E1_VALOR, E1.E1_SALDO,
+               DATEDIFF(DAY, CONVERT(DATE,E1.E1_EMISSAO,112), GETDATE()) D
+        FROM SE1010 E1
+        JOIN SF2010 F2 ON F2.F2_FILIAL=E1.E1_FILIAL AND F2.F2_DOC=E1.E1_NUM
+                      AND F2.F2_SERIE=E1.E1_PREFIXO AND F2.D_E_L_E_T_='' AND F2.F2_VALFAT>0
+        WHERE E1.D_E_L_E_T_='' AND E1.E1_EMISSAO >= @DE2 AND E1.E1_DTSAIDA='') A
+) B GROUP BY FAIXA ORDER BY CASE FAIXA WHEN '0-2 dias' THEN 1 WHEN '3-7 dias' THEN 2
+                                       WHEN '8-15 dias' THEN 3 ELSE 4 END;
