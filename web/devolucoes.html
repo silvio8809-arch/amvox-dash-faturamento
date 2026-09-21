@@ -1,0 +1,132 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Devoluções</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">DV</div><h1>Devoluções</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Competência</label><select id="fMes"></select></div>
+  <div class="campo"><label>Universo</label><select id="fUniv">
+    <option value="venda">Devolução de venda (padrão)</option>
+    <option value="todas">Todas as entradas tipo D</option></select></div>
+  <div class="campo"><label>Motivo</label><select id="fMot"><option value="">Todos</option></select></div>
+  <div class="campo"><label>Origem da NF</label><select id="fOri">
+    <option value="">Todas</option><option value="CLIENTE">Emitida pelo cliente</option>
+    <option value="AMVOX">Emitida pela AMVOX</option></select></div>
+  <div class="campo" style="min-width:210px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="cards" id="cards"></div>
+  <div class="colunas">
+    <div class="painel"><h2>Notas de devolução <span id="tSub"></span></h2><div id="tabela"></div></div>
+    <div class="lado">
+      <div class="painel"><h2>Motivos <span>o que explica o KPI</span></h2><div class="corpo"><div class="linhab" id="porMot"></div></div></div>
+      <div class="painel"><h2>Quem mais devolve</h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+      <div class="painel"><h2>Evolução % sobre o faturado</h2><div class="corpo"><div class="linhab" id="evol"></div></div></div>
+    </div>
+  </div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+let TAB;
+const COLS = [
+  {k:'nf_dev', t:'NF devol.', esq:true, cls:'forte'},
+  {k:'serie_dev', t:'Série'},
+  {k:'emissao_dev', t:'Data', fmt:F.data},
+  {k:'origem_nf', t:'Origem', html:r => `<span class="et ${r.origem_nf==='AMVOX'?'et-tra':'et-can'}">${r.origem_nf==='AMVOX'?'AMVOX':'Cliente'}</span>`},
+  {k:'cliente_nome', t:'Cliente', esq:true},
+  {k:'uf', t:'UF'},
+  {k:'nf_origem', t:'NF origem'},
+  {k:'emissao_origem', t:'Venda em', fmt:F.data},
+  {k:'cfop', t:'CFOP'},
+  {k:'valor', t:'Valor', fmt:F.moeda, cls:'forte'},
+  {k:'motivo_causa', t:'Motivo', esq:true, fmt:v => v || '— sem motivo —'},
+];
+function filtrar(){
+  const mes = $('fMes').value, mot = $('fMot').value, ori = $('fOri').value,
+        cli = $('fCli').value.trim().toLowerCase(), univ = $('fUniv').value;
+  return CACHE.devs.filter(x =>
+    (univ === 'todas' || x.devolucao_venda) &&
+    (!mes || (x.emissao_dev||'').startsWith(mes)) &&
+    (!mot || (x.motivo_causa||'') === mot) &&
+    (!ori || x.origem_nf === ori) &&
+    (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
+}
+function fatDoMes(mes){
+  return CACHE.nfs.filter(x => x.status !== 'CANCELADA' && (!mes || (x.emissao||'').startsWith(mes)))
+    .reduce((s,x)=>s+(+x.valor_faturado||0),0);
+}
+function pintar(){
+  const l = filtrar(), mes = $('fMes').value;
+  const v = l.reduce((s,x)=>s+(+x.valor||0),0);
+  const fat = fatDoMes(mes);
+  // mês anterior, para a comparação pedida
+  let pctAnt = null;
+  if(mes){
+    const [a,m] = mes.split('-').map(Number);
+    const d = new Date(a, m-2, 1);
+    const ant = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const vAnt = CACHE.devs.filter(x => x.devolucao_venda && (x.emissao_dev||'').startsWith(ant))
+      .reduce((s,x)=>s+(+x.valor||0),0);
+    const fAnt = fatDoMes(ant);
+    if(fAnt) pctAnt = 100*vAnt/fAnt;
+  }
+  const dias = l.filter(x => x.emissao_origem && x.emissao_dev)
+    .map(x => (new Date(x.emissao_dev) - new Date(x.emissao_origem))/86400000);
+  kpis('cards',[
+    {titulo:'NF de devolução', valor:F.int(l.length),
+     nota:`${F.int(l.filter(x=>x.origem_nf==='AMVOX').length)} emitidas pela AMVOX`},
+    {titulo:'Valor devolvido', valor:F.curto(v), alerta:true, nota:'no recorte selecionado'},
+    {titulo:'% do faturado', valor:fat ? F.pct(100*v/fat) : '—', alerta:true,
+     nota:pctAnt !== null ? `mês anterior: ${F.pct(pctAnt)}` : 'sem base do mês anterior'},
+    {titulo:'Venda → devolução', valor:dias.length ? Math.round(dias.reduce((s,x)=>s+x,0)/dias.length) + ' dias' : '—',
+     nota:`${F.int(dias.length)} notas com origem localizada`},
+  ]);
+  $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(v)}`;
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao_dev', porPagina:40}));
+  const mot = {}; l.forEach(x => { const k = x.motivo_causa || '— sem motivo —';
+    mot[k] = mot[k] || {n:0, v:0}; mot[k].n++; mot[k].v += (+x.valor||0); });
+  barras('porMot', Object.entries(mot).sort((a,b)=>b[1].v-a[1].v).slice(0,8)
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm');
+  const cli = {}; l.forEach(x => { const k = x.cliente_nome || '—';
+    cli[k] = cli[k] || {n:0, v:0}; cli[k].n++; cli[k].v += (+x.valor||0); });
+  barras('porCli', Object.entries(cli).sort((a,b)=>b[1].v-a[1].v).slice(0,6)
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm');
+  const meses = [...new Set(CACHE.devs.map(x=>(x.emissao_dev||'').slice(0,7)).filter(Boolean))].sort();
+  barras('evol', meses.map(m => {
+    const vv = CACHE.devs.filter(x => x.devolucao_venda && (x.emissao_dev||'').startsWith(m))
+      .reduce((s,x)=>s+(+x.valor||0),0);
+    const ff = fatDoMes(m);
+    return {nome:`${MESES[+m.slice(5)-1].slice(0,3)}/${m.slice(2,4)}`, v:ff?100*vv/ff:0, rot:ff?F.pct(100*vv/ff):'—'};
+  }), 'vm');
+}
+iniciarPagina(async () => {
+  const meses = [...new Set(CACHE.devs.map(x=>(x.emissao_dev||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+    meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('fMes').value = meses[0] || '';
+  $('fMot').innerHTML = '<option value="">Todos</option>' +
+    [...new Set(CACHE.devs.filter(x=>x.devolucao_venda).map(x=>x.motivo_causa).filter(Boolean))].sort()
+      .map(m=>`<option>${m}</option>`).join('');
+  $('bAplicar').onclick = pintar;
+  $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
+  $('bXls').onclick = () => exportarXLSX(
+    `AMVOX_DEVOLUCOES_${hojeArq()}.xlsx`, 'Devoluções',
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias') +
+    ($('fUniv').value === 'venda' ? ' · devolução de venda' : ' · todas as entradas tipo D'),
+    [{t:'NF DEVOLUÇÃO',k:'nf_dev',w:15},{t:'SÉRIE',k:'serie_dev',w:8},{t:'DATA',k:'emissao_dev',w:12},
+     {t:'ORIGEM DA NF',k:'origem_nf',w:14},{t:'CLIENTE',k:'cliente_nome',w:38},{t:'UF',k:'uf',w:6},
+     {t:'NF ORIGEM',k:'nf_origem',w:13},{t:'VENDA EM',k:'emissao_origem',w:12},{t:'CFOP',k:'cfop',w:8},
+     {t:'VALOR',k:'valor',w:15,tipo:'n'},{t:'MOTIVO',k:'motivo_causa',w:42},{t:'TEXTO DA NF',k:'texto_nf',w:60}],
+    TAB.atual());
+  pintar();
+});
+</script></body></html>
