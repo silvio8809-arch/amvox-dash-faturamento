@@ -126,6 +126,7 @@ def monta_dev(reg):
         nf_origem=reg["NF_ORIGEM"] or None, serie_origem=reg["SERIE_ORIGEM"] or None,
         emissao_origem=d(reg["EMISSAO_ORIGEM"]), qtd_itens=reg["QTD_ITENS"],
         valor=num(reg["VALOR"]), tem_motivo=bool(reg["TEM_MOTIVO"]),
+        devolucao_venda=bool(reg["DEVOLUCAO_VENDA"]),
         texto_nf=reg["TEXTO_NF"] or None, motivo_causa=(reg["MOTIVO_CAUSA"] or None),
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
     )
