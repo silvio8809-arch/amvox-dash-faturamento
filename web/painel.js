@@ -64,17 +64,26 @@ function marcarAtualizacao(){
    SEL guarda o que está selecionado; cada página informa o MAPA
    (chave da seleção -> campo do registro) e a função que redesenha.
    ================================================================ */
-const SEL = {};
+const SEL = {};      // chave -> valor que FILTRA (o código do dado)
+const SEL_ROT = {};  // chave -> rótulo que APARECE no chip (texto amigável)
 let _mapaSel = {}, _redesenha = () => {};
 
 function configurarSelecao(mapa, redesenha){ _mapaSel = mapa; _redesenha = redesenha; }
 
-function selAlterna(chave, valor){
+/* `valor` é o que existe no dado (ex.: '>15'); `rotulo` é o texto da tela
+   (ex.: 'acima de 15 dias'). Confundir os dois quebrava o filtro — foi o bug
+   das faixas de dias, reportado pelo Silvio em 21/09. */
+function selAlterna(chave, valor, rotulo){
   if(valor == null || valor === '') return;
-  if(SEL[chave] === valor) delete SEL[chave]; else SEL[chave] = valor;
+  if(SEL[chave] === valor){ delete SEL[chave]; delete SEL_ROT[chave]; }
+  else { SEL[chave] = valor; SEL_ROT[chave] = rotulo || valor; }
   _redesenha();
 }
-function selLimpar(chave){ if(chave) delete SEL[chave]; else Object.keys(SEL).forEach(k => delete SEL[k]); _redesenha(); }
+function selLimpar(chave){
+  if(chave){ delete SEL[chave]; delete SEL_ROT[chave]; }
+  else Object.keys(SEL).forEach(k => { delete SEL[k]; delete SEL_ROT[k]; });
+  _redesenha();
+}
 
 /* aplica todas as seleções ativas a uma lista, menos as chaves em `exceto`
    (usado para o painel da própria dimensão não se auto-filtrar até sobrar 1 item) */
@@ -96,7 +105,7 @@ function pintarChips(){
   const ativos = Object.entries(SEL);
   alvo.innerHTML = ativos.length
     ? `<span class="rot">Filtrando por:</span>` + ativos.map(([k,v]) =>
-        `<button class="chip" data-k="${k}">${ROTULO_SEL[k]||k}: <b>${v}</b> <span>✕</span></button>`).join('')
+        `<button class="chip" data-k="${k}">${ROTULO_SEL[k]||k}: <b>${SEL_ROT[k]||v}</b> <span>✕</span></button>`).join('')
       + `<button class="chip lim" data-k="">Limpar tudo</button>`
     : '';
   alvo.style.display = ativos.length ? 'flex' : 'none';
@@ -168,14 +177,16 @@ function barras(destino, itens, cor, chaveSel){
   const max = Math.max(1, ...itens.map(i => i.v));
   const alvo = $(destino);
   alvo.innerHTML = itens.length ? itens.map((i,idx) => {
-    const sel = chaveSel && SEL[chaveSel] === i.nome;
+    const sel = chaveSel && SEL[chaveSel] === (i.valor !== undefined ? i.valor : i.nome);
     return `<div class="it ${chaveSel?'clicavel':''} ${sel?'sel':''}" data-i="${idx}" `+
       `${chaveSel?`title="Clique para filtrar a tela por ${i.nome}"`:''}>`+
       `<div class="tp"><span class="nm">${i.nome}</span><b>${i.rot}</b></div>`+
       `<div class="br ${cor||''}" style="width:${Math.max(3, i.v/max*100)}%"></div></div>`;
   }).join('') : '<div class="vazio" style="padding:18px">Sem dados.</div>';
-  if(chaveSel) alvo.querySelectorAll('.it').forEach(e =>
-    e.onclick = () => selAlterna(chaveSel, itens[+e.dataset.i].nome));
+  if(chaveSel) alvo.querySelectorAll('.it').forEach(e => {
+    const i = itens[+e.dataset.i];
+    e.onclick = () => selAlterna(chaveSel, i.valor !== undefined ? i.valor : i.nome, i.nome);
+  });
 }
 
 /* ---------------------------------------------------------------- Excel (.xlsx nativo) */

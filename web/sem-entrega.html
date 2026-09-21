@@ -79,7 +79,8 @@ function pintar(){
   const baseFx = filtraSel(base,'faixa');
   barras('porFx', FX.map(([k,rot]) => {
     const g = baseFx.filter(x => x.faixa_entrega === k);
-    return {nome:rot.split(' · ')[0], v:g.reduce((s,x)=>s+(+x.saldo_aberto||0),0),
+    return {nome:rot.split(' · ')[0], valor:k,     // `valor` = código da faixa ('>15'), `nome` = rótulo
+            v:g.reduce((s,x)=>s+(+x.saldo_aberto||0),0),
             rot:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0))};
   }), '', 'faixa');
 }
