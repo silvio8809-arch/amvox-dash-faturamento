@@ -23,12 +23,13 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
+  <div class="chipsSel" id="chipsSel"></div>
   <div class="cards" id="cards"></div>
   <div class="colunas">
     <div class="painel"><h2>Notas de devolução <span id="tSub"></span></h2><div id="tabela"></div></div>
     <div class="lado">
-      <div class="painel"><h2>Motivos <span>o que explica o KPI</span></h2><div class="corpo"><div class="linhab" id="porMot"></div></div></div>
-      <div class="painel"><h2>Quem mais devolve</h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+      <div class="painel"><h2>Motivos <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porMot"></div></div></div>
+      <div class="painel"><h2>Quem mais devolve <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
       <div class="painel"><h2>Evolução % sobre o faturado</h2><div class="corpo"><div class="linhab" id="evol"></div></div></div>
     </div>
   </div>
@@ -65,7 +66,9 @@ function fatDoMes(mes){
     .reduce((s,x)=>s+(+x.valor_faturado||0),0);
 }
 function pintar(){
-  const l = filtrar(), mes = $('fMes').value;
+  pintarChips();
+  const base = filtrar(), mes = $('fMes').value;
+  const l = filtraSel(base);
   const v = l.reduce((s,x)=>s+(+x.valor||0),0);
   const fat = fatDoMes(mes);
   // mês anterior, para a comparação pedida
@@ -91,15 +94,16 @@ function pintar(){
      nota:`${F.int(dias.length)} notas com origem localizada`},
   ]);
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(v)}`;
-  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao_dev', porPagina:40}));
-  const mot = {}; l.forEach(x => { const k = x.motivo_causa || '— sem motivo —';
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao_dev', porPagina:40,
+    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
+  const mot = {}; filtraSel(base,'motivo').forEach(x => { const k = x.motivo_causa || '— sem motivo —';
     mot[k] = mot[k] || {n:0, v:0}; mot[k].n++; mot[k].v += (+x.valor||0); });
   barras('porMot', Object.entries(mot).sort((a,b)=>b[1].v-a[1].v).slice(0,8)
-    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm');
-  const cli = {}; l.forEach(x => { const k = x.cliente_nome || '—';
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm', 'motivo');
+  const cli = {}; filtraSel(base,'cliente').forEach(x => { const k = x.cliente_nome || '—';
     cli[k] = cli[k] || {n:0, v:0}; cli[k].n++; cli[k].v += (+x.valor||0); });
-  barras('porCli', Object.entries(cli).sort((a,b)=>b[1].v-a[1].v).slice(0,6)
-    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm');
+  barras('porCli', Object.entries(cli).sort((a,b)=>b[1].v-a[1].v).slice(0,8)
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm', 'cliente');
   const meses = [...new Set(CACHE.devs.map(x=>(x.emissao_dev||'').slice(0,7)).filter(Boolean))].sort();
   barras('evol', meses.map(m => {
     const vv = CACHE.devs.filter(x => x.devolucao_venda && (x.emissao_dev||'').startsWith(m))
@@ -116,7 +120,9 @@ iniciarPagina(async () => {
   $('fMot').innerHTML = '<option value="">Todos</option>' +
     [...new Set(CACHE.devs.filter(x=>x.devolucao_venda).map(x=>x.motivo_causa).filter(Boolean))].sort()
       .map(m=>`<option>${m}</option>`).join('');
-  $('bAplicar').onclick = pintar;
+  configurarSelecao({cliente:'cliente_nome', uf:'uf', motivo:x=>x.motivo_causa||'— sem motivo —',
+                     origem:'origem_nf'}, pintar);
+  $('bAplicar').onclick = () => { selLimpar(); };
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_DEVOLUCOES_${hojeArq()}.xlsx`, 'Devoluções',

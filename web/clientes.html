@@ -19,12 +19,14 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
+  <div class="chipsSel" id="chipsSel"></div>
   <div class="cards" id="cards"></div>
   <div class="colunas">
     <div class="painel"><h2>Ranking <span id="tSub"></span></h2><div id="tabela"></div></div>
     <div class="lado">
       <div class="painel"><h2>Concentração</h2><div class="corpo"><div class="linhab" id="conc"></div></div></div>
-      <div class="painel"><h2>Maiores devolvedores <span>no período</span></h2><div class="corpo"><div class="linhab" id="dev"></div></div></div>
+      <div class="painel"><h2>Maiores devolvedores <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="dev"></div></div></div>
+      <div class="painel"><h2>Por UF <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
     </div>
   </div>
 </main>
@@ -70,7 +72,9 @@ function agregar(){
   return {lista, tot};
 }
 function pintar(){
-  const {lista, tot} = agregar();
+  pintarChips();
+  const {lista:todos, tot} = agregar();
+  const lista = filtraSel(todos);
   /* concentração é sempre por FATURADO — não muda com o critério de ranking escolhido,
      senão o card diria "top 3" de um conceito e o % de outro. */
   const porFat = [...lista].sort((a,b)=>b.fat-a.fat);
@@ -85,22 +89,27 @@ function pintar(){
      nota:top3.map(x=>x.nome.split(' ')[0]).join(' · ')},
   ]);
   $('tSub').textContent = `${F.int(lista.length)} clientes · ordene clicando no cabeçalho`;
-  TAB ? TAB.dados(lista) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lista, ordem:'liq', porPagina:30}));
+  TAB ? TAB.dados(lista) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lista, ordem:'liq', porPagina:30,
+    aoClicar:r => selAlterna('cliente', r.nome)}));
   const resto = tot - top10.reduce((s,x)=>s+x.fat,0);
   barras('conc', [
     {nome:'Top 3', v:top3.reduce((s,x)=>s+x.fat,0), rot:tot?F.pct(100*top3.reduce((s,x)=>s+x.fat,0)/tot):'—'},
     {nome:'Posições 4–10', v:top10.slice(3).reduce((s,x)=>s+x.fat,0), rot:tot?F.pct(100*top10.slice(3).reduce((s,x)=>s+x.fat,0)/tot):'—'},
     {nome:`Demais ${F.int(Math.max(0,lista.length-10))} clientes`, v:resto, rot:tot?F.pct(100*resto/tot):'—'},
   ]);
-  barras('dev', lista.filter(x=>x.devol>0).sort((a,b)=>b.devol-a.devol).slice(0,6)
-    .map(x => ({nome:x.nome, v:x.devol, rot:F.curto(x.devol)+' · '+F.pct(x.pctDev)})), 'vm');
+  barras('dev', filtraSel(todos,'cliente').filter(x=>x.devol>0).sort((a,b)=>b.devol-a.devol).slice(0,8)
+    .map(x => ({nome:x.nome, v:x.devol, rot:F.curto(x.devol)+' · '+F.pct(x.pctDev)})), 'vm', 'cliente');
+  barras('porUf', Object.entries(filtraSel(todos,'uf').reduce((m,x)=>{
+      m[x.uf||'—'] = (m[x.uf||'—']||0) + x.fat; return m; },{}))
+    .sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'uf');
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
   $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
     meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   $('fMes').value = meses[0] || '';
-  $('bAplicar').onclick = pintar;
+  configurarSelecao({cliente:'nome', uf:'uf'}, pintar);
+  $('bAplicar').onclick = () => { selLimpar(); };
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_TOP_CLIENTES_${hojeArq()}.xlsx`, 'Top clientes',
     ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),

@@ -20,13 +20,15 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
+  <div class="chipsSel" id="chipsSel"></div>
   <div class="cards" id="cards"></div>
   <div class="colunas">
     <div class="painel"><h2>Notas emitidas <span id="tSub"></span></h2><div id="tabela"></div></div>
     <div class="lado">
       <div class="painel"><h2>Emissão por dia</h2><div class="corpo" id="porDia"></div></div>
-      <div class="painel"><h2>Por UF</h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
-      <div class="painel"><h2>Por status</h2><div class="corpo"><div class="linhab" id="porStatus"></div></div></div>
+      <div class="painel"><h2>Top clientes <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+      <div class="painel"><h2>Por UF <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
+      <div class="painel"><h2>Por status <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porStatus"></div></div></div>
     </div>
   </div>
 </main>
@@ -59,7 +61,10 @@ function filtrar(){
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
 }
 function pintar(){
-  const l = filtrar(), vivas = l.filter(x => x.status !== 'CANCELADA');
+  pintarChips();
+  const base = filtrar();                 // filtros da barra superior
+  const l = filtraSel(base);              // + seleção cruzada (clique)
+  const vivas = l.filter(x => x.status !== 'CANCELADA');
   const fat = vivas.reduce((s,x)=>s+(+x.valor_faturado||0),0);
   const canc = l.filter(x => x.status === 'CANCELADA');
   kpis('cards',[
@@ -70,7 +75,8 @@ function pintar(){
      nota:canc.length ? F.curto(canc.reduce((s,x)=>s+(+x.valor_faturado||0),0)) + ' anulados' : 'nenhuma'},
   ]);
   $('tSub').textContent = `${F.int(l.length)} registros · ordene clicando no cabeçalho`;
-  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao', porPagina:40}));
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao', porPagina:40,
+    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
   const dia = {}; vivas.forEach(x => dia[x.emissao] = (dia[x.emissao]||0)+1);
   const dias = Object.keys(dia).sort(), max = Math.max(1,...Object.values(dia));
   $('porDia').innerHTML = dias.length
@@ -79,12 +85,18 @@ function pintar(){
       + `</div><div style="display:flex;justify-content:space-between;color:var(--cinza);font-size:11px;margin-top:6px">`
       + `<span>${F.dia(dias[0])}</span><span>${F.dia(dias[dias.length-1])}</span></div>`
     : '<div class="vazio" style="padding:18px">Sem dados.</div>';
-  const porUf = {}; vivas.forEach(x => porUf[x.uf||'—'] = (porUf[x.uf||'—']||0)+(+x.valor_faturado||0));
-  barras('porUf', Object.entries(porUf).sort((a,b)=>b[1]-a[1]).slice(0,6)
-    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})));
-  const porSt = {}; l.forEach(x => porSt[x.status] = (porSt[x.status]||0)+1);
+  const baseUf = filtraSel(base,'uf').filter(x => x.status !== 'CANCELADA');
+  const porUf = {}; baseUf.forEach(x => porUf[x.uf||'—'] = (porUf[x.uf||'—']||0)+(+x.valor_faturado||0));
+  barras('porUf', Object.entries(porUf).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'uf');
+  const baseSt = filtraSel(base,'status');
+  const porSt = {}; baseSt.forEach(x => porSt[rotulo(x.status)] = (porSt[rotulo(x.status)]||0)+1);
   barras('porStatus', Object.entries(porSt).sort((a,b)=>b[1]-a[1])
-    .map(([k,v]) => ({nome:rotulo(k), v, rot:F.int(v)})), 'vm');
+    .map(([k,v]) => ({nome:k, v, rot:F.int(v)})), 'vm', 'status');
+  const baseCli = filtraSel(base,'cliente').filter(x => x.status !== 'CANCELADA');
+  const porCli = {}; baseCli.forEach(x => porCli[x.cliente_nome||'—'] = (porCli[x.cliente_nome||'—']||0)+(+x.valor_faturado||0));
+  barras('porCli', Object.entries(porCli).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'cliente');
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
@@ -93,7 +105,8 @@ iniciarPagina(async () => {
   $('fMes').value = meses[0] || '';
   $('fUf').innerHTML = '<option value="">Todas</option>' +
     [...new Set(CACHE.nfs.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
-  $('bAplicar').onclick = pintar;
+  configurarSelecao({cliente:'cliente_nome', uf:'uf', status:x=>rotulo(x.status), fonte:'dt_entrega_origem'}, pintar);
+  $('bAplicar').onclick = () => { selLimpar(); };
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_NOTAS_EMITIDAS_${hojeArq()}.xlsx`, 'Notas emitidas',

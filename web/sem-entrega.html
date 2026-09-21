@@ -20,13 +20,14 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
+  <div class="chipsSel" id="chipsSel"></div>
   <div class="cards" id="cards"></div>
   <div class="colunas">
     <div class="painel"><h2>Fila de ação — mais antigas primeiro <span id="tSub"></span></h2><div id="tabela"></div></div>
     <div class="lado">
-      <div class="painel"><h2>Top clientes sem entrega</h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
-      <div class="painel"><h2>Por transportadora <span>acima de 7 dias</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
-      <div class="painel"><h2>Saldo em aberto por faixa</h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
+      <div class="painel"><h2>Top clientes sem entrega <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+      <div class="painel"><h2>Por transportadora <span>&gt;7 dias · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
+      <div class="painel"><h2>Saldo por faixa <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
     </div>
   </div>
 </main>
@@ -55,7 +56,9 @@ function filtrar(){
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
 }
 function pintar(){
-  const l = filtrar();
+  pintarChips();
+  const base = filtrar();
+  const l = filtraSel(base);
   const FX = [['0-2','0–2 dias · normal'],['3-7','3–7 dias · acompanhar'],
               ['8-15','8–15 dias · cobrar transportadora'],['>15','acima de 15 dias · risco']];
   kpis('cards', FX.map(([k,rot]) => {
@@ -64,19 +67,21 @@ function pintar(){
             nota:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0)) + ' em aberto'};
   }));
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(l.reduce((s,x)=>s+(+x.saldo_aberto||0),0))} em aberto`;
-  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40}));
-  const cli = {}; l.forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
-  barras('porCli', Object.entries(cli).sort((a,b)=>b[1]-a[1]).slice(0,6)
-    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm');
-  const tr = {}; l.filter(x => (x.dias_sem_entrega||0) > 7)
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
+    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
+  const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
+  barras('porCli', Object.entries(cli).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm', 'cliente');
+  const tr = {}; filtraSel(base,'transportadora').filter(x => (x.dias_sem_entrega||0) > 7)
     .forEach(x => tr[x.transportadora||'(sem transportadora)'] = (tr[x.transportadora||'(sem transportadora)']||0)+1);
-  barras('porTr', Object.entries(tr).sort((a,b)=>b[1]-a[1]).slice(0,6)
-    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm');
+  barras('porTr', Object.entries(tr).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm', 'transportadora');
+  const baseFx = filtraSel(base,'faixa');
   barras('porFx', FX.map(([k,rot]) => {
-    const g = l.filter(x => x.faixa_entrega === k);
+    const g = baseFx.filter(x => x.faixa_entrega === k);
     return {nome:rot.split(' · ')[0], v:g.reduce((s,x)=>s+(+x.saldo_aberto||0),0),
             rot:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0))};
-  }));
+  }), '', 'faixa');
 }
 iniciarPagina(async () => {
   const sem = CACHE.nfs.filter(x => x.faixa_entrega);
@@ -84,7 +89,9 @@ iniciarPagina(async () => {
     [...new Set(sem.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
   $('fTr').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.transportadora||'—'))].sort().map(t=>`<option>${t}</option>`).join('');
-  $('bAplicar').onclick = pintar;
+  configurarSelecao({cliente:'cliente_nome', uf:'uf', transportadora:x=>x.transportadora||'(sem transportadora)',
+                     faixa:'faixa_entrega'}, pintar);
+  $('bAplicar').onclick = () => { selLimpar(); };
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_SEM_ENTREGA_${hojeArq()}.xlsx`, 'Notas sem data de entrega',

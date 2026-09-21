@@ -59,6 +59,50 @@ function marcarAtualizacao(){
     : '—';
 }
 
+/* ================================================================
+   SELEÇÃO CRUZADA — clicar em qualquer elemento filtra a tela toda.
+   SEL guarda o que está selecionado; cada página informa o MAPA
+   (chave da seleção -> campo do registro) e a função que redesenha.
+   ================================================================ */
+const SEL = {};
+let _mapaSel = {}, _redesenha = () => {};
+
+function configurarSelecao(mapa, redesenha){ _mapaSel = mapa; _redesenha = redesenha; }
+
+function selAlterna(chave, valor){
+  if(valor == null || valor === '') return;
+  if(SEL[chave] === valor) delete SEL[chave]; else SEL[chave] = valor;
+  _redesenha();
+}
+function selLimpar(chave){ if(chave) delete SEL[chave]; else Object.keys(SEL).forEach(k => delete SEL[k]); _redesenha(); }
+
+/* aplica todas as seleções ativas a uma lista, menos as chaves em `exceto`
+   (usado para o painel da própria dimensão não se auto-filtrar até sobrar 1 item) */
+function filtraSel(lista, exceto){
+  const chaves = Object.keys(SEL).filter(k => k !== exceto && _mapaSel[k]);
+  if(!chaves.length) return lista;
+  return lista.filter(r => chaves.every(k => {
+    const campo = _mapaSel[k];
+    const v = typeof campo === 'function' ? campo(r) : r[campo];
+    return (v == null ? '—' : String(v)) === SEL[k];
+  }));
+}
+
+const ROTULO_SEL = {cliente:'Cliente', uf:'UF', status:'Status', faixa:'Faixa',
+  transportadora:'Transportadora', motivo:'Motivo', origem:'Origem da NF', fonte:'Fonte da entrega'};
+
+function pintarChips(){
+  const alvo = $('chipsSel'); if(!alvo) return;
+  const ativos = Object.entries(SEL);
+  alvo.innerHTML = ativos.length
+    ? `<span class="rot">Filtrando por:</span>` + ativos.map(([k,v]) =>
+        `<button class="chip" data-k="${k}">${ROTULO_SEL[k]||k}: <b>${v}</b> <span>✕</span></button>`).join('')
+      + `<button class="chip lim" data-k="">Limpar tudo</button>`
+    : '';
+  alvo.style.display = ativos.length ? 'flex' : 'none';
+  alvo.querySelectorAll('.chip').forEach(b => b.onclick = () => selLimpar(b.dataset.k || null));
+}
+
 /* ---------------------------------------------------------------- KPIs */
 function kpis(destino, lista){
   $(destino).innerHTML = lista.map(k =>
@@ -93,7 +137,7 @@ function Tabela(cfg){
         cfg.colunas.map(c =>
           `<th class="${c.esq?'esq':''} ${ordem===c.k?'ord '+(desc?'':'asc'):''}" data-k="${c.k}">${c.t}</th>`).join('') +
       `</tr></thead><tbody>` +
-        (fatia.length ? fatia.map(r => '<tr>' + cfg.colunas.map(c => {
+        (fatia.length ? fatia.map((r,ir) => `<tr ${cfg.aoClicar?`class="clicavel" data-r="${ir}" title="Clique para filtrar a tela"`:''}>` + cfg.colunas.map(c => {
             const v = c.html ? c.html(r) : (c.fmt ? c.fmt(r[c.k]) : (r[c.k] ?? '—'));
             return `<td class="${c.esq?'esq':''} ${c.cls||''}">${v}</td>`;
           }).join('') + '</tr>').join('')
@@ -102,6 +146,8 @@ function Tabela(cfg){
       `<div class="pag"><span>${F.int(tot)} ${tot===1?'registro':'registros'} · página ${pagina+1} de ${paginas}</span>` +
       `<span><button ${pagina===0?'disabled':''} data-p="ant">Anterior</button>` +
       `<button ${pagina>=paginas-1?'disabled':''} data-p="prox">Próxima</button></span></div>`;
+    if(cfg.aoClicar) raiz.querySelectorAll('tbody tr[data-r]').forEach(tr =>
+      tr.onclick = () => cfg.aoClicar(fatia[+tr.dataset.r]));
     raiz.querySelectorAll('th').forEach(th => th.onclick = () => {
       const k = th.dataset.k;
       if(ordem === k) desc = !desc; else { ordem = k; desc = true; }
@@ -118,12 +164,18 @@ function Tabela(cfg){
 }
 
 /* ---------------------------------------------------------------- painel lateral de barras */
-function barras(destino, itens, cor){
+function barras(destino, itens, cor, chaveSel){
   const max = Math.max(1, ...itens.map(i => i.v));
-  $(destino).innerHTML = itens.length ? itens.map(i =>
-    `<div class="it"><div class="tp"><span class="nm">${i.nome}</span><b>${i.rot}</b></div>`+
-    `<div class="br ${cor||''}" style="width:${Math.max(3, i.v/max*100)}%"></div></div>`).join('')
-    : '<div class="vazio" style="padding:18px">Sem dados.</div>';
+  const alvo = $(destino);
+  alvo.innerHTML = itens.length ? itens.map((i,idx) => {
+    const sel = chaveSel && SEL[chaveSel] === i.nome;
+    return `<div class="it ${chaveSel?'clicavel':''} ${sel?'sel':''}" data-i="${idx}" `+
+      `${chaveSel?`title="Clique para filtrar a tela por ${i.nome}"`:''}>`+
+      `<div class="tp"><span class="nm">${i.nome}</span><b>${i.rot}</b></div>`+
+      `<div class="br ${cor||''}" style="width:${Math.max(3, i.v/max*100)}%"></div></div>`;
+  }).join('') : '<div class="vazio" style="padding:18px">Sem dados.</div>';
+  if(chaveSel) alvo.querySelectorAll('.it').forEach(e =>
+    e.onclick = () => selAlterna(chaveSel, itens[+e.dataset.i].nome));
 }
 
 /* ---------------------------------------------------------------- Excel (.xlsx nativo) */
