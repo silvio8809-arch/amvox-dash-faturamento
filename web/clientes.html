@@ -1,0 +1,114 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Top clientes</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">TC</div><h1>Top clientes</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Competência</label><select id="fMes"></select></div>
+  <div class="campo"><label>Ranquear por</label><select id="fOrd">
+    <option value="liq">Faturado líquido de devoluções</option>
+    <option value="fat">Valor faturado bruto</option>
+    <option value="qtd">Quantidade de notas</option></select></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="cards" id="cards"></div>
+  <div class="colunas">
+    <div class="painel"><h2>Ranking <span id="tSub"></span></h2><div id="tabela"></div></div>
+    <div class="lado">
+      <div class="painel"><h2>Concentração</h2><div class="corpo"><div class="linhab" id="conc"></div></div></div>
+      <div class="painel"><h2>Maiores devolvedores <span>no período</span></h2><div class="corpo"><div class="linhab" id="dev"></div></div></div>
+    </div>
+  </div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+let TAB;
+const COLS = [
+  {k:'pos', t:'#'},
+  {k:'nome', t:'Cliente', esq:true, cls:'forte'},
+  {k:'uf', t:'UF'},
+  {k:'qtd', t:'Notas', fmt:F.int},
+  {k:'fat', t:'Faturado', fmt:F.moeda},
+  {k:'devol', t:'Devolvido', fmt:F.moeda},
+  {k:'liq', t:'Líquido', fmt:F.moeda, cls:'forte'},
+  {k:'pctDev', t:'% devol.', fmt:F.pct},
+  {k:'pctTot', t:'% do total', fmt:F.pct},
+  {k:'semEnt', t:'Sem entrega', fmt:F.int},
+];
+function agregar(){
+  const mes = $('fMes').value;
+  const nfs = CACHE.nfs.filter(x => x.status !== 'CANCELADA' && (!mes || (x.emissao||'').startsWith(mes)));
+  const dev = CACHE.devs.filter(x => x.devolucao_venda && (!mes || (x.emissao_dev||'').startsWith(mes)));
+  const m = {};
+  const chave = x => x.cnpj_raiz || x.cliente_nome || '—';
+  nfs.forEach(x => { const k = chave(x);
+    m[k] = m[k] || {nome:x.cliente_nome||'—', uf:x.uf||'—', qtd:0, fat:0, devol:0, semEnt:0};
+    m[k].qtd++; m[k].fat += (+x.valor_faturado||0);
+    if(x.faixa_entrega) m[k].semEnt++;
+  });
+  dev.forEach(x => { const k = chave(x);
+    m[k] = m[k] || {nome:x.cliente_nome||'—', uf:x.uf||'—', qtd:0, fat:0, devol:0, semEnt:0};
+    m[k].devol += (+x.valor||0);
+  });
+  const tot = Object.values(m).reduce((s,x)=>s+x.fat,0);
+  const campo = {liq:'liq', fat:'fat', qtd:'qtd'}[$('fOrd').value];
+  const lista = Object.values(m).map(x => ({...x,
+      liq: x.fat - x.devol,
+      pctDev: x.fat ? 100*x.devol/x.fat : 0,
+      pctTot: tot ? 100*x.fat/tot : 0}))
+    .sort((a,b) => b[campo]-a[campo])
+    .map((x,i) => ({...x, pos:i+1}));
+  return {lista, tot};
+}
+function pintar(){
+  const {lista, tot} = agregar();
+  /* concentração é sempre por FATURADO — não muda com o critério de ranking escolhido,
+     senão o card diria "top 3" de um conceito e o % de outro. */
+  const porFat = [...lista].sort((a,b)=>b.fat-a.fat);
+  const top10 = porFat.slice(0,10), top3 = porFat.slice(0,3);
+  kpis('cards',[
+    {titulo:'Clientes ativos', valor:F.int(lista.length), nota:'com nota no período'},
+    {titulo:'Top 10 = % do faturamento', valor:tot ? F.pct(100*top10.reduce((s,x)=>s+x.fat,0)/tot) : '—',
+     nota:'concentração da carteira'},
+    {titulo:'Maior cliente (faturado)', valor:tot && porFat[0] ? F.pct(100*porFat[0].fat/tot) : '—',
+     nota:porFat[0] ? porFat[0].nome : ''},
+    {titulo:'Top 3 concentram', valor:tot ? F.pct(100*top3.reduce((s,x)=>s+x.fat,0)/tot) : '—',
+     nota:top3.map(x=>x.nome.split(' ')[0]).join(' · ')},
+  ]);
+  $('tSub').textContent = `${F.int(lista.length)} clientes · ordene clicando no cabeçalho`;
+  TAB ? TAB.dados(lista) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lista, ordem:'liq', porPagina:30}));
+  const resto = tot - top10.reduce((s,x)=>s+x.fat,0);
+  barras('conc', [
+    {nome:'Top 3', v:top3.reduce((s,x)=>s+x.fat,0), rot:tot?F.pct(100*top3.reduce((s,x)=>s+x.fat,0)/tot):'—'},
+    {nome:'Posições 4–10', v:top10.slice(3).reduce((s,x)=>s+x.fat,0), rot:tot?F.pct(100*top10.slice(3).reduce((s,x)=>s+x.fat,0)/tot):'—'},
+    {nome:`Demais ${F.int(Math.max(0,lista.length-10))} clientes`, v:resto, rot:tot?F.pct(100*resto/tot):'—'},
+  ]);
+  barras('dev', lista.filter(x=>x.devol>0).sort((a,b)=>b.devol-a.devol).slice(0,6)
+    .map(x => ({nome:x.nome, v:x.devol, rot:F.curto(x.devol)+' · '+F.pct(x.pctDev)})), 'vm');
+}
+iniciarPagina(async () => {
+  const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+    meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('fMes').value = meses[0] || '';
+  $('bAplicar').onclick = pintar;
+  $('bXls').onclick = () => exportarXLSX(
+    `AMVOX_TOP_CLIENTES_${hojeArq()}.xlsx`, 'Top clientes',
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    [{t:'#',k:'pos',w:6},{t:'CLIENTE',k:'nome',w:40},{t:'UF',k:'uf',w:6},
+     {t:'NOTAS',k:'qtd',w:9},{t:'FATURADO',k:'fat',w:16,tipo:'n'},{t:'DEVOLVIDO',k:'devol',w:16,tipo:'n'},
+     {t:'LÍQUIDO',k:'liq',w:16,tipo:'n'},{t:'% DEVOLUÇÃO',k:'pctDev',w:13,tipo:'n'},
+     {t:'% DO TOTAL',k:'pctTot',w:12,tipo:'n'},{t:'SEM ENTREGA',k:'semEnt',w:13}],
+    TAB.atual());
+  pintar();
+});
+</script></body></html>
