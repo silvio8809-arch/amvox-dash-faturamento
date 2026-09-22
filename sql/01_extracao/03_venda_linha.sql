@@ -5,7 +5,8 @@
 --  por que tabela nova: dash_nf_saida tem grão de NOTA e a linha de produto é do ITEM
 --                       (SD2 → SB1.B1_GRUPO → SBM.BM_DESC). Uma NF pode ter AUDIO e LAR
 --                       na mesma nota, então a linha não cabe como coluna da nota.
---  universo ...... idêntico ao 01_nf_saida: só FATURAMENTO (F2_VALFAT > 0), todas as filiais.
+--  universo ...... idêntico ao 01_nf_saida: FATURAMENTO na régua da FAT PLUS
+--                  (F2_VALFAT > 0 E nota com item que gera duplicata), todas as filiais.
 --  valor ......... SUM(D2_VALBRUT) = F2_VALFAT AO CENTAVO (conferido 22/09/2026 na janela
 --                  de 120 dias: 46.696.390,19 dos dois lados). SUM(D2_TOTAL) = F2_VALMERC,
 --                  também ao centavo — é a mercadoria SEM IPI.
@@ -85,6 +86,22 @@ LEFT JOIN   CANC       ON  CANC.FIL = SF2.F2_FILIAL AND CANC.NF = SF2.F2_DOC
 WHERE       SD2.D_E_L_E_T_ = ''
   AND       SF2.F2_EMISSAO BETWEEN @DATADE AND @DATAATE
   AND       SF2.F2_VALFAT > 0            -- só faturamento (receita); remessa fora
+  -- ALINHAMENTO COM A FAT PLUS (regra Silvio 22/09/2026): faturamento = o que a
+  -- VW_AZ_FATURAMENTO_ANALITICO_NOVO conta como ORIGEM='FAT'. Só `F2_VALFAT > 0` não bastava:
+  -- deixava entrar "outras saídas" com TES que NÃO gera duplicata (NF 000276398, CFOP 5949,
+  -- TES 555, R$ 400 — a view exclui, o dash incluía). Exigir que a nota tenha ao menos um item
+  -- com F4_DUPLIC='S' fecha com a view AO CENTAVO: 1.870 NF · R$ 46.661.024,64 nos dois lados.
+  -- (Filtro no nível da NOTA, não do item — assim SUM(D2_VALBRUT) continua = F2_VALFAT.)
+  AND       EXISTS (SELECT 1
+                    FROM   SD2010 DUP
+                    JOIN   SF4010 TES ON DUP.D2_TES = TES.F4_CODIGO
+                                     AND SUBSTRING(TES.F4_FILIAL,1,4) = SUBSTRING(DUP.D2_FILIAL,1,4)
+                                     AND TES.D_E_L_E_T_ = ''
+                    WHERE  DUP.D_E_L_E_T_ = ''
+                      AND  DUP.D2_FILIAL  = SF2.F2_FILIAL  AND DUP.D2_DOC   = SF2.F2_DOC
+                      AND  DUP.D2_SERIE   = SF2.F2_SERIE   AND DUP.D2_CLIENTE = SF2.F2_CLIENTE
+                      AND  DUP.D2_LOJA    = SF2.F2_LOJA
+                      AND  TES.F4_DUPLIC  = 'S')
 GROUP BY    SD2.D2_FILIAL, SD2.D2_DOC, SD2.D2_SERIE,
             SBM.BM_DESC, SB1.B1_GRUPO, SF2.F2_EMISSAO,
             SF2.F2_CLIENTE, SF2.F2_LOJA, A1.A1_NREDUZ, A1.A1_CGC, A1.A1_EST,

@@ -2,7 +2,8 @@
 -- FASE 1 · EXTRAÇÃO 01 — NF DE SAÍDA (uma linha por nota) → cache dash_nf_saida
 -- Regras confirmadas na Fase 0 (skill dash-tv-faturamento). SOMENTE LEITURA.
 --
---  universo ...... só FATURAMENTO (receita): F2_VALFAT > 0. Remessa/retorno fora.
+--  universo ...... FATURAMENTO (receita) na régua da FAT PLUS: F2_VALFAT > 0 E a nota tem
+--                  item que gera duplicata (F4_DUPLIC='S'). Remessa/retorno fora.
 --  filiais ....... TODAS
 --  entrega ....... COALESCE( SE1.E1_DTSAIDA , GWU010.GWU_DTENT )   [decisão Silvio 21/09]
 --                  NUNCA F2_DTENTR (diverge em 98,8% e tem data anterior à emissão).
@@ -131,4 +132,20 @@ LEFT JOIN   CFOP C      ON C.FIL   = F2.F2_FILIAL AND C.DOC = F2.F2_DOC AND C.SE
 WHERE       F2.D_E_L_E_T_ = ''
   AND       F2.F2_EMISSAO BETWEEN @DATADE AND @DATAATE
   AND       F2.F2_VALFAT > 0            -- só faturamento (receita); remessa fora
+  -- ALINHAMENTO COM A FAT PLUS (regra Silvio 22/09/2026): faturamento = o que a
+  -- VW_AZ_FATURAMENTO_ANALITICO_NOVO conta como ORIGEM='FAT'. Só `F2_VALFAT > 0` não bastava:
+  -- deixava entrar "outras saídas" com TES que NÃO gera duplicata (NF 000276398, CFOP 5949,
+  -- TES 555, R$ 400 — a view exclui, o dash incluía). Exigir que a nota tenha ao menos um item
+  -- com F4_DUPLIC='S' fecha com a view AO CENTAVO: 1.870 NF · R$ 46.661.024,64 nos dois lados.
+  -- (Filtro no nível da NOTA, não do item — assim SUM(D2_VALBRUT) continua = F2_VALFAT.)
+  AND       EXISTS (SELECT 1
+                    FROM   SD2010 DUP
+                    JOIN   SF4010 TES ON DUP.D2_TES = TES.F4_CODIGO
+                                     AND SUBSTRING(TES.F4_FILIAL,1,4) = SUBSTRING(DUP.D2_FILIAL,1,4)
+                                     AND TES.D_E_L_E_T_ = ''
+                    WHERE  DUP.D_E_L_E_T_ = ''
+                      AND  DUP.D2_FILIAL  = F2.F2_FILIAL  AND DUP.D2_DOC   = F2.F2_DOC
+                      AND  DUP.D2_SERIE   = F2.F2_SERIE   AND DUP.D2_CLIENTE = F2.F2_CLIENTE
+                      AND  DUP.D2_LOJA    = F2.F2_LOJA
+                      AND  TES.F4_DUPLIC  = 'S')
 ORDER BY    F2.F2_EMISSAO DESC, F2.F2_DOC;
