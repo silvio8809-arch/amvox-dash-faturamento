@@ -143,6 +143,16 @@ function ligarFiltros(){
   });
 }
 
+/* Rótulo de barra com valor E participação. O % é sobre o total da DIMENSÃO INTEIRA,
+   não sobre os 8 itens exibidos — senão a soma dos rótulos daria 100% enganosamente. */
+function rotValPct(v, total){
+  return F.curto(v) + (total ? ' · ' + (100*v/total).toFixed(1).replace('.',',') + '%' : '');
+}
+function rotIntPct(n, total, suf){
+  return F.int(n) + (suf ? ' ' + suf : '') +
+         (total ? ' · ' + (100*n/total).toFixed(1).replace('.',',') + '%' : '');
+}
+
 /* ---------------------------------------------------------------- KPIs */
 function kpis(destino, lista){
   $(destino).innerHTML = lista.map(k =>

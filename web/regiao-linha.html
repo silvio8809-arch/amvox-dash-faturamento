@@ -121,10 +121,16 @@ function pintar(){
     const m = {}; filtraSel(base, exceto).forEach(x => m[x[campo]||'—'] = (m[x[campo]||'—']||0)+(+x.valor_faturado||0));
     return Object.entries(m).sort((a,b)=>b[1]-a[1]);
   };
-  barras('porLin', somaPor('linha','linha').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'linha');
-  barras('porReg', somaPor('regiao','regiao').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'regiao');
-  barras('porUf',  somaPor('uf','uf').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'uf');
-  barras('porCli', somaPor('cliente_nome','cliente').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), 'vm', 'cliente');
+  // o % é sempre sobre o total da dimensão inteira, não sobre os 8 exibidos
+  const comPct = (campo, exceto, cor, chave, destino) => {
+    const lst = somaPor(campo, exceto), tot = lst.reduce((s,[,v])=>s+v,0);
+    barras(destino, lst.slice(0,8).map(([k,v])=>({nome:k, v, rot:rotValPct(v,tot)})), cor, chave);
+  };
+  comPct('linha','linha','','linha','porLin');
+  comPct('regiao','regiao','','regiao','porReg');
+  const uf = somaPor('uf','uf'), totUf = uf.reduce((s,[,v])=>s+v,0);
+  barras('porUf',  uf.slice(0,8).map(([k,v])=>({nome:k, v, rot:rotValPct(v,totUf)})), '', 'uf');
+  comPct('cliente_nome','cliente','vm','cliente','porCli');
 }
 
 iniciarPagina(async () => {

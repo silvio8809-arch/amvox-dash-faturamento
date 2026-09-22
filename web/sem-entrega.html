@@ -70,18 +70,21 @@ function pintar(){
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
+  const totCli = Object.values(cli).reduce((s,v)=>s+v,0);
   barras('porCli', Object.entries(cli).sort((a,b)=>b[1]-a[1]).slice(0,8)
-    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm', 'cliente');
+    .map(([k,v]) => ({nome:k, v, rot:rotIntPct(v,totCli,'NF')})), 'vm', 'cliente');
   const tr = {}; filtraSel(base,'transportadora').filter(x => (x.dias_sem_entrega||0) > 7)
     .forEach(x => tr[x.transportadora||'(sem transportadora)'] = (tr[x.transportadora||'(sem transportadora)']||0)+1);
+  const totTr = Object.values(tr).reduce((s,v)=>s+v,0);
   barras('porTr', Object.entries(tr).sort((a,b)=>b[1]-a[1]).slice(0,8)
-    .map(([k,v]) => ({nome:k, v, rot:F.int(v)+' NF'})), 'vm', 'transportadora');
+    .map(([k,v]) => ({nome:k, v, rot:rotIntPct(v,totTr,'NF')})), 'vm', 'transportadora');
   const baseFx = filtraSel(base,'faixa');
+  const totFx = baseFx.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
   barras('porFx', FX.map(([k,rot]) => {
     const g = baseFx.filter(x => x.faixa_entrega === k);
+    const v = g.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
     return {nome:rot.split(' · ')[0], valor:k,     // `valor` = código da faixa ('>15'), `nome` = rótulo
-            v:g.reduce((s,x)=>s+(+x.saldo_aberto||0),0),
-            rot:F.curto(g.reduce((s,x)=>s+(+x.saldo_aberto||0),0))};
+            v, rot:rotValPct(v,totFx)};
   }), '', 'faixa');
 }
 iniciarPagina(async () => {

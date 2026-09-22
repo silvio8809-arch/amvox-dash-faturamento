@@ -25,7 +25,7 @@
     <div class="painel"><h2>Ranking <span id="tSub"></span></h2><div id="tabela"></div></div>
     <div class="lado">
       <div class="painel"><h2>Concentração</h2><div class="corpo"><div class="linhab" id="conc"></div></div></div>
-      <div class="painel"><h2>Maiores devolvedores <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="dev"></div></div></div>
+      <div class="painel"><h2>Maiores devolvedores <span>% do total devolvido · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="dev"></div></div></div>
       <div class="painel"><h2>Por UF <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
     </div>
   </div>
@@ -97,11 +97,17 @@ function pintar(){
     {nome:'Posições 4–10', v:top10.slice(3).reduce((s,x)=>s+x.fat,0), rot:tot?F.pct(100*top10.slice(3).reduce((s,x)=>s+x.fat,0)/tot):'—'},
     {nome:`Demais ${F.int(Math.max(0,lista.length-10))} clientes`, v:resto, rot:tot?F.pct(100*resto/tot):'—'},
   ]);
-  barras('dev', filtraSel(todos,'cliente').filter(x=>x.devol>0).sort((a,b)=>b.devol-a.devol).slice(0,8)
-    .map(x => ({nome:x.nome, v:x.devol, rot:F.curto(x.devol)+' · '+F.pct(x.pctDev)})), 'vm', 'cliente');
-  barras('porUf', Object.entries(filtraSel(todos,'uf').reduce((m,x)=>{
-      m[x.uf||'—'] = (m[x.uf||'—']||0) + x.fat; return m; },{}))
-    .sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'uf');
+  // o % aqui é PARTICIPAÇÃO no total devolvido — mesmo significado dos demais painéis.
+  // A razão devolução ÷ faturamento do próprio cliente (que pode passar de 100%) continua
+  // na coluna "% devol." da tabela, onde não se confunde com participação.
+  const devs = filtraSel(todos,'cliente').filter(x=>x.devol>0).sort((a,b)=>b.devol-a.devol);
+  const totDev = devs.reduce((s,x)=>s+x.devol,0);
+  barras('dev', devs.slice(0,8)
+    .map(x => ({nome:x.nome, v:x.devol, rot:rotValPct(x.devol,totDev)})), 'vm', 'cliente');
+  const porUf = Object.entries(filtraSel(todos,'uf').reduce((m,x)=>{
+      m[x.uf||'—'] = (m[x.uf||'—']||0) + x.fat; return m; },{})).sort((a,b)=>b[1]-a[1]);
+  const totUf = porUf.reduce((s,[,v])=>s+v,0);
+  barras('porUf', porUf.slice(0,8).map(([k,v]) => ({nome:k, v, rot:rotValPct(v,totUf)})), '', 'uf');
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();

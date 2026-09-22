@@ -98,12 +98,14 @@ function pintar(){
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
   const mot = {}; filtraSel(base,'motivo').forEach(x => { const k = x.motivo_causa || '— sem motivo —';
     mot[k] = mot[k] || {n:0, v:0}; mot[k].n++; mot[k].v += (+x.valor||0); });
+  const totMot = Object.values(mot).reduce((s,o)=>s+o.v,0);
   barras('porMot', Object.entries(mot).sort((a,b)=>b[1].v-a[1].v).slice(0,8)
-    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm', 'motivo');
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${rotValPct(o.v,totMot)}`})), 'vm', 'motivo');
   const cli = {}; filtraSel(base,'cliente').forEach(x => { const k = x.cliente_nome || '—';
     cli[k] = cli[k] || {n:0, v:0}; cli[k].n++; cli[k].v += (+x.valor||0); });
+  const totCliD = Object.values(cli).reduce((s,o)=>s+o.v,0);
   barras('porCli', Object.entries(cli).sort((a,b)=>b[1].v-a[1].v).slice(0,8)
-    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${F.curto(o.v)}`})), 'vm', 'cliente');
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${o.n} NF · ${rotValPct(o.v,totCliD)}`})), 'vm', 'cliente');
   const meses = [...new Set(CACHE.devs.map(x=>(x.emissao_dev||'').slice(0,7)).filter(Boolean))].sort();
   barras('evol', meses.map(m => {
     const vv = CACHE.devs.filter(x => x.devolucao_venda && (x.emissao_dev||'').startsWith(m))

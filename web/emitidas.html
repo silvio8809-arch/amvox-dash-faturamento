@@ -87,16 +87,19 @@ function pintar(){
     : '<div class="vazio" style="padding:18px">Sem dados.</div>';
   const baseUf = filtraSel(base,'uf').filter(x => x.status !== 'CANCELADA');
   const porUf = {}; baseUf.forEach(x => porUf[x.uf||'—'] = (porUf[x.uf||'—']||0)+(+x.valor_faturado||0));
+  const totUf = Object.values(porUf).reduce((s,v)=>s+v,0);
   barras('porUf', Object.entries(porUf).sort((a,b)=>b[1]-a[1]).slice(0,8)
-    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'uf');
+    .map(([k,v]) => ({nome:k, v, rot:rotValPct(v,totUf)})), '', 'uf');
   const baseSt = filtraSel(base,'status');
   const porSt = {}; baseSt.forEach(x => porSt[rotulo(x.status)] = (porSt[rotulo(x.status)]||0)+1);
+  const totSt = Object.values(porSt).reduce((s,v)=>s+v,0);
   barras('porStatus', Object.entries(porSt).sort((a,b)=>b[1]-a[1])
-    .map(([k,v]) => ({nome:k, v, rot:F.int(v)})), 'vm', 'status');
+    .map(([k,v]) => ({nome:k, v, rot:rotIntPct(v,totSt,'NF')})), 'vm', 'status');
   const baseCli = filtraSel(base,'cliente').filter(x => x.status !== 'CANCELADA');
   const porCli = {}; baseCli.forEach(x => porCli[x.cliente_nome||'—'] = (porCli[x.cliente_nome||'—']||0)+(+x.valor_faturado||0));
+  const totCli = Object.values(porCli).reduce((s,v)=>s+v,0);
   barras('porCli', Object.entries(porCli).sort((a,b)=>b[1]-a[1]).slice(0,8)
-    .map(([k,v]) => ({nome:k, v, rot:F.curto(v)})), '', 'cliente');
+    .map(([k,v]) => ({nome:k, v, rot:rotValPct(v,totCli)})), '', 'cliente');
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
