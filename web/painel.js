@@ -237,6 +237,7 @@ function matriz(destino, dados, opc){
   const pico = Math.max(1, ...linhas.flatMap(l => colunas.map(c => val(l,c))));
   const th = colunas.map(c =>
     `<th class="cab-c ${SEL[chaveC]===c?'sel':''}" data-c="${c}">${c}</th>`).join('');
+  const pctG = v => geral ? (100*v/geral).toFixed(1).replace('.',',')+'%' : '—';
   const corpo = linhas.map(l => {
     const tds = colunas.map(c => {
       const v = val(l,c);
@@ -246,17 +247,29 @@ function matriz(destino, dados, opc){
                   style="background:rgba(245,166,35,${op.toFixed(3)})"
                   title="${l} · ${c}">${v ? fmt(v) : '—'}</td>`;
     }).join('');
-    return `<tr><th class="cab-l ${SEL[chaveL]===l?'sel':''}" data-l="${l}">${l}</th>${tds}`+
+    // 2ª linha: quanto CADA CÉLULA representa do total geral do quadro (pedido do Silvio 22/09)
+    const pcts = colunas.map(c => {
+      const v = val(l,c);
+      return `<td class="pcel">${v ? pctG(v) : ''}</td>`;
+    }).join('');
+    return `<tr><th class="cab-l ${SEL[chaveL]===l?'sel':''}" data-l="${l}" rowspan="2">${l}</th>${tds}`+
            `<td class="tot">${fmt(totL(l))}</td>`+
-           `<td class="part">${geral ? (100*totL(l)/geral).toFixed(1).replace('.',',')+'%' : '—'}</td></tr>`;
+           `<td class="part">${pctG(totL(l))}</td></tr>`+
+           `<tr class="lpct">${pcts}<td class="tot pcel">${pctG(totL(l))}</td><td class="part"></td></tr>`;
   }).join('');
   alvo.innerHTML = `<table class="mtz"><thead><tr><th></th>${th}`+
     `<th class="tot">TOTAL</th><th class="part">%</th></tr></thead><tbody>${corpo}</tbody>`+
     `<tfoot><tr><th>TOTAL</th>${colunas.map(c=>`<td class="tot">${fmt(totC(c))}</td>`).join('')}`+
     `<td class="tot">${fmt(geral)}</td><td class="part">100%</td></tr>`+
     `<tr><th class="part">%</th>${colunas.map(c=>
-      `<td class="part">${geral ? (100*totC(c)/geral).toFixed(1).replace('.',',')+'%' : '—'}</td>`).join('')}`+
-    `<td class="part"></td><td class="part"></td></tr></tfoot></table>`;
+      `<td class="part">${pctG(totC(c))}</td>`).join('')}`+
+    `<td class="part">100%</td><td class="part"></td></tr></tfoot></table>` +
+    // conferência: a soma dos totais por linha tem de dar o total geral, e este tem de fechar
+    // com a FAT PLUS do mesmo recorte. Valor CHEIO, sem abreviar, para dar para conferir.
+    `<div class="mtz-conf"><span>Soma dos totais por ${opc.rotuloL || 'linha'}</span>` +
+    `<b>${F.moeda(linhas.reduce((s,l)=>s+totL(l),0))}</b>` +
+    `<span class="ok">= total geral do quadro · mesma régua da FAT PLUS, <b>sem as NF canceladas</b>`+
+    ` (a view ainda conta algumas)</span></div>`;
   // clique: célula seleciona as DUAS dimensões; cabeçalho seleciona só a sua
   alvo.querySelectorAll('td.cel.clicavel').forEach(e => e.onclick = () => {
     SEL[chaveL] = e.dataset.l; SEL_ROT[chaveL] = e.dataset.l;

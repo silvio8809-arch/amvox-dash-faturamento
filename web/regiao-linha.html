@@ -110,7 +110,7 @@ function pintar(){
   matriz('mtz', dados, {
     linhas: ORDEM_REG.filter(r => regsSet[r]).concat(Object.keys(regsSet).filter(r=>!ORDEM_REG.includes(r))),
     colunas: Object.entries(linhasSet).sort((a,b)=>b[1]-a[1]).map(([k])=>k),
-    fmt: F.curto, chaveL:'regiao', chaveC:'linha'
+    fmt: F.curto, chaveL:'regiao', chaveC:'linha', rotuloL:'região'
   });
 
   $('tSub').textContent = `${F.int(l.length)} registros (NF × linha) · ${F.int(nNf)} notas`;

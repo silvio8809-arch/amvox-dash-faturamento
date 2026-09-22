@@ -147,3 +147,14 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .mtz .tot{font-weight:700;background:#F7F9FC}
 .mtz .part{color:var(--cinza);font-size:12px;background:#FBFCFE}
 .mtz tfoot td,.mtz tfoot th{border-bottom:0;border-top:1px solid var(--borda)}
+/* 2ª linha da matriz: % de cada célula sobre o total geral do quadro */
+.mtz tr.lpct td{padding:0 12px 8px;font-size:11px;color:var(--cinza);border-bottom:1px solid var(--linha)}
+.mtz tr.lpct td.pcel{background:#FCFDFE}
+.mtz tr:not(.lpct) td,.mtz tr:not(.lpct) th{border-bottom:0;padding-bottom:3px}
+.mtz tbody th[rowspan]{vertical-align:middle;border-bottom:1px solid var(--linha)}
+.mtz-conf{display:flex;align-items:baseline;gap:12px;padding:13px 12px 2px;
+  border-top:1px solid var(--borda);margin-top:2px}
+.mtz-conf span{font:600 10.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--cinza)}
+.mtz-conf b{font:700 17px var(--cond);color:var(--navy);font-variant-numeric:tabular-nums}
+.mtz-conf .ok{text-transform:none;letter-spacing:0;font:400 12px var(--texto);color:var(--cinza)}
+.mtz-conf .ok b{font-weight:700;color:var(--navy)}
