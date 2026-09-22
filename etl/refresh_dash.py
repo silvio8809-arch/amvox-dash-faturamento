@@ -18,6 +18,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 SQL_NF  = RAIZ / "sql/01_extracao/01_nf_saida.sql"
 SQL_DEV = RAIZ / "sql/01_extracao/02_devolucao.sql"
+SQL_VL  = RAIZ / "sql/01_extracao/03_venda_linha.sql"   # venda por região x linha
 ENVFILE = RAIZ / ".env"
 
 
@@ -132,6 +133,36 @@ def monta_dev(reg):
     )
 
 
+def monta_vl(reg):
+    """Uma linha por NF x LINHA de produto. Grão diferente do dash_nf_saida — ver 002_venda_linha.sql."""
+    return dict(
+        filial=reg["FILIAL"], nf=reg["NF"], serie=reg["SERIE"],
+        linha=reg["LINHA"], grupo=reg["GRUPO"] or None,
+        emissao=d(reg["EMISSAO"]),
+        cliente_cod=reg["CLIENTE_COD"], cliente_loja=reg["CLIENTE_LOJA"],
+        cliente_nome=reg["CLIENTE_NOME"] or None, cnpj_raiz=reg["CNPJ_RAIZ"] or None,
+        uf=reg["UF"] or None, regiao=reg["REGIAO"],
+        itens=reg["ITENS"], quantidade=num(reg["QUANTIDADE"]),
+        valor_faturado=num(reg["VALOR_FATURADO"]),
+        valor_mercadoria=num(reg["VALOR_MERCADORIA"]),
+        status=reg["STATUS"],
+        updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+    )
+
+
+def confere_venda_linha(nfs, vls):
+    """A soma por linha de produto TEM de dar o mesmo faturamento da soma por nota.
+    SUM(D2_VALBRUT) = F2_VALFAT ao centavo (conferido 22/09/2026). Divergência aqui
+    significa item órfão ou nota fora do universo — não publicar sem entender."""
+    a = round(sum(n["valor_faturado"] or 0 for n in nfs), 2)
+    b = round(sum(v["valor_faturado"] or 0 for v in vls), 2)
+    nf_a = {(n["filial"], n["nf"], n["serie"]) for n in nfs}
+    nf_b = {(v["filial"], v["nf"], v["serie"]) for v in vls}
+    return dict(valor_nf=a, valor_linha=b, delta=round(b - a, 2),
+                nf_sem_linha=sorted(nf_a - nf_b)[:5], n_sem_linha=len(nf_a - nf_b),
+                linha_sem_nf=sorted(nf_b - nf_a)[:5], n_sem_nf=len(nf_b - nf_a))
+
+
 # ------------------------------------------------------------------ pós-processo
 def aplica_devolucao_e_atraso(nfs, devs):
     """Status final (ordem da SPEC) + dias de atraso contra a previsão do GFE."""
@@ -168,6 +199,51 @@ def chave_service():
             "    Supabase → Project Settings → API Keys → service_role → Reveal → copiar.\n"
             "    O ETL precisa dela para GRAVAR: a chave publishable é barrada pelo RLS.")
     return chave
+
+
+def remove_orfas(tabela, linhas, chave_svc, campos_chave, campo_data, de, ate, teto=0.05):
+    """Apaga do cache as linhas que sumiram da ORIGEM dentro da janela extraída.
+
+    Por que existe (achado em 22/09/2026, ao carregar a tabela região x linha):
+    o ETL só fazia upsert. Nota CANCELADA some da SF2 (D_E_L_E_T_='*') e a linha
+    ficava no cache PARA SEMPRE, contando como faturamento válido. Foi o caso das
+    6 NF de 21/09 canceladas em 22/09 — R$ 41.513,65 fantasma em dash_nf_saida.
+
+    Trava: se a sobra passar de `teto` (5%) das linhas da janela, NÃO apaga e devolve
+    o aviso. Extração parcial não pode esvaziar o painel.
+    """
+    import urllib.request, urllib.parse, json as _json
+    cab = {"apikey": chave_svc, "Authorization": f"Bearer {chave_svc}"}
+    sel = ",".join(campos_chave)
+    # o que está hoje no cache DENTRO da janela
+    existentes, off = [], 0
+    while True:
+        url = (f"{SUPABASE_URL}/rest/v1/{tabela}?select={sel}"
+               f"&{campo_data}=gte.{d(de)}&{campo_data}=lte.{d(ate)}")
+        req = urllib.request.Request(url, headers={**cab, "Range": f"{off}-{off+999}"})
+        pag = _json.load(urllib.request.urlopen(req, timeout=60))
+        existentes += pag; off += 1000
+        if len(pag) < 1000:
+            break
+    k = lambda r: tuple(str(r[c]) for c in campos_chave)
+    vivas = {k(r) for r in linhas}
+    orfas = [r for r in existentes if k(r) not in vivas]
+    if not orfas:
+        return 0, None
+    if existentes and len(orfas) / len(existentes) > teto:
+        return 0, (f"{tabela}: {len(orfas)} de {len(existentes)} linhas da janela sumiram da origem "
+                   f"({100*len(orfas)/len(existentes):.1f}% > teto de {100*teto:.0f}%) — "
+                   f"NÃO apaguei nada. Conferir a extração antes.")
+    # trilha: DELETE não deixa rastro no cache, então o que sai fica registrado aqui
+    log(f"  {tabela}: removendo {len(orfas)} linha(s) que sumiram da origem — "
+        + "; ".join("/".join(str(r[c]) for c in campos_chave) for r in orfas[:20])
+        + (" ..." if len(orfas) > 20 else ""))
+    for r in orfas:
+        q = "&".join(f"{c}=eq." + urllib.parse.quote(str(r[c]), safe="") for c in campos_chave)
+        req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/{tabela}?{q}",
+                                     headers={**cab, "Prefer": "return=minimal"}, method="DELETE")
+        urllib.request.urlopen(req, timeout=60)
+    return len(orfas), None
 
 
 def upsert(tabela, linhas, chave, conflito, lote=500):
@@ -237,6 +313,9 @@ def main():
         log("extraindo devoluções...")
         devs = [monta_dev(r) for r in extrai(conn, sql_com_janela(SQL_DEV, de, ate))]
         log(f"  {len(devs)} devoluções")
+        log("extraindo venda por região x linha...")
+        vls = [monta_vl(r) for r in extrai(conn, sql_com_janela(SQL_VL, de, ate))]
+        log(f"  {len(vls)} linhas de NF x linha de produto")
     except Exception as e:
         log(f"ERRO na extração: {e} — nada gravado.")
         return 1
@@ -247,6 +326,16 @@ def main():
     marcadas = aplica_devolucao_e_atraso(nfs, devs)
     log(f"status por devolução: {marcadas['DEVOLVIDA_TOTAL']} totais, "
         f"{marcadas['DEVOLVIDA_PARCIAL']} parciais")
+
+    # trava: venda por linha tem de reconciliar com a venda por nota
+    rec = confere_venda_linha(nfs, vls)
+    if rec["delta"] != 0 or rec["n_sem_linha"] or rec["n_sem_nf"]:
+        log(f"ERRO de reconciliação região x linha: nota R$ {rec['valor_nf']:,.2f} x "
+            f"linha R$ {rec['valor_linha']:,.2f} (delta {rec['delta']:,.2f}); "
+            f"{rec['n_sem_linha']} NF sem linha {rec['nf_sem_linha']}; "
+            f"{rec['n_sem_nf']} linha sem NF {rec['linha_sem_nf']} — nada gravado.")
+        return 1
+    log(f"reconciliação região x linha: OK (R$ {rec['valor_linha']:,.2f} nos dois grãos)")
 
     sem_entrega = [n for n in nfs if n["faixa_entrega"]]
     saldo = sum(n["saldo_aberto"] or 0 for n in sem_entrega)
@@ -261,6 +350,17 @@ def main():
         log("gravando no Supabase...")
         n1 = upsert("dash_nf_saida", nfs, chave, "filial,nf,serie")
         n2 = upsert("dash_devolucao", devs, chave, "filial,nf_dev,serie_dev,cliente_cod,cliente_loja")
+        n3 = upsert("dash_venda_linha", vls, chave, "filial,nf,serie,linha")
+        # varredura de órfãs: o que sumiu da origem (nota cancelada) tem de sair do cache
+        for tab, dados, cps, cdata in [
+                ("dash_nf_saida",    nfs, ["filial","nf","serie"],                                      "emissao"),
+                ("dash_devolucao",   devs,["filial","nf_dev","serie_dev","cliente_cod","cliente_loja"], "emissao_dev"),
+                ("dash_venda_linha", vls, ["filial","nf","serie","linha"],                              "emissao")]:
+            qtd, aviso = remove_orfas(tab, dados, chave, cps, cdata, de, ate)
+            if aviso:
+                log("ATENÇÃO — " + aviso)
+            elif qtd:
+                log(f"  {tab}: {qtd} linha(s) removida(s) — sumiram da origem (cancelamento/exclusão)")
     except Exception as e:
         log(f"ERRO na carga: {e}")
         grava_log(chave, started_at=inicio.isoformat(),
@@ -273,7 +373,7 @@ def main():
               finished_at=dt.datetime.now(dt.timezone.utc).isoformat(),
               ok=True, rows_nf=n1, rows_dev=n2, janela_de=d(de), janela_ate=d(ate))
     seg = (dt.datetime.now(dt.timezone.utc) - inicio).total_seconds()
-    log(f"OK — {n1} NF e {n2} devoluções em {seg:.1f}s")
+    log(f"OK — {n1} NF, {n2} devoluções e {n3} linhas região x linha em {seg:.1f}s")
     return 0
 
 

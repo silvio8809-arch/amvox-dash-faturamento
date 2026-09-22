@@ -131,3 +131,19 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .linhab .br.vm{background:var(--vermelho)}
 .vazio{padding:40px 20px;text-align:center;color:var(--cinza);font-size:14px}
 #erro{position:fixed;left:0;right:0;bottom:0;background:var(--vinho);color:#fff;padding:9px 30px;font-size:13px;display:none;z-index:40}
+
+/* ---------- matriz cruzada (região × linha) ---------- */
+.mtz{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.mtz th,.mtz td{padding:9px 12px;text-align:right;white-space:nowrap;font-size:13.5px;
+  border-bottom:1px solid var(--linha)}
+.mtz thead th{background:#F7F9FC;font:600 10.5px var(--cond);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--cinza);border-bottom:1px solid var(--borda)}
+.mtz tbody th,.mtz tfoot th{text-align:left;font:600 12.5px var(--texto);color:var(--navy)}
+.mtz .cab-c,.mtz .cab-l{cursor:pointer;user-select:none}
+.mtz .cab-c:hover,.mtz .cab-l:hover{color:var(--navy);text-decoration:underline}
+.mtz .cab-c.sel,.mtz .cab-l.sel{background:var(--am-suave);box-shadow:inset 0 0 0 1px #E5C98E}
+.mtz td.cel.clicavel{cursor:pointer}
+.mtz td.cel.clicavel:hover{outline:2px solid var(--navy);outline-offset:-2px}
+.mtz .tot{font-weight:700;background:#F7F9FC}
+.mtz .part{color:var(--cinza);font-size:12px;background:#FBFCFE}
+.mtz tfoot td,.mtz tfoot th{border-bottom:0;border-top:1px solid var(--borda)}

@@ -27,6 +27,11 @@ const F = {
 };
 
 /* ---------------------------------------------------------------- dados */
+/* ⚠️ `ordem` TEM de ser a chave primária COMPLETA. A leitura é paginada por Range, e com
+   chave de ordenação não única o Postgres pode devolver a mesma linha em duas páginas
+   (e pular outra) — o total sai errado sem erro nenhum. `nf` se repete em dash_venda_linha
+   (uma linha por linha de produto) e `nf_dev` em dash_devolucao (o número é do cliente).
+   Achado em 22/09/2026: uma NF apareceu com AUDIO duas vezes, R$ 163,65 a mais. */
 async function tudo(tabela, campos, ordem){
   const out = []; let de = 0;
   for(;;){
@@ -43,13 +48,20 @@ const CACHE = {};
 async function carregarCache(){
   if(CACHE.nfs) return CACHE;
   const [nfs, devs, log] = await Promise.all([
-    tudo('dash_nf_saida','*','nf'),
-    tudo('dash_devolucao','*','nf_dev'),
+    tudo('dash_nf_saida','*','filial,nf,serie'),
+    tudo('dash_devolucao','*','filial,nf_dev,serie_dev,cliente_cod,cliente_loja'),
     SB.from('dash_refresh_log').select('finished_at,ok').eq('ok',true).order('finished_at',{ascending:false}).limit(1)
   ]);
   CACHE.nfs = nfs; CACHE.devs = devs;
   CACHE.atualizado = log.data && log.data[0] ? new Date(log.data[0].finished_at) : null;
   return CACHE;
+}
+
+/* dash_venda_linha tem grão NF x LINHA DE PRODUTO — 424 das 1.876 notas têm mais de uma
+   linha, então somar por NF aqui DUPLICA nota. Carrega só quando a tela pede. */
+async function carregarVendaLinha(){
+  if(!CACHE.vls) CACHE.vls = await tudo('dash_venda_linha','*','filial,nf,serie,linha');
+  return CACHE.vls;
 }
 
 function marcarAtualizacao(){
@@ -86,9 +98,11 @@ function selLimpar(chave){
 }
 
 /* aplica todas as seleções ativas a uma lista, menos as chaves em `exceto`
-   (usado para o painel da própria dimensão não se auto-filtrar até sobrar 1 item) */
+   (usado para o painel da própria dimensão não se auto-filtrar até sobrar 1 item).
+   `exceto` aceita uma chave ou um array — a matriz região x linha precisa poupar as duas. */
 function filtraSel(lista, exceto){
-  const chaves = Object.keys(SEL).filter(k => k !== exceto && _mapaSel[k]);
+  const fora = Array.isArray(exceto) ? exceto : (exceto ? [exceto] : []);
+  const chaves = Object.keys(SEL).filter(k => !fora.includes(k) && _mapaSel[k]);
   if(!chaves.length) return lista;
   return lista.filter(r => chaves.every(k => {
     const campo = _mapaSel[k];
@@ -98,7 +112,8 @@ function filtraSel(lista, exceto){
 }
 
 const ROTULO_SEL = {cliente:'Cliente', uf:'UF', status:'Status', faixa:'Faixa',
-  transportadora:'Transportadora', motivo:'Motivo', origem:'Origem da NF', fonte:'Fonte da entrega'};
+  transportadora:'Transportadora', motivo:'Motivo', origem:'Origem da NF', fonte:'Fonte da entrega',
+  regiao:'Região', linha:'Linha'};
 
 function pintarChips(){
   const alvo = $('chipsSel'); if(!alvo) return;
@@ -187,6 +202,53 @@ function barras(destino, itens, cor, chaveSel){
     const i = itens[+e.dataset.i];
     e.onclick = () => selAlterna(chaveSel, i.valor !== undefined ? i.valor : i.nome, i.nome);
   });
+}
+
+/* ---------------------------------------------------------------- matriz cruzada
+   Grade linhas x colunas com heatmap e total nas duas bordas. Cada célula, cada
+   cabeçalho de linha e cada cabeçalho de coluna filtram a tela (filtro cruzado, §12).
+   `fmt` formata o valor; `chaveL`/`chaveC` são as dimensões que o clique seleciona. */
+function matriz(destino, dados, opc){
+  const {linhas, colunas, fmt, chaveL, chaveC} = opc;
+  const alvo = $(destino); if(!alvo) return;
+  if(!linhas.length || !colunas.length){
+    alvo.innerHTML = '<div class="vazio">Sem dados.</div>'; return;
+  }
+  const val = (l,c) => (dados[l] && dados[l][c]) || 0;
+  const totL = l => colunas.reduce((s,c)=>s+val(l,c),0);
+  const totC = c => linhas.reduce((s,l)=>s+val(l,c),0);
+  const geral = linhas.reduce((s,l)=>s+totL(l),0);
+  const pico = Math.max(1, ...linhas.flatMap(l => colunas.map(c => val(l,c))));
+  const th = colunas.map(c =>
+    `<th class="cab-c ${SEL[chaveC]===c?'sel':''}" data-c="${c}">${c}</th>`).join('');
+  const corpo = linhas.map(l => {
+    const tds = colunas.map(c => {
+      const v = val(l,c);
+      // intensidade no laranja da marca; teto em 0.85 para o texto continuar legível
+      const op = v > 0 ? 0.08 + 0.77*Math.sqrt(v/pico) : 0;
+      return `<td class="cel ${v?'clicavel':''}" data-l="${l}" data-c="${c}"
+                  style="background:rgba(245,166,35,${op.toFixed(3)})"
+                  title="${l} · ${c}">${v ? fmt(v) : '—'}</td>`;
+    }).join('');
+    return `<tr><th class="cab-l ${SEL[chaveL]===l?'sel':''}" data-l="${l}">${l}</th>${tds}`+
+           `<td class="tot">${fmt(totL(l))}</td>`+
+           `<td class="part">${geral ? (100*totL(l)/geral).toFixed(1).replace('.',',')+'%' : '—'}</td></tr>`;
+  }).join('');
+  alvo.innerHTML = `<table class="mtz"><thead><tr><th></th>${th}`+
+    `<th class="tot">TOTAL</th><th class="part">%</th></tr></thead><tbody>${corpo}</tbody>`+
+    `<tfoot><tr><th>TOTAL</th>${colunas.map(c=>`<td class="tot">${fmt(totC(c))}</td>`).join('')}`+
+    `<td class="tot">${fmt(geral)}</td><td class="part">100%</td></tr>`+
+    `<tr><th class="part">%</th>${colunas.map(c=>
+      `<td class="part">${geral ? (100*totC(c)/geral).toFixed(1).replace('.',',')+'%' : '—'}</td>`).join('')}`+
+    `<td class="part"></td><td class="part"></td></tr></tfoot></table>`;
+  // clique: célula seleciona as DUAS dimensões; cabeçalho seleciona só a sua
+  alvo.querySelectorAll('td.cel.clicavel').forEach(e => e.onclick = () => {
+    SEL[chaveL] = e.dataset.l; SEL_ROT[chaveL] = e.dataset.l;
+    SEL[chaveC] = e.dataset.c; SEL_ROT[chaveC] = e.dataset.c;
+    _redesenha && _redesenha();
+  });
+  alvo.querySelectorAll('th.cab-l').forEach(e => e.onclick = () => selAlterna(chaveL, e.dataset.l));
+  alvo.querySelectorAll('th.cab-c').forEach(e => e.onclick = () => selAlterna(chaveC, e.dataset.c));
 }
 
 /* ---------------------------------------------------------------- Excel (.xlsx nativo) */

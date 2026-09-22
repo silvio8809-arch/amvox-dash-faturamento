@@ -1,0 +1,159 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Venda por região × linha</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">RL</div><h1>Venda por região × linha</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Competência</label><select id="fMes"></select></div>
+  <div class="campo"><label>Região</label><select id="fReg"><option value="">Todas</option></select></div>
+  <div class="campo"><label>Linha</label><select id="fLin"><option value="">Todas</option></select></div>
+  <div class="campo"><label>UF</label><select id="fUf"><option value="">Todas</option></select></div>
+  <div class="campo" style="min-width:220px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="chipsSel" id="chipsSel"></div>
+  <div class="cards" id="cards"></div>
+
+  <div class="painel" style="margin-top:18px">
+    <h2>Faturamento: região × linha <span>clique numa célula, linha ou coluna para filtrar a tela</span></h2>
+    <div class="corpo" style="overflow-x:auto" id="mtz"></div>
+  </div>
+
+  <div class="colunas">
+    <div class="painel"><h2>Detalhe <span id="tSub"></span></h2><div id="tabela"></div></div>
+    <div class="lado">
+      <div class="painel"><h2>Por linha <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porLin"></div></div></div>
+      <div class="painel"><h2>Por região <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porReg"></div></div></div>
+      <div class="painel"><h2>Por UF <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porUf"></div></div></div>
+      <div class="painel"><h2>Top clientes <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
+    </div>
+  </div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+/* Grão desta tela = NF × LINHA DE PRODUTO (dash_venda_linha), não a nota.
+   424 das 1.876 notas da janela têm mais de uma linha, então contar notas aqui exige
+   COUNT(DISTINCT) — ver `nfsDistintas()`. O faturamento somado bate ao centavo com a
+   tela de notas emitidas (SUM(D2_VALBRUT) = F2_VALFAT). */
+let TAB;
+const ORDEM_REG = ['NORDESTE','SUDESTE','CENTRO-OESTE','NORTE','SUL','(SEM REGIÃO)'];
+const capital = s => (s||'').charAt(0) + (s||'').slice(1).toLowerCase();
+
+const COLS = [
+  {k:'nf', t:'NF', esq:true, cls:'forte'},
+  {k:'emissao', t:'Emissão', fmt:F.data},
+  {k:'cliente_nome', t:'Cliente', esq:true},
+  {k:'uf', t:'UF'},
+  {k:'regiao', t:'Região', esq:true},
+  {k:'linha', t:'Linha', esq:true},
+  {k:'quantidade', t:'Qtd', fmt:v => F.int(v)},
+  {k:'valor_faturado', t:'Faturado', fmt:F.moeda, cls:'forte'},
+  {k:'valor_mercadoria', t:'Mercadoria s/ IPI', fmt:F.moeda},
+];
+
+const nfsDistintas = l => new Set(l.map(x => x.filial+'|'+x.nf+'|'+x.serie)).size;
+
+function filtrar(){
+  const mes = $('fMes').value, reg = $('fReg').value, lin = $('fLin').value,
+        uf = $('fUf').value, cli = $('fCli').value.trim().toLowerCase();
+  return CACHE.vls.filter(x =>
+    x.status !== 'CANCELADA' &&
+    (!mes || (x.emissao||'').startsWith(mes)) &&
+    (!reg || x.regiao === reg) &&
+    (!lin || x.linha === lin) &&
+    (!uf  || x.uf === uf) &&
+    (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
+}
+
+function pintar(){
+  pintarChips();
+  const base = filtrar();
+  const l = filtraSel(base);
+  const fat = l.reduce((s,x)=>s+(+x.valor_faturado||0),0);
+  const qtd = l.reduce((s,x)=>s+(+x.quantidade||0),0);
+  const nNf = nfsDistintas(l);
+
+  // linha dominante no recorte atual
+  const porLinha = {}; l.forEach(x => porLinha[x.linha] = (porLinha[x.linha]||0)+(+x.valor_faturado||0));
+  const top = Object.entries(porLinha).sort((a,b)=>b[1]-a[1])[0];
+  const porReg = {}; l.forEach(x => porReg[x.regiao] = (porReg[x.regiao]||0)+(+x.valor_faturado||0));
+  const topR = Object.entries(porReg).sort((a,b)=>b[1]-a[1])[0];
+
+  kpis('cards',[
+    {titulo:'Faturamento no recorte', valor:F.curto(fat), nota:`${F.int(nNf)} notas · ${F.int(qtd)} peças`},
+    {titulo:'Linha dominante', valor:top ? capital(top[0]) : '—',
+     nota:top && fat ? F.curto(top[1]) + ' · ' + (100*top[1]/fat).toFixed(1).replace('.',',') + '% do recorte' : '—'},
+    {titulo:'Região dominante', valor:topR ? capital(topR[0]) : '—',
+     nota:topR && fat ? F.curto(topR[1]) + ' · ' + (100*topR[1]/fat).toFixed(1).replace('.',',') + '% do recorte' : '—'},
+    {titulo:'Ticket médio por NF', valor:nNf ? F.curto(fat/nNf) : '—', nota:'faturado ÷ notas distintas'},
+  ]);
+
+  // a matriz não se auto-filtra por região NEM por linha — senão sobra uma célula só
+  // e o usuário fica preso na seleção, sem conseguir trocar de célula.
+  const baseMtz = filtraSel(base, ['regiao','linha']);
+  const dados = {}, linhasSet = {}, regsSet = {};
+  baseMtz.forEach(x => {
+    (dados[x.regiao] = dados[x.regiao] || {});
+    dados[x.regiao][x.linha] = (dados[x.regiao][x.linha]||0) + (+x.valor_faturado||0);
+    linhasSet[x.linha] = (linhasSet[x.linha]||0) + (+x.valor_faturado||0);
+    regsSet[x.regiao] = true;
+  });
+  matriz('mtz', dados, {
+    linhas: ORDEM_REG.filter(r => regsSet[r]).concat(Object.keys(regsSet).filter(r=>!ORDEM_REG.includes(r))),
+    colunas: Object.entries(linhasSet).sort((a,b)=>b[1]-a[1]).map(([k])=>k),
+    fmt: F.curto, chaveL:'regiao', chaveC:'linha'
+  });
+
+  $('tSub').textContent = `${F.int(l.length)} registros (NF × linha) · ${F.int(nNf)} notas`;
+  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'valor_faturado', porPagina:40,
+    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
+
+  const somaPor = (campo, exceto) => {
+    const m = {}; filtraSel(base, exceto).forEach(x => m[x[campo]||'—'] = (m[x[campo]||'—']||0)+(+x.valor_faturado||0));
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  };
+  barras('porLin', somaPor('linha','linha').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'linha');
+  barras('porReg', somaPor('regiao','regiao').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'regiao');
+  barras('porUf',  somaPor('uf','uf').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), '', 'uf');
+  barras('porCli', somaPor('cliente_nome','cliente').slice(0,8).map(([k,v])=>({nome:k, v, rot:F.curto(v)})), 'vm', 'cliente');
+}
+
+iniciarPagina(async () => {
+  await carregarVendaLinha();
+  const meses = [...new Set(CACHE.vls.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+    meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('fMes').value = meses[0] || '';
+  const ops = (campo, ordem) => {
+    const v = [...new Set(CACHE.vls.map(x=>x[campo]).filter(Boolean))];
+    return (ordem ? ordem.filter(x=>v.includes(x)).concat(v.filter(x=>!ordem.includes(x))) : v.sort())
+      .map(x=>`<option>${x}</option>`).join('');
+  };
+  $('fReg').innerHTML = '<option value="">Todas</option>' + ops('regiao', ORDEM_REG);
+  $('fLin').innerHTML = '<option value="">Todas</option>' + ops('linha');
+  $('fUf').innerHTML  = '<option value="">Todas</option>' + ops('uf');
+
+  configurarSelecao({cliente:'cliente_nome', uf:'uf', regiao:'regiao', linha:'linha'}, pintar);
+  $('bAplicar').onclick = () => { selLimpar(); };
+  $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
+  $('bXls').onclick = () => exportarXLSX(
+    `AMVOX_VENDA_REGIAO_LINHA_${hojeArq()}.xlsx`, 'Venda por região × linha',
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    [{t:'NF',k:'nf',w:12},{t:'EMISSÃO',k:'emissao',w:12},{t:'CLIENTE',k:'cliente_nome',w:38},
+     {t:'UF',k:'uf',w:6},{t:'REGIÃO',k:'regiao',w:16},{t:'LINHA',k:'linha',w:16},
+     {t:'QTD',k:'quantidade',w:10,tipo:'n'},
+     {t:'FATURADO',k:'valor_faturado',w:15,tipo:'n'},
+     {t:'MERCADORIA S/ IPI',k:'valor_mercadoria',w:17,tipo:'n'}],
+    TAB.atual());
+  pintar();
+});
+</script></body></html>

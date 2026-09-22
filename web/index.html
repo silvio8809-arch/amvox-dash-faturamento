@@ -53,6 +53,11 @@ header .dir b{color:#fff;font-weight:600}
 header select{background:#2A3142;color:#fff;border:1px solid #3C4459;border-radius:8px;
   font:600 17px var(--cond);letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;cursor:pointer}
 header select:focus{outline:2px solid var(--laranja)}
+/* atalho para telas que não têm bloco na grade 2x2 (a grade é fixa e aprovada) */
+header .atalho{margin-left:22px;display:inline-flex;align-items:center;gap:8px;background:#2A3142;
+  border:1px solid #3C4459;color:#fff;border-radius:9px;padding:9px 15px;text-decoration:none;
+  font:600 12px var(--cond);letter-spacing:.11em;text-transform:uppercase}
+header .atalho:hover{background:#343C52;border-color:var(--laranja)}
 .rotmes{font:600 10px var(--cond);letter-spacing:.16em;text-transform:uppercase;color:#8A93A8;margin-bottom:3px}
 /* ---------- grade ---------- */
 main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
@@ -146,6 +151,7 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
   <div class="logo">AV</div>
   <h1 id="titulo">Faturamento &amp; Entregas</h1>
   <div style="margin-left:26px"><div class="rotmes">Competência</div><select id="mesSel"></select></div>
+  <a class="atalho" href="regiao-linha.html">Região × linha →</a>
   <div class="dir">
     Última atualização: <b id="atualizado">—</b><br>
     <span id="proxima"></span>
