@@ -127,6 +127,22 @@ function pintarChips(){
   alvo.querySelectorAll('.chip').forEach(b => b.onclick = () => selLimpar(b.dataset.k || null));
 }
 
+
+/* ---------------------------------------------------------------- filtros da barra superior
+   Liga TODO campo da FilterBar ao redesenho. Sem isso o usuário troca a competência (ou a UF,
+   ou o status) e a tela não se mexe até clicar em "Aplicar" — foi o bug reportado pelo Silvio
+   em 22/09/2026. A TV (index.html) já tinha onchange no seletor de mês; as 5 telas de detalhe
+   não tinham nenhum. Fica no motor, e não em cada página, para tela nova já nascer certa. */
+function ligarFiltros(){
+  const barra = document.querySelector('.filtros');
+  if(!barra || !_redesenha) return;
+  barra.querySelectorAll('select').forEach(e => e.addEventListener('change', () => _redesenha()));
+  barra.querySelectorAll('input').forEach(e => {
+    e.addEventListener('change', () => _redesenha());            // sai do campo = aplica
+    e.addEventListener('keydown', ev => { if(ev.key === 'Enter') _redesenha(); });
+  });
+}
+
 /* ---------------------------------------------------------------- KPIs */
 function kpis(destino, lista){
   $(destino).innerHTML = lista.map(k =>
@@ -419,7 +435,7 @@ async function abrir(){
   const convite = /type=(invite|recovery|signup)/.test(location.hash);
   if(!session || convite){ $('login').style.display='flex'; return; }
   $('login').style.display='none';
-  try { await carregarCache(); marcarAtualizacao(); await _pagina(); }
+  try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }
 function iniciarPagina(fn){
