@@ -162,10 +162,22 @@ def main():
                    LTRIM(RTRIM(F2_SERIE)) SER, F2_EMISSAO EMIS,
                    LTRIM(RTRIM(F2_HORA)) HORA, F2_VALFAT VAL,
                    LTRIM(RTRIM(F2_CLIENTE)) CLI
-            FROM   SF2010
+            FROM   SF2010 F2
             WHERE  D_E_L_E_T_ = ''
               AND  F2_VALFAT  > 0
-              AND  F2_EMISSAO BETWEEN '{de}' AND '{ate}'""")
+              AND  F2_EMISSAO BETWEEN '{de}' AND '{ate}'
+              -- MESMO universo do 01_nf_saida: régua da FAT PLUS (Silvio 22/09/2026).
+              -- Se esta condição divergir da extração, TODA rodada acusa pendência falsa.
+              AND  EXISTS (SELECT 1
+                           FROM   SD2010 DUP
+                           JOIN   SF4010 TES ON DUP.D2_TES = TES.F4_CODIGO
+                                            AND SUBSTRING(TES.F4_FILIAL,1,4) = SUBSTRING(DUP.D2_FILIAL,1,4)
+                                            AND TES.D_E_L_E_T_ = ''
+                           WHERE  DUP.D_E_L_E_T_ = ''
+                             AND  DUP.D2_FILIAL = F2.F2_FILIAL  AND DUP.D2_DOC     = F2.F2_DOC
+                             AND  DUP.D2_SERIE  = F2.F2_SERIE   AND DUP.D2_CLIENTE = F2.F2_CLIENTE
+                             AND  DUP.D2_LOJA   = F2.F2_LOJA
+                             AND  TES.F4_DUPLIC = 'S')""")
         origem = {(r["FIL"], r["NF"], r["SER"]): r for r in cur.fetchall()}
         cur.close()
     finally:
