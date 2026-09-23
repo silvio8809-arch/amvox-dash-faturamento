@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.2** · 23/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.3** · 23/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -192,16 +192,17 @@ juntas. Concentração mostrada em R$ e em % do faturamento do período.
 ## 13. Auditoria
 
 Controles automáticos que **apontam** desvios; não alteram nenhum outro número do painel. São dois
-subgrupos, pensados para, no futuro, dar acesso por perfil:
+subgrupos, pensados para, no futuro, dar acesso por perfil. **Cada auditoria pertence a um único
+grupo**, definido quando ela é aprovada:
 
-| Subgrupo | Escopo |
-|---|---|
-| **Auditoria LOG** | Expedição e entrega física |
-| **Auditoria FAT** | Faturamento (nenhuma auditoria ativa ainda) |
+| Subgrupo | Escopo | Auditorias ativas |
+|---|---|---|
+| **Auditoria FAT** | Faturamento | Venda à ordem — remessa × NF-mãe (13.1) · Venda à ordem — conferência pelo pedido (13.2) |
+| **Auditoria LOG** | Expedição e entrega física | Nenhuma ainda |
 
 A cada atualização a auditoria é refeita inteira: ocorrência corrigida no Protheus some sozinha.
 
-### 13.1 LOG · Venda à ordem — remessa × NF-mãe
+### 13.1 FAT · Venda à ordem — remessa × NF-mãe
 
 *Não se pode entregar mais mercadoria (R$) do que a NF-mãe registrou, nem produto diferente do
 dela.* Compara, **produto a produto**, a NF-mãe com as remessas vinculadas (seção 8). Quando uma
@@ -216,7 +217,7 @@ remessa cita mais de uma mãe, a comparação é feita no grupo das mães citada
 Clicar numa ocorrência abre a comparação produto a produto (quantidade e valor, mãe × remessas).
 Não há retorno de remessa registrado na base — nada é abatido.
 
-### 13.2 LOG · Venda à ordem — conferência pelo pedido (notas desde 01/08/2026)
+### 13.2 FAT · Venda à ordem — conferência pelo pedido (notas desde 01/08/2026)
 
 Usa os campos do pedido da seção 8, só para notas emitidas a partir de 01/08/2026.
 
@@ -272,4 +273,5 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 |---|---|---|---|
 | 1.0 | 23/09/2026 | Primeira versão consolidada: universo = FAT PLUS; regra de cancelamento corrigida; data de entrega FIN → GFE → título quitado; venda à ordem (vínculo pela nota, rateio, base com IPI, data da mãe pela última remessa com retaguarda FIN/GFE/pago); sinistro e funcionários só marcados; devolução em aberto (NCC); fila sem corte de 120 dias; dados desde jan/2025; Auditoria LOG/FAT com o 1º controle (remessa × NF-mãe); atualização guiada pelo código com checagem de estrutura | Silvio Amaral (definições de 21 a 23/09/2026) |
 | 1.1 | 23/09/2026 | Venda à ordem: registrada a checagem complementar pelos campos do pedido (Filial/Série/Doc Ref no pedido da remessa; Venda Ordem = CNPJ do destinatário no pedido da mãe), só para notas a partir de 01/08/2026 | Silvio Amaral |
-| 1.2 | 23/09/2026 | Aprovada a forma de uso dos campos do pedido: 3 testes na Auditoria LOG (seção 13.2) e Doc Ref do pedido como 4ª fonte do vínculo; regra do pedido agrupador | Silvio Amaral |
+| 1.2 | 23/09/2026 | Aprovada a forma de uso dos campos do pedido: 3 testes na Auditoria (seção 13.2) e Doc Ref do pedido como 4ª fonte do vínculo; regra do pedido agrupador | Silvio Amaral |
+| 1.3 | 23/09/2026 | Cada auditoria pertence a um único grupo; as duas auditorias de venda à ordem passam para a Auditoria FAT (LOG fica sem auditoria ativa) | Silvio Amaral |

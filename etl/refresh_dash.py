@@ -42,7 +42,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.2"
+ESPEC_VERSAO = "1.3"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -576,6 +576,9 @@ def aplica_devolucao_e_atraso(nfs, devs):
 
 # ------------------------------------------------------------------ auditoria
 # Card "Auditoria" (Silvio, 23/09/2026) com dois subgrupos — LOG e FAT — para controlar acesso
+# por perfil no futuro. CADA AUDITORIA PERTENCE A UM ÚNICO GRUPO (Silvio 23/09/2026); as de venda à
+# ordem são do grupo FAT.
+#
 # por perfil no futuro. Cada auditoria é uma função que devolve OCORRÊNCIAS no formato da tabela
 # dash_auditoria; nova auditoria = nova função + uma linha em AUDITORIAS. Nada aqui altera
 # status ou data de entrega: auditoria só aponta.
@@ -607,7 +610,7 @@ def _componentes_vo(vos):
 
 
 def audita_venda_ordem(ctx):
-    """AUDITORIA LOG · VO_REMESSA_X_MAE — "não posso entregar mais produtos (R$) do que foi
+    """AUDITORIA FAT · VO_REMESSA_X_MAE — "não posso entregar mais produtos (R$) do que foi
     registrado na nota mãe, muito menos produtos DISTINTOS da nota mãe" (Silvio, 23/09/2026).
     Três testes por grupo mãe(s) × remessas (não canceladas, vinculadas):
       VALOR_MAIOR ...... Σ remessas (valor bruto) > Σ mães (valor bruto, com IPI) + max(R$ 1; 0,5%)
@@ -645,7 +648,7 @@ def audita_venda_ordem(ctx):
                         valor_mae=round(mv.get(p, 0), 2), valor_remessa=round(rv.get(p, 0), 2))
                    for p in prods]
         m0 = docs_m[0]
-        base = dict(grupo="LOG", auditoria="VO_REMESSA_X_MAE",
+        base = dict(grupo="FAT", auditoria="VO_REMESSA_X_MAE",
                     chave=m0["filial"] + "|" + ",".join(n["nf"] for n in docs_m),
                     filial=m0["filial"], documento=", ".join(n["nf"] for n in docs_m),
                     documentos_ref=", ".join(r[2] for r in sorted(rems)),
@@ -676,7 +679,7 @@ CORTE_PEDIDO_VO = "2026-08-01"   # campos do pedido (C5_X*) só valem para notas
 
 
 def audita_pedido_venda_ordem(ctx):
-    """AUDITORIA LOG · VO_PEDIDO — checagem complementar pelos campos do PEDIDO (definição e forma de
+    """AUDITORIA FAT · VO_PEDIDO — checagem complementar pelos campos do PEDIDO (definição e forma de
     uso aprovadas pelo Silvio em 23/09/2026), só para notas emitidas desde 01/08/2026:
       VINCULO_DIVERGENTE ....... Doc Ref do pedido da remessa (C5_XDOCREF) ≠ NF-mãe lida pela nota
                                  ⚠️ pedido AGRUPADOR: um pedido pode gerar várias remessas de mães
@@ -695,7 +698,7 @@ def audita_pedido_venda_ordem(ctx):
                 [v["nf_mae"]] + [x for x in (v["outras_maes"] or "").split(",") if x])
     out = []
     def base(teste, sev, chave, mae, v, descricao, detalhe, doc_ref=None):
-        return dict(grupo="LOG", auditoria="VO_PEDIDO", teste=teste, severidade=sev, chave=chave,
+        return dict(grupo="FAT", auditoria="VO_PEDIDO", teste=teste, severidade=sev, chave=chave,
                     filial=(mae or v or {}).get("filial"), documento=(mae or {}).get("nf") or "—",
                     documentos_ref=doc_ref, emissao=(mae or v or {}).get("emissao"),
                     cliente_nome=(mae or v or {}).get("cliente_nome"), uf=(mae or v or {}).get("uf"),

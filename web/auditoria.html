@@ -43,6 +43,8 @@
 <div id="erro"></div>
 <script src="painel.js"></script>
 <script>
+/* Cada auditoria pertence a UM grupo só (Silvio 23/09/2026) — o campo `grupo` do catálogo e o do ETL
+   têm de ser iguais. Venda à ordem = FAT. */
 /* CATÁLOGO — o que cada auditoria verifica, na linguagem da tela. Mesmos códigos que o ETL grava em
    dash_auditoria (refresh_dash.py → AUDITORIAS). Auditoria nova = entrada aqui + função no ETL. */
 const GRUPOS = {
@@ -50,7 +52,7 @@ const GRUPOS = {
   FAT: {nome:'Auditoria FAT', def:'Controles do faturamento.'},
 };
 const CATALOGO = {
-  VO_REMESSA_X_MAE: {grupo:'LOG', titulo:'Venda à ordem — remessa × NF-mãe',
+  VO_REMESSA_X_MAE: {grupo:'FAT', titulo:'Venda à ordem — remessa × NF-mãe',
     def:'Não se pode entregar mais mercadoria (R$) do que a NF-mãe registrou, nem produto diferente do dela. '+
         'Compara, produto a produto, a NF-mãe (5118/6118/5119/6119) com as remessas vinculadas a ela (5923/6923), '+
         'em quantidade e em valor bruto com IPI. Remessa que cita mais de uma mãe entra no grupo das mães citadas.',
@@ -59,7 +61,7 @@ const CATALOGO = {
       PRODUTO_DISTINTO: 'Produto remessado que não está na NF-mãe',
       QTD_MAIOR:        'Quantidade remessada acima da NF-mãe',
     }, excesso:true},
-  VO_PEDIDO: {grupo:'LOG', titulo:'Venda à ordem — conferência pelo pedido (notas desde 01/08/2026)',
+  VO_PEDIDO: {grupo:'FAT', titulo:'Venda à ordem — conferência pelo pedido (notas desde 01/08/2026)',
     def:'Usa os campos do pedido criados para rastrear a venda à ordem: Doc Ref no pedido da remessa (a NF-mãe) e '+
         'Venda Ordem no pedido da NF-mãe (CNPJ de quem recebe). Pedido que gera várias remessas guarda uma mãe só — '+
         'por isso só conta como divergência a mãe que não é de nenhuma remessa daquele pedido.',
@@ -71,7 +73,7 @@ const CATALOGO = {
 };
 const ROT_TESTE = Object.fromEntries(Object.values(CATALOGO).flatMap(a => Object.entries(a.testes)));
 
-let OCOR = [], GRUPO = 'LOG', TESTE_SEL = null, SUB_SEL = null, TAB = null;
+let OCOR = [], GRUPO = 'FAT', TESTE_SEL = null, SUB_SEL = null, TAB = null;
 const chave = o => `${o.auditoria}|${o.teste}|${o.chave}`;
 const pct = (v, t) => t ? (100*v/t).toFixed(1).replace('.',',') + '%' : '—';
 
@@ -182,6 +184,7 @@ iniciarPagina(async () => {
       '(a tabela do banco não existe ou está vazia). Ela entra na próxima atualização do painel.</div></div>';
     pintarGrupos(); return;
   }
+  GRUPO = Object.keys(GRUPOS).find(g => OCOR.some(o => o.grupo === g)) || GRUPO;   // abre onde há ocorrência
   const testes = [...new Set(OCOR.map(o => o.teste))];
   $('fTeste').innerHTML = '<option value="">Todos</option>' + testes.map(t => `<option value="${t}">${ROT_TESTE[t]||t}</option>`).join('');
   $('bAplicar').onclick = () => { TESTE_SEL = null; SUB_SEL = null; pintar(); };
