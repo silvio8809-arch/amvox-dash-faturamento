@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.3** · 23/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.4** · 23/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -23,6 +23,17 @@ Painel em duas camadas, alimentado pelo Protheus (TOTVS):
 
 Todas as telas de detalhe têm filtros, filtro cruzado (clicar em qualquer barra, linha ou célula
 filtra a tela inteira) e exportação para Excel.
+
+**Consulta pelo número da NF** — campo *NF* em todas as telas de detalhe. Aceita o número com ou sem
+zeros à esquerda e também o começo dele ("279825", "000279825" ou "2798"). Com a NF digitada, a
+competência deixa de filtrar: a nota é encontrada em qualquer mês. O que o campo procura em cada tela:
+
+| Tela | Procura na |
+|---|---|
+| Notas emitidas · Top clientes · Região × linha | NF de venda |
+| Sem data de entrega | NF da fila; no quadro de venda à ordem, a NF-mãe **ou** qualquer remessa dela (mostra também as concluídas) |
+| Devoluções | NF de devolução **ou** a NF de venda de origem |
+| Auditoria | NF-mãe **ou** remessa da ocorrência |
 
 ## 2. Princípios que valem para tudo
 
@@ -275,3 +286,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.1 | 23/09/2026 | Venda à ordem: registrada a checagem complementar pelos campos do pedido (Filial/Série/Doc Ref no pedido da remessa; Venda Ordem = CNPJ do destinatário no pedido da mãe), só para notas a partir de 01/08/2026 | Silvio Amaral |
 | 1.2 | 23/09/2026 | Aprovada a forma de uso dos campos do pedido: 3 testes na Auditoria (seção 13.2) e Doc Ref do pedido como 4ª fonte do vínculo; regra do pedido agrupador | Silvio Amaral |
 | 1.3 | 23/09/2026 | Cada auditoria pertence a um único grupo; as duas auditorias de venda à ordem passam para a Auditoria FAT (LOG fica sem auditoria ativa) | Silvio Amaral |
+| 1.4 | 23/09/2026 | Consulta pelo número da NF em todas as telas de detalhe (seção 1) | Silvio Amaral |

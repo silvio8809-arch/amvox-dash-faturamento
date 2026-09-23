@@ -16,6 +16,7 @@
     <option value="">Todos</option><option>ENTREGUE</option><option>EM_TRANSITO</option>
     <option>DEVOLVIDA_PARCIAL</option><option>DEVOLVIDA_TOTAL</option><option>CANCELADA</option></select></div>
   <div class="campo"><label>UF</label><select id="fUf"><option value="">Todas</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
@@ -54,9 +55,9 @@ const COLS = [
 ];
 function filtrar(){
   const mes = $('fMes').value, st = $('fStatus').value, uf = $('fUf').value,
-        cli = $('fCli').value.trim().toLowerCase();
+        cli = $('fCli').value.trim().toLowerCase(), nf = termoNF();
   return CACHE.nfs.filter(x =>
-    (!mes || (x.emissao||'').startsWith(mes)) &&
+    casaNF(nf, x.nf) && (nf || !mes || (x.emissao||'').startsWith(mes)) &&
     (!st  || x.status === st) &&
     (!uf  || x.uf === uf) &&
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));

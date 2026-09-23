@@ -166,6 +166,20 @@ function ligarFiltros(){
   });
 }
 
+/* ---------------------------------------------------------------- consulta por NF
+   Pedido do Silvio 23/09/2026: toda tela de detalhe tem o campo "NF" (id fNF). Aceita o número
+   com ou sem zeros à esquerda e o INÍCIO do número ("279825", "000279825", "2798"). Com NF
+   digitada a competência deixa de filtrar — a nota é achada em qualquer mês do cache. */
+function termoNF(){
+  const e = $('fNF');
+  return e ? e.value.replace(/\D/g, '').replace(/^0+/, '') : '';
+}
+function casaNF(termo, ...numeros){
+  if(!termo) return true;
+  return numeros.some(n => String(n || '').split(/[^0-9]+/)
+    .some(x => x && x.replace(/^0+/, '').startsWith(termo)));
+}
+
 /* Rótulo de barra com valor E participação. O % é sobre o total da DIMENSÃO INTEIRA,
    não sobre os 8 itens exibidos — senão a soma dos rótulos daria 100% enganosamente. */
 function rotValPct(v, total){

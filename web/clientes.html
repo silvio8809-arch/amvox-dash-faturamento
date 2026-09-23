@@ -16,6 +16,7 @@
     <option value="liq">Faturado líquido de devoluções</option>
     <option value="fat">Valor faturado bruto</option>
     <option value="qtd">Quantidade de notas</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
@@ -47,9 +48,11 @@ const COLS = [
   {k:'semEnt', t:'Sem entrega', fmt:F.int},
 ];
 function agregar(){
-  const mes = $('fMes').value;
-  const nfs = CACHE.nfs.filter(x => x.status !== 'CANCELADA' && (!mes || (x.emissao||'').startsWith(mes)));
-  const dev = CACHE.devs.filter(x => x.devolucao_venda && (!mes || (x.emissao_dev||'').startsWith(mes)));
+  const mes = $('fMes').value, nf = termoNF();
+  const nfs = CACHE.nfs.filter(x => x.status !== 'CANCELADA' && casaNF(nf, x.nf) &&
+                                   (nf || !mes || (x.emissao||'').startsWith(mes)));
+  const dev = CACHE.devs.filter(x => x.devolucao_venda && casaNF(nf, x.nf_origem, x.nf_dev) &&
+                                    (nf || !mes || (x.emissao_dev||'').startsWith(mes)));
   const m = {};
   const chave = x => x.cnpj_raiz || x.cliente_nome || '—';
   nfs.forEach(x => { const k = chave(x);

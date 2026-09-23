@@ -19,6 +19,7 @@
   <div class="campo"><label>Origem da NF</label><select id="fOri">
     <option value="">Todas</option><option value="CLIENTE">Emitida pelo cliente</option>
     <option value="AMVOX">Emitida pela AMVOX</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:210px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
@@ -53,10 +54,11 @@ const COLS = [
 ];
 function filtrar(){
   const mes = $('fMes').value, mot = $('fMot').value, ori = $('fOri').value,
-        cli = $('fCli').value.trim().toLowerCase(), univ = $('fUniv').value;
+        cli = $('fCli').value.trim().toLowerCase(), univ = $('fUniv').value, nf = termoNF();
   return CACHE.devs.filter(x =>
     (univ === 'todas' || x.devolucao_venda) &&
-    (!mes || (x.emissao_dev||'').startsWith(mes)) &&
+    casaNF(nf, x.nf_dev, x.nf_origem) &&              // nota de devolução OU a venda de origem
+    (nf || !mes || (x.emissao_dev||'').startsWith(mes)) &&
     (!mot || (x.motivo_causa||'') === mot) &&
     (!ori || x.origem_nf === ori) &&
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));

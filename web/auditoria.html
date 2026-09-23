@@ -33,6 +33,7 @@
   <div class="campo"><label>Teste</label><select id="fTeste"><option value="">Todos</option></select></div>
   <div class="campo"><label>Severidade</label><select id="fSev"><option value="">Todas</option>
     <option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
@@ -78,8 +79,9 @@ const chave = o => `${o.auditoria}|${o.teste}|${o.chave}`;
 const pct = (v, t) => t ? (100*v/t).toFixed(1).replace('.',',') + '%' : '—';
 
 function filtrar(){
-  const te = $('fTeste').value, sv = $('fSev').value, cli = $('fCli').value.trim().toLowerCase();
+  const te = $('fTeste').value, sv = $('fSev').value, cli = $('fCli').value.trim().toLowerCase(), nf = termoNF();
   return OCOR.filter(o => o.grupo === GRUPO && (!te || o.teste === te) && (!sv || o.severidade === sv) &&
+                          casaNF(nf, o.documento, o.documentos_ref) &&
                           (!cli || (o.cliente_nome||'').toLowerCase().includes(cli)));
 }
 
@@ -190,6 +192,7 @@ iniciarPagina(async () => {
   $('bAplicar').onclick = () => { TESTE_SEL = null; SUB_SEL = null; pintar(); };
   ['fTeste','fSev'].forEach(id => $(id).addEventListener('change', pintar));
   $('fCli').addEventListener('input', pintar);
+  $('fNF').addEventListener('input', pintar);
   $('bXls').onclick = () => exportarXLSX(`AMVOX_AUDITORIA_${GRUPO}_${hojeArq()}.xlsx`, GRUPOS[GRUPO].nome,
     'Ocorrências da última carga',
     [{t:'SEVERIDADE',k:'severidade',w:11},{t:'AUDITORIA',k:'auditoria',w:20},{t:'TESTE',k:'teste',w:18},

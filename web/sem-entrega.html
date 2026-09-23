@@ -37,6 +37,7 @@
     <option value="8-15">8–15 dias</option><option value=">15">Acima de 15 dias</option></select></div>
   <div class="campo"><label>UF</label><select id="fUf"><option value="">Todas</option></select></div>
   <div class="campo"><label>Transportadora</label><select id="fTr"><option value="">Todas</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
@@ -122,8 +123,8 @@ const COLS = [
 ];
 function filtrar(){
   const fx = $('fFaixa').value, uf = $('fUf').value, tr = $('fTr').value,
-        cli = $('fCli').value.trim().toLowerCase();
-  return CACHE.nfs.filter(x => x.faixa_entrega && x.status !== 'CANCELADA' && dentroPeriodo(x) &&
+        cli = $('fCli').value.trim().toLowerCase(), nf = termoNF();
+  return CACHE.nfs.filter(x => x.faixa_entrega && x.status !== 'CANCELADA' && dentroPeriodo(x) && casaNF(nf, x.nf) &&
     (!fx || x.faixa_entrega === fx) && (!uf || x.uf === uf) &&
     (!tr || (x.transportadora||'—') === tr) &&
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
@@ -182,7 +183,8 @@ function pintar(){
 const FONTE = {FIN:'Financeiro', GFE:'GFE', BAIXA:'Baixa do título'};
 function pintarRegra(){
   const cli = $('fCli').value.trim().toLowerCase();
-  const l = CACHE.nfs.filter(x => ROT_REGRA[x.regra_especial] && x.status !== 'CANCELADA' && dentroPeriodo(x) &&
+  const nf = termoNF();
+  const l = CACHE.nfs.filter(x => ROT_REGRA[x.regra_especial] && x.status !== 'CANCELADA' && dentroPeriodo(x) && casaNF(nf, x.nf) &&
                                   (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
   const soma = a => a.reduce((t,x)=>t+(+x.valor_faturado||0),0);
   const tot = soma(l);
@@ -262,7 +264,10 @@ const ETQ_SIT = {'CONCLUÍDA':'et-ent','A REMETER':'et-tra','REMESSA SEM ENTREGA
 function pintarVo(){
   const {maes, orf} = montaVo();
   const cli = $('fCli').value.trim().toLowerCase();
-  const l = maes.filter(m => ($('fVo').value === 'tudo' || m._sit !== 'CONCLUÍDA') && dentroPeriodo(m) &&
+  // NF digitada acha a mãe pelo número dela OU de qualquer remessa dela, inclusive as concluídas
+  const nf = termoNF();
+  const l = maes.filter(m => (nf || $('fVo').value === 'tudo' || m._sit !== 'CONCLUÍDA') && dentroPeriodo(m) &&
+                             casaNF(nf, m.nf, ...m._rs.map(r => r.nf)) &&
                              (!cli || (m.cliente_nome||'').toLowerCase().includes(cli)));
   const tMerc = l.reduce((s,m)=>s+m._merc,0), tRem = l.reduce((s,m)=>s+m._rem,0),
         tEnt = l.reduce((s,m)=>s+m._ent,0), nSem = l.reduce((s,m)=>s+m._nsem,0);
@@ -293,7 +298,8 @@ function pintarVo(){
     : r.mae_tipo === 'BONIFICACAO' ? 'cita NF de BONIFICAÇÃO (não é faturamento)'
     : r.mae_tipo === 'VENDA_COMUM' ? 'cita NF de venda comum (CFOP não é de venda à ordem)'
     : 'NF-mãe fora do período carregado';
-  $('tSubOrf').textContent = `${F.int(orf.length)} remessas · ${F.curto(orf.reduce((s,r)=>s+(+r.valor_mercadoria||0),0))} · o vínculo não fecha — conferir o texto`;
+  const orfV = orf.filter(r => casaNF(nf, r.nf, r.nf_mae));
+  $('tSubOrf').textContent = `${F.int(orfV.length)} remessas · ${F.curto(orfV.reduce((s,r)=>s+(+r.valor_mercadoria||0),0))} · o vínculo não fecha — conferir o texto`;
   const colsO = [
     {k:'nf', t:'Remessa', esq:true, cls:'forte'}, {k:'emissao', t:'Emissão', fmt:F.data},
     {k:'cliente_nome', t:'Destinatário', esq:true},
@@ -303,7 +309,7 @@ function pintarVo(){
     {k:'dt_entrega', t:'Entrega (GFE)', fmt:v => v ? F.data(v) : 'sem data'},
     {k:'texto_vinculo', t:'Texto da nota', esq:true, fmt:v => (v||'').slice(0,70)},
   ];
-  TORF ? TORF.dados(orf) : (TORF = new Tabela({alvo:'tabOrf', colunas:colsO, linhas:orf, ordem:'emissao', porPagina:10}));
+  TORF ? TORF.dados(orfV) : (TORF = new Tabela({alvo:'tabOrf', colunas:colsO, linhas:orfV, ordem:'emissao', porPagina:10}));
 }
 function pintarSubVo(maes){
   const alvo = $('subVo');
