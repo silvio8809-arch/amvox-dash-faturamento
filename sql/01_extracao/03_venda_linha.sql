@@ -7,7 +7,9 @@
 --                       na mesma nota, então a linha não cabe como coluna da nota.
 --  universo ...... idêntico ao 01_nf_saida: FATURAMENTO na régua da FAT PLUS
 --                  (F2_VALFAT > 0 E nota com item que gera duplicata), todas as filiais.
---  valor ......... SUM(D2_VALBRUT) = F2_VALFAT AO CENTAVO (conferido 22/09/2026 na janela
+--  valor ......... SUM(D2_VALBRUT dos itens que GERAM DUPLICATA) = F2_VALFAT AO CENTAVO
+--                  (desde 23/09/2026 — ver o filtro TIT abaixo; antes somava todos os itens e
+--                  quebrava em nota mista venda + bonificação). Conferido 22/09/2026 na janela
 --                  de 120 dias: 46.696.390,19 dos dois lados). SUM(D2_TOTAL) = F2_VALMERC,
 --                  também ao centavo — é a mercadoria SEM IPI.
 --                  Logo: VALOR_FATURADO soma com IPI, VALOR_MERCADORIA sem.
@@ -31,8 +33,16 @@ CANC AS (
             MAX(NULLIF(F3_DTCANC,'')) DT_CANC
     FROM    SF3010
     WHERE   LEFT(F3_CFO,1) IN ('5','6')        -- discriminador de SAÍDA (F3_ENTRADA não serve)
-      AND   NULLIF(F3_DTCANC,'') IS NOT NULL
+      AND   F3_EMISSAO BETWEEN @DATADE AND @DATAATE
     GROUP BY F3_FILIAL, F3_NFISCAL, F3_SERIE
+    -- ⚠️ CANCELADA = cancelada na SF3 E SEM nenhum registro VIVO da mesma nota (corrigido 23/09/2026).
+    -- Antes bastava um F3_DTCANC. Mas 28 NF desde jan/25 têm um registro cancelado E outro vivo na
+    -- SF3 (numeração reaproveitada) — e as que têm valor estão com o título PAGO pelo cliente (ex.:
+    -- KAIO DISTRIBUIDORA, NF 000249850, R$ 144.982,32, paga no dia). São vendas válidas; a FAT PLUS
+    -- as conta. A conclusão da Fase 0 ("12 canceladas ativas entrariam como faturamento válido")
+    -- estava errada: elas SÃO faturamento válido.
+    HAVING  MAX(F3_DTCANC) <> ''
+       AND  SUM(CASE WHEN F3_DTCANC = '' AND D_E_L_E_T_ = '' THEN 1 ELSE 0 END) = 0
 )
 SELECT
         RTRIM(SD2.D2_FILIAL)                                        FILIAL,
@@ -80,12 +90,21 @@ INNER JOIN  SF2010 SF2 ON  SF2.F2_FILIAL  = SD2.D2_FILIAL
 LEFT JOIN   SA1010  A1 ON  A1.A1_COD = SF2.F2_CLIENTE AND A1.A1_LOJA = SF2.F2_LOJA
                        AND A1.D_E_L_E_T_ = ''
 LEFT JOIN   SB1010 SB1 ON  SB1.B1_COD = SD2.D2_COD AND SB1.D_E_L_E_T_ = ''
+-- BONIFICAÇÃO NÃO É FATURAMENTO — também no nível do ITEM (achado 23/09/2026).
+-- Nota MISTA: a 000223128 (23/01/2025) tem 12 itens de venda 6101 e 2 de bonificação 6910
+-- (TES 628, não gera duplicata) na MESMA nota. F2_VALFAT já exclui a bonificação; somando todos
+-- os itens a região × linha ficava R$ 769,90 acima. Com o filtro por item, Σ itens = F2_VALFAT
+-- de novo — e bate com a FAT PLUS, que separa esses itens em ORIGEM='BON'.
+INNER JOIN  SF4010 TIT ON  TIT.F4_CODIGO = SD2.D2_TES AND TIT.D_E_L_E_T_ = ''
+                       AND SUBSTRING(TIT.F4_FILIAL,1,4) = SUBSTRING(SD2.D2_FILIAL,1,4)
+                       AND TIT.F4_DUPLIC = 'S'
+                       AND RTRIM(SD2.D2_CF) NOT IN ('5551','6551')   -- venda de ativo imobilizado fora
 LEFT JOIN   SBM010 SBM ON  SBM.BM_GRUPO = SB1.B1_GRUPO AND SBM.D_E_L_E_T_ = ''
 LEFT JOIN   CANC       ON  CANC.FIL = SF2.F2_FILIAL AND CANC.NF = SF2.F2_DOC
                        AND CANC.SER = SF2.F2_SERIE
 WHERE       SD2.D_E_L_E_T_ = ''
   AND       SF2.F2_EMISSAO BETWEEN @DATADE AND @DATAATE
-  AND       SF2.F2_VALFAT > 0            -- só faturamento (receita); remessa fora
+  AND       SF2.F2_TIPO NOT IN ('D','B')   -- mesmo universo do 01_nf_saida (ver lá)
   -- ALINHAMENTO COM A FAT PLUS (regra Silvio 22/09/2026): faturamento = o que a
   -- VW_AZ_FATURAMENTO_ANALITICO_NOVO conta como ORIGEM='FAT'. Só `F2_VALFAT > 0` não bastava:
   -- deixava entrar "outras saídas" com TES que NÃO gera duplicata (NF 000276398, CFOP 5949,
@@ -101,7 +120,8 @@ WHERE       SD2.D_E_L_E_T_ = ''
                       AND  DUP.D2_FILIAL  = SF2.F2_FILIAL  AND DUP.D2_DOC   = SF2.F2_DOC
                       AND  DUP.D2_SERIE   = SF2.F2_SERIE   AND DUP.D2_CLIENTE = SF2.F2_CLIENTE
                       AND  DUP.D2_LOJA    = SF2.F2_LOJA
-                      AND  TES.F4_DUPLIC  = 'S')
+                      AND  TES.F4_DUPLIC  = 'S'
+                      AND  RTRIM(DUP.D2_CF) NOT IN ('5551','6551'))
 GROUP BY    SD2.D2_FILIAL, SD2.D2_DOC, SD2.D2_SERIE,
             SBM.BM_DESC, SB1.B1_GRUPO, SF2.F2_EMISSAO,
             SF2.F2_CLIENTE, SF2.F2_LOJA, A1.A1_NREDUZ, A1.A1_CGC, A1.A1_EST,

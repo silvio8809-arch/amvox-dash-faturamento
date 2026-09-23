@@ -33,13 +33,29 @@ const F = {
    (uma linha por linha de produto) e `nf_dev` em dash_devolucao (o número é do cliente).
    Achado em 22/09/2026: uma NF apareceu com AUDIO duas vezes, R$ 163,65 a mais. */
 async function tudo(tabela, campos, ordem){
-  const out = []; let de = 0;
-  for(;;){
-    const { data, error } = await SB.from(tabela).select(campos).order(ordem).range(de, de+999);
-    if(error) throw error;
-    out.push(...data);
-    if(data.length < 1000) break;
-    de += 1000;
+  /* Desde 23/09/2026 o cache vai de jan/2025 (~20 mil NF, ~25 mil linhas região × linha): lendo
+     página por página em série eram dezenas de idas e voltas. Agora o 1º pedido traz o TOTAL e o
+     resto sai em lotes de 6 pedidos simultâneos. A ordem das páginas se mantém (Promise.all
+     preserva a ordem) e `ordem` continua tendo de ser a PK completa. */
+  const PAG = 1000, LOTE = 6;
+  const r0 = await SB.from(tabela).select(campos, {count:'exact'}).order(ordem).range(0, PAG-1);
+  if(r0.error) throw r0.error;
+  const out = [...r0.data];
+  if(r0.data.length < PAG) return out;
+  if(typeof r0.count !== 'number'){               // sem total: volta à leitura em série
+    for(let de = PAG;; de += PAG){
+      const { data, error } = await SB.from(tabela).select(campos).order(ordem).range(de, de+PAG-1);
+      if(error) throw error;
+      out.push(...data);
+      if(data.length < PAG) return out;
+    }
+  }
+  const inicios = [];
+  for(let de = PAG; de < r0.count; de += PAG) inicios.push(de);
+  for(let i = 0; i < inicios.length; i += LOTE){
+    const lote = await Promise.all(inicios.slice(i, i+LOTE).map(de =>
+      SB.from(tabela).select(campos).order(ordem).range(de, de+PAG-1)));
+    for(const r of lote){ if(r.error) throw r.error; out.push(...r.data); }
   }
   return out;
 }
@@ -62,6 +78,13 @@ async function carregarCache(){
 async function carregarVendaLinha(){
   if(!CACHE.vls) CACHE.vls = await tudo('dash_venda_linha','*','filial,nf,serie,linha');
   return CACHE.vls;
+}
+
+/* Venda à ordem: as NOTAS DE REMESSA (5923/6923). A NF-mãe já está em CACHE.nfs
+   (venda_ordem = true); a entrega é controlada pelas remessas (regra do Silvio 23/09/2026). */
+async function carregarVendaOrdem(){
+  if(!CACHE.vo) CACHE.vo = await tudo('dash_vo_remessa','*','filial,nf,serie');
+  return CACHE.vo;
 }
 
 function marcarAtualizacao(){

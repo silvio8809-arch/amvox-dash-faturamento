@@ -8,7 +8,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">TC</div><h1>Top clientes</h1>
-  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Dados desde jan/2025</span></div>
 </header>
 <div class="filtros">
   <div class="campo"><label>Competência</label><select id="fMes"></select></div>
@@ -111,14 +111,14 @@ function pintar(){
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
-  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+  $('fMes').innerHTML = '<option value="">Todo o período (desde jan/2025)</option>' +
     meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   $('fMes').value = meses[0] || '';
   configurarSelecao({cliente:'nome', uf:'uf'}, pintar);
   $('bAplicar').onclick = () => { selLimpar(); };
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_TOP_CLIENTES_${hojeArq()}.xlsx`, 'Top clientes',
-    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Desde jan/2025'),
     [{t:'#',k:'pos',w:6},{t:'CLIENTE',k:'nome',w:40},{t:'UF',k:'uf',w:6},
      {t:'NOTAS',k:'qtd',w:9},{t:'FATURADO',k:'fat',w:16,tipo:'n'},{t:'DEVOLVIDO',k:'devol',w:16,tipo:'n'},
      {t:'LÍQUIDO',k:'liq',w:16,tipo:'n'},{t:'% DEVOLUÇÃO',k:'pctDev',w:13,tipo:'n'},

@@ -28,11 +28,15 @@ positivo, mas é o erro seguro: melhor conferir à mão do que deixar passar que
 Uso:  python3 etl/confere_dash.py            # corte = started_at do último refresh ok
       python3 etl/confere_dash.py --corte "2026-09-21 14:14"   # corte manual (local)
       python3 etl/confere_dash.py --dias 120
-Saída: 0 = bateu · 1 = pendência · 2 = não deu para conferir (VPN/log ausente).
+Saída: 0 = bateu · 1 = pendência · 2 = não deu para conferir (VPN/conexão/log ausente).
+Queda de conexão no meio da conferência também sai 2 — não é pendência (Silvio 23/09/2026).
 """
 import re
 import argparse, datetime as dt, json, socket, sys, urllib.request
 from pathlib import Path
+
+# mesma régua de "falha de conexão" do ETL — uma só, para as duas não divergirem
+from refresh_dash import falha_de_conexao, segura_mac_acordado
 
 RAIZ    = Path(__file__).resolve().parent.parent
 ENVFILE = RAIZ / ".env"
@@ -101,7 +105,7 @@ def sb_tudo(path, pagina=1000):
 
 def corte_do_log():
     """started_at (UTC) do último refresh ok → hora LOCAL, que é a do F2_HORA."""
-    linhas, _ = sb("dash_refresh_log?select=started_at,finished_at,rows_nf"
+    linhas, _ = sb("dash_refresh_log?select=started_at,finished_at,rows_nf,janela_de,janela_ate"
                    "&ok=is.true&order=started_at.desc", "0-0")
     if not linhas or not linhas[0].get("started_at"):
         return None, None
@@ -117,9 +121,14 @@ def corte_do_log():
     return q.astimezone(), linhas[0]
 
 
+def F_dia(iso):
+    return f"{iso[8:10]}/{iso[5:7]}/{iso[:4]}" if iso else "—"
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dias", type=int, default=120)
+    ap.add_argument("--dias", type=int, default=None,
+                    help="janela manual; sem ela vale a janela GRAVADA no último refresh ok")
     ap.add_argument("--corte", help='corte manual, hora local "AAAA-MM-DD HH:MM"')
     args = ap.parse_args()
 
@@ -138,10 +147,24 @@ def main():
         log(f"corte = início do último refresh ok: {corte:%d/%m/%Y %H:%M:%S} (local) "
             f"· {info['rows_nf']} NF gravadas")
 
+    # JANELA = a do retrato que está no cache (janela_de do último refresh ok), e não
+    # "hoje − 120". Achado em 23/09/2026: o dia que envelhece para fora da janela
+    # (25/05, 46 NF, R$ 1.357.805,82) segue no cache e a conferência lia o cache
+    # inteiro → acusava "sobra" que não era quebra. Agora a comparação é janela × janela
+    # e o que está no cache ANTES dela sai à parte, como informação.
     hoje = dt.date.today()
-    de   = (hoje - dt.timedelta(days=args.dias)).strftime("%Y%m%d")
-    ate  = hoje.strftime("%Y%m%d")
-    log(f"janela {de} a {ate} ({args.dias} dias)")
+    if args.dias is None and info and info.get("janela_de"):
+        de  = info["janela_de"].replace("-", "")
+        ate = (info.get("janela_ate") or hoje.isoformat()).replace("-", "")
+        # a origem vai até o corte por hora; 'ate' do log é só o dia da extração
+        ate = max(ate, hoje.strftime("%Y%m%d"))
+        log(f"janela {de} a {ate} (a do último refresh ok)")
+    else:
+        dias = args.dias or 120
+        de   = (hoje - dt.timedelta(days=dias)).strftime("%Y%m%d")
+        ate  = hoje.strftime("%Y%m%d")
+        log(f"janela {de} a {ate} ({dias} dias)")
+    de_iso = f"{de[:4]}-{de[4:6]}-{de[6:]}"
 
     # ---------------------------------------------------------------- origem
     import pymssql
@@ -158,35 +181,37 @@ def main():
                 f"pode escorregar. Conferir o fuso antes de confiar no veredito.")
         # Mesmo filtro do ETL (sql/01_extracao/01_nf_saida.sql): D_E_L_E_T_, VALFAT>0, janela.
         cur.execute(f"""
-            SELECT LTRIM(RTRIM(F2_FILIAL)) FIL, LTRIM(RTRIM(F2_DOC)) NF,
-                   LTRIM(RTRIM(F2_SERIE)) SER, F2_EMISSAO EMIS,
-                   LTRIM(RTRIM(F2_HORA)) HORA, F2_VALFAT VAL,
-                   LTRIM(RTRIM(F2_CLIENTE)) CLI
+            -- MESMO universo e MESMO valor do 01_nf_saida (régua da FAT PLUS, refinada 23/09/2026).
+            -- Se divergir da extração, TODA rodada acusa pendência falsa.
+            --   universo: F2_TIPO normal · item cuja TES gera duplicata · sem ativo imobilizado (5551/6551)
+            --   valor ...: Σ D2_VALBRUT desses itens (= F2_VALFAT nas notas normais; nas 5 de título
+            --              manual o cabeçalho zerou e a FAT PLUS usa o valor dos itens)
+            SELECT LTRIM(RTRIM(F2.F2_FILIAL)) FIL, LTRIM(RTRIM(F2.F2_DOC)) NF,
+                   LTRIM(RTRIM(F2.F2_SERIE)) SER, F2.F2_EMISSAO EMIS,
+                   LTRIM(RTRIM(F2.F2_HORA)) HORA, SUM(SD2.D2_VALBRUT) VAL,
+                   LTRIM(RTRIM(F2.F2_CLIENTE)) CLI
             FROM   SF2010 F2
-            WHERE  D_E_L_E_T_ = ''
-              AND  F2_VALFAT  > 0
-              AND  F2_EMISSAO BETWEEN '{de}' AND '{ate}'
-              -- MESMO universo do 01_nf_saida: régua da FAT PLUS (Silvio 22/09/2026).
-              -- Se esta condição divergir da extração, TODA rodada acusa pendência falsa.
-              AND  EXISTS (SELECT 1
-                           FROM   SD2010 DUP
-                           JOIN   SF4010 TES ON DUP.D2_TES = TES.F4_CODIGO
-                                            AND SUBSTRING(TES.F4_FILIAL,1,4) = SUBSTRING(DUP.D2_FILIAL,1,4)
-                                            AND TES.D_E_L_E_T_ = ''
-                           WHERE  DUP.D_E_L_E_T_ = ''
-                             AND  DUP.D2_FILIAL = F2.F2_FILIAL  AND DUP.D2_DOC     = F2.F2_DOC
-                             AND  DUP.D2_SERIE  = F2.F2_SERIE   AND DUP.D2_CLIENTE = F2.F2_CLIENTE
-                             AND  DUP.D2_LOJA   = F2.F2_LOJA
-                             AND  TES.F4_DUPLIC = 'S')""")
+            JOIN   SD2010 SD2 ON SD2.D_E_L_E_T_ = '' AND SD2.D2_FILIAL = F2.F2_FILIAL
+                             AND SD2.D2_DOC = F2.F2_DOC AND SD2.D2_SERIE = F2.F2_SERIE
+                             AND SD2.D2_CLIENTE = F2.F2_CLIENTE AND SD2.D2_LOJA = F2.F2_LOJA
+                             AND RTRIM(SD2.D2_CF) NOT IN ('5551','6551')
+            JOIN   SF4010 TES ON TES.F4_CODIGO = SD2.D2_TES AND TES.D_E_L_E_T_ = ''
+                             AND SUBSTRING(TES.F4_FILIAL,1,4) = SUBSTRING(SD2.D2_FILIAL,1,4)
+                             AND TES.F4_DUPLIC = 'S'
+            WHERE  F2.D_E_L_E_T_ = ''
+              AND  F2.F2_TIPO NOT IN ('D','B')
+              AND  F2.F2_EMISSAO BETWEEN '{de}' AND '{ate}'
+            GROUP BY F2.F2_FILIAL, F2.F2_DOC, F2.F2_SERIE, F2.F2_EMISSAO, F2.F2_HORA, F2.F2_CLIENTE""")
         origem = {(r["FIL"], r["NF"], r["SER"]): r for r in cur.fetchall()}
         cur.close()
     finally:
         conn.close()
 
     # ---------------------------------------------------------------- cache
-    cache = {}
+    cache, fora_janela = {}, {}
     for c in sb_tudo("dash_nf_saida?select=filial,nf,serie,valor_faturado,emissao"):
-        cache[(c["filial"].strip(), c["nf"].strip(), c["serie"].strip())] = c
+        k = (c["filial"].strip(), c["nf"].strip(), c["serie"].strip())
+        (cache if (c["emissao"] or "") >= de_iso else fora_janela)[k] = c
 
     # ------------------------------------------------------------- comparação
     # F2_HORA é 'HH:MM' 100% preenchida (conferido 21/09) → compara como texto.
@@ -216,6 +241,14 @@ def main():
           f"R$ {val_cache-val_origem_ate_corte:>+16,.2f}")
     print(f"  NF comuns conferidas uma a uma: {comuns}")
     print()
+
+    if fora_janela:
+        v = sum(float(c["valor_faturado"] or 0) for c in fora_janela.values())
+        dias_fora = sorted({c["emissao"] for c in fora_janela.values()})
+        print(f"  ℹ️  {len(fora_janela)} NF no cache ANTES da janela (R$ {v:,.2f}; emissão "
+              f"{F_dia(dias_fora[0])} a {F_dia(dias_fora[-1])}) — envelheceram para fora dos "
+              f"120 dias, não são conferidas nem atualizadas. Não é quebra.")
+        print()
 
     if falta_depois:
         v = sum(float(r["VAL"]) for r in falta_depois)
@@ -264,4 +297,12 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    segura_mac_acordado()
+    try:
+        sys.exit(main())
+    except Exception as e:
+        if not falha_de_conexao(e):
+            raise
+        log(f"SEM CONEXÃO ({type(e).__name__}: {str(e)[:300]}) — não deu para conferir agora. "
+            f"O cache não foi tocado.")
+        sys.exit(2)

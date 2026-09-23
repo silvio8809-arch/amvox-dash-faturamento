@@ -8,7 +8,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">NF</div><h1>Notas emitidas</h1>
-  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Dados desde jan/2025</span></div>
 </header>
 <div class="filtros">
   <div class="campo"><label>Competência</label><select id="fMes"></select></div>
@@ -48,7 +48,8 @@ const COLS = [
   {k:'valor_faturado', t:'Valor', fmt:F.moeda, cls:'forte'},
   {k:'dt_entrega', t:'Entrega', fmt:F.data},
   {k:'dt_entrega_origem', t:'Fonte da entrega', esq:true,
-   fmt:v => ({FIN:'Financeiro', GFE:'GFE (logística)', BAIXA:'Baixa — título quitado', SEM:'—'})[v] || v},
+   fmt:v => ({FIN:'Financeiro', GFE:'GFE (logística)', BAIXA:'Baixa — título quitado', SEM:'—',
+              REMESSA:'Última remessa (venda à ordem)', REMESSA_PENDENTE:'Aguardando remessa (venda à ordem)'})[v] || v},
   {k:'status', t:'Status', html:r => `<span class="et ${ETIQ[r.status]||''}">${rotulo(r.status)}</span>`},
 ];
 function filtrar(){
@@ -103,7 +104,7 @@ function pintar(){
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.nfs.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
-  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+  $('fMes').innerHTML = '<option value="">Todo o período (desde jan/2025)</option>' +
     meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   $('fMes').value = meses[0] || '';
   $('fUf').innerHTML = '<option value="">Todas</option>' +
@@ -113,7 +114,7 @@ iniciarPagina(async () => {
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_NOTAS_EMITIDAS_${hojeArq()}.xlsx`, 'Notas emitidas',
-    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Desde jan/2025'),
     [{t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:8},{t:'EMISSÃO',k:'emissao',w:12},
      {t:'CLIENTE',k:'cliente_nome',w:38},{t:'UF',k:'uf',w:6},
      {t:'VALOR',k:'valor_faturado',w:15,tipo:'n'},{t:'ENTREGA',k:'dt_entrega',w:12},

@@ -195,7 +195,7 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
       <div class="sub" id="s_sub"></div>
       <div class="frase" id="s_frase"></div>
       <div class="faixas" id="s_faixas"></div>
-      <div class="rod"><span>Fila dos últimos 120 dias — <b>não muda com a competência</b>. Título quitado já conta como entregue.</span><a href="sem-entrega.html">Ver notas e clientes →</a></div>
+      <div class="rod"><span>Toda a fila desde jan/2025 — <b>não muda com a competência</b>. Título quitado já conta como entregue.</span><a href="sem-entrega.html">Ver notas e clientes →</a></div>
     </div>
   </section>
 
@@ -236,13 +236,29 @@ const inteiro = v => v.toLocaleString('pt-BR');
 
 /* -------- busca paginada (PostgREST devolve no máximo 1000 por vez) -------- */
 async function tudo(tabela, campos, ordem){
-  const out = []; let de = 0;
-  for(;;){
-    const { data, error } = await SB.from(tabela).select(campos).order(ordem).range(de, de+999);
-    if(error) throw error;
-    out.push(...data);
-    if(data.length < 1000) break;
-    de += 1000;
+  /* Desde 23/09/2026 o cache vai de jan/2025 (~20 mil NF, ~25 mil linhas região × linha): lendo
+     página por página em série eram dezenas de idas e voltas. Agora o 1º pedido traz o TOTAL e o
+     resto sai em lotes de 6 pedidos simultâneos. A ordem das páginas se mantém (Promise.all
+     preserva a ordem) e `ordem` continua tendo de ser a PK completa. */
+  const PAG = 1000, LOTE = 6;
+  const r0 = await SB.from(tabela).select(campos, {count:'exact'}).order(ordem).range(0, PAG-1);
+  if(r0.error) throw r0.error;
+  const out = [...r0.data];
+  if(r0.data.length < PAG) return out;
+  if(typeof r0.count !== 'number'){               // sem total: volta à leitura em série
+    for(let de = PAG;; de += PAG){
+      const { data, error } = await SB.from(tabela).select(campos).order(ordem).range(de, de+PAG-1);
+      if(error) throw error;
+      out.push(...data);
+      if(data.length < PAG) return out;
+    }
+  }
+  const inicios = [];
+  for(let de = PAG; de < r0.count; de += PAG) inicios.push(de);
+  for(let i = 0; i < inicios.length; i += LOTE){
+    const lote = await Promise.all(inicios.slice(i, i+LOTE).map(de =>
+      SB.from(tabela).select(campos).order(ordem).range(de, de+PAG-1)));
+    for(const r of lote){ if(r.error) throw r.error; out.push(...r.data); }
   }
   return out;
 }
@@ -271,8 +287,10 @@ async function montar(mesEscolhido){
 
   if(!CACHE){
     const [nfs, devs, logs] = await Promise.all([
-      tudo('dash_nf_saida','emissao,valor_faturado,cliente_nome,cnpj_raiz,status,faixa_entrega,saldo_aberto,dias_sem_entrega','nf'),
-      tudo('dash_devolucao','emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda','nf_dev'),
+      // ⚠️ ordem = PK COMPLETA: a leitura é paginada e `nf`/`nf_dev` se repetem — com chave não
+      // única o Postgres pode repetir/pular linha entre páginas (bug corrigido no painel.js 22/09).
+      tudo('dash_nf_saida','filial,nf,serie,emissao,valor_faturado,cliente_nome,cnpj_raiz,status,faixa_entrega,saldo_aberto,dias_sem_entrega','filial,nf,serie'),
+      tudo('dash_devolucao','filial,nf_dev,serie_dev,cliente_cod,cliente_loja,emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda','filial,nf_dev,serie_dev,cliente_cod,cliente_loja'),
       SB.from('dash_refresh_log').select('finished_at,ok').eq('ok', true).order('finished_at',{ascending:false}).limit(1)
     ]);
     CACHE = {nfs, devs, logs};
@@ -339,10 +357,12 @@ async function montar(mesEscolhido){
   $('t_sub').textContent = `${inteiro(top.length)} clientes ativos no mês · posições 6–10 no detalhe`;
 
   /* ---------------- 3 · sem data de entrega ---------------- */
+  // A FILA INTEIRA, sem corte de dias (decisão do Silvio 23/09/2026: "mostrar a realidade e eles
+  // irão resolvendo"). O corte de 120 dias foi retirado — nota antiga sem entrega é pendência.
   const sem = vivas.filter(x => x.faixa_entrega);
   const saldo = sem.reduce((s,x)=> s + (+x.saldo_aberto||0), 0);
   $('s_num').textContent = inteiro(sem.length);
-  $('s_sub').textContent = `notas sem data de entrega (todos os meses) · ${milhoes(saldo)} em aberto`;
+  $('s_sub').textContent = `notas sem data de entrega (desde jan/2025) · ${milhoes(saldo)} em aberto`;
   const mais7 = sem.filter(x => (x.dias_sem_entrega||0) > 7);
   const cliSem = {}; mais7.forEach(x => cliSem[x.cliente_nome||'—'] = (cliSem[x.cliente_nome||'—']||0)+1);
   const topSem = Object.entries(cliSem).sort((a,b)=>b[1]-a[1]).slice(0,2);

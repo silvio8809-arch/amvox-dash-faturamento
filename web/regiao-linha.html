@@ -8,7 +8,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">RL</div><h1>Venda por região × linha</h1>
-  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Dados desde jan/2025</span></div>
 </header>
 <div class="filtros">
   <div class="campo"><label>Competência</label><select id="fMes"></select></div>
@@ -136,7 +136,7 @@ function pintar(){
 iniciarPagina(async () => {
   await carregarVendaLinha();
   const meses = [...new Set(CACHE.vls.map(x=>(x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
-  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+  $('fMes').innerHTML = '<option value="">Todo o período (desde jan/2025)</option>' +
     meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   $('fMes').value = meses[0] || '';
   const ops = (campo, ordem) => {
@@ -153,7 +153,7 @@ iniciarPagina(async () => {
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_VENDA_REGIAO_LINHA_${hojeArq()}.xlsx`, 'Venda por região × linha',
-    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias'),
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Desde jan/2025'),
     [{t:'NF',k:'nf',w:12},{t:'EMISSÃO',k:'emissao',w:12},{t:'CLIENTE',k:'cliente_nome',w:38},
      {t:'UF',k:'uf',w:6},{t:'REGIÃO',k:'regiao',w:16},{t:'LINHA',k:'linha',w:16},
      {t:'QTD',k:'quantidade',w:10,tipo:'n'},

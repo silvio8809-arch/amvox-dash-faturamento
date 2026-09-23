@@ -8,7 +8,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">DV</div><h1>Devoluções</h1>
-  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Cache dos últimos 120 dias</span></div>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Dados desde jan/2025</span></div>
 </header>
 <div class="filtros">
   <div class="campo"><label>Competência</label><select id="fMes"></select></div>
@@ -116,7 +116,7 @@ function pintar(){
 }
 iniciarPagina(async () => {
   const meses = [...new Set(CACHE.devs.map(x=>(x.emissao_dev||'').slice(0,7)).filter(Boolean))].sort().reverse();
-  $('fMes').innerHTML = '<option value="">Todo o período (120 dias)</option>' +
+  $('fMes').innerHTML = '<option value="">Todo o período (desde jan/2025)</option>' +
     meses.map(m => `<option value="${m}">${MESES[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   $('fMes').value = meses[0] || '';
   $('fMot').innerHTML = '<option value="">Todos</option>' +
@@ -128,7 +128,7 @@ iniciarPagina(async () => {
   $('fCli').addEventListener('keydown', e => { if(e.key==='Enter') pintar(); });
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_DEVOLUCOES_${hojeArq()}.xlsx`, 'Devoluções',
-    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Últimos 120 dias') +
+    ($('fMes').value ? 'Competência ' + $('fMes').value : 'Desde jan/2025') +
     ($('fUniv').value === 'venda' ? ' · devolução de venda' : ' · todas as entradas tipo D'),
     [{t:'NF DEVOLUÇÃO',k:'nf_dev',w:15},{t:'SÉRIE',k:'serie_dev',w:8},{t:'DATA',k:'emissao_dev',w:12},
      {t:'ORIGEM DA NF',k:'origem_nf',w:14},{t:'CLIENTE',k:'cliente_nome',w:38},{t:'UF',k:'uf',w:6},
