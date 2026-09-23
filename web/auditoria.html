@@ -1,0 +1,200 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Auditoria</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* Auditoria (Silvio 23/09/2026): dois subgrupos — LOG e FAT — para controlar o acesso por perfil
+     no futuro. Cada subgrupo lista as auditorias dele; cada auditoria, os testes (cards). */
+  .grupos{display:flex;gap:10px;margin:0 0 18px}
+  .grupos button{border:1px solid var(--borda);background:#fff;color:var(--navy);border-radius:10px;padding:11px 20px;
+    font:600 13px var(--cond);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;display:flex;gap:10px;align-items:center}
+  .grupos button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .grupos .qt{background:var(--laranja);color:var(--navy);border-radius:99px;padding:1px 9px;font:700 12px var(--texto);letter-spacing:0}
+  .grupos button:not(.on) .qt.zero{background:#EEF1F6;color:var(--cinza)}
+  .aud-tit{font:600 13px var(--cond);letter-spacing:.14em;text-transform:uppercase;margin:4px 0 4px 2px}
+  .aud-def{font-size:13px;color:var(--cinza);margin:0 0 12px 2px;max-width:1100px}
+  .kpi.clicavel{cursor:pointer} .kpi.sel{outline:2px solid var(--laranja)}
+  .sev{display:inline-block;padding:1px 8px;border-radius:99px;font:600 11px var(--texto)}
+  .sev-ALTA{background:#F7DADA;color:var(--vinho)} .sev-MEDIA{background:var(--am-suave);color:#8A5B00}
+  .sev-BAIXA{background:#EEF1F6;color:var(--cinza)}
+  .sub{background:#FBFCFE;border-top:1px solid var(--borda)}
+  .sub h4{font:600 11px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--cinza);padding:12px 20px 0}
+  tr.dif td{background:#FFF1F1}
+</style>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">AU</div><h1>Auditoria</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Dados desde jan/2025 · retrato da última carga</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Teste</label><select id="fTeste"><option value="">Todos</option></select></div>
+  <div class="campo"><label>Severidade</label><select id="fSev"><option value="">Todas</option>
+    <option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></select></div>
+  <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+</div>
+<main>
+  <div class="grupos" id="grupos"></div>
+  <div id="corpo"></div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+/* CATÁLOGO — o que cada auditoria verifica, na linguagem da tela. Mesmos códigos que o ETL grava em
+   dash_auditoria (refresh_dash.py → AUDITORIAS). Auditoria nova = entrada aqui + função no ETL. */
+const GRUPOS = {
+  LOG: {nome:'Auditoria LOG', def:'Controles da expedição e da entrega física.'},
+  FAT: {nome:'Auditoria FAT', def:'Controles do faturamento.'},
+};
+const CATALOGO = {
+  VO_REMESSA_X_MAE: {grupo:'LOG', titulo:'Venda à ordem — remessa × NF-mãe',
+    def:'Não se pode entregar mais mercadoria (R$) do que a NF-mãe registrou, nem produto diferente do dela. '+
+        'Compara, produto a produto, a NF-mãe (5118/6118/5119/6119) com as remessas vinculadas a ela (5923/6923), '+
+        'em quantidade e em valor bruto com IPI. Remessa que cita mais de uma mãe entra no grupo das mães citadas.',
+    testes:{
+      VALOR_MAIOR:      'Remessas acima do valor da NF-mãe',
+      PRODUTO_DISTINTO: 'Produto remessado que não está na NF-mãe',
+      QTD_MAIOR:        'Quantidade remessada acima da NF-mãe',
+    }, excesso:true},
+  VO_PEDIDO: {grupo:'LOG', titulo:'Venda à ordem — conferência pelo pedido (notas desde 01/08/2026)',
+    def:'Usa os campos do pedido criados para rastrear a venda à ordem: Doc Ref no pedido da remessa (a NF-mãe) e '+
+        'Venda Ordem no pedido da NF-mãe (CNPJ de quem recebe). Pedido que gera várias remessas guarda uma mãe só — '+
+        'por isso só conta como divergência a mãe que não é de nenhuma remessa daquele pedido.',
+    testes:{
+      VINCULO_DIVERGENTE:      'Pedido da remessa aponta outra NF-mãe',
+      DESTINATARIO_DIVERGENTE: 'Remessa entregue a CNPJ diferente do pedido da mãe',
+      MAE_SEM_VENDA_ORDEM:     'NF-mãe sem o CNPJ do destinatário no pedido',
+    }, excesso:false},
+};
+const ROT_TESTE = Object.fromEntries(Object.values(CATALOGO).flatMap(a => Object.entries(a.testes)));
+
+let OCOR = [], GRUPO = 'LOG', TESTE_SEL = null, SUB_SEL = null, TAB = null;
+const chave = o => `${o.auditoria}|${o.teste}|${o.chave}`;
+const pct = (v, t) => t ? (100*v/t).toFixed(1).replace('.',',') + '%' : '—';
+
+function filtrar(){
+  const te = $('fTeste').value, sv = $('fSev').value, cli = $('fCli').value.trim().toLowerCase();
+  return OCOR.filter(o => o.grupo === GRUPO && (!te || o.teste === te) && (!sv || o.severidade === sv) &&
+                          (!cli || (o.cliente_nome||'').toLowerCase().includes(cli)));
+}
+
+function pintarGrupos(){
+  $('grupos').innerHTML = Object.entries(GRUPOS).map(([g, x]) => {
+    const n = OCOR.filter(o => o.grupo === g).length;
+    return `<button data-g="${g}" class="${g===GRUPO?'on':''}">${x.nome}<span class="qt ${n?'':'zero'}">${F.int(n)}</span></button>`;
+  }).join('');
+  $('grupos').querySelectorAll('button').forEach(b => b.onclick = () => {
+    GRUPO = b.dataset.g; TESTE_SEL = null; SUB_SEL = null; TAB = null; pintar(); });
+}
+
+function pintar(){
+  pintarGrupos();
+  const corpo = $('corpo');
+  const auds = Object.entries(CATALOGO).filter(([,a]) => a.grupo === GRUPO);
+  if(!auds.length){
+    corpo.innerHTML = `<div class="painel"><div class="vazio">${GRUPOS[GRUPO].nome}: nenhuma auditoria ativa ainda — `+
+      `as próximas definidas serão listadas aqui.</div></div>`;
+    return;
+  }
+  const base = filtrar();
+  corpo.innerHTML = auds.map(([cod, a]) => `
+    <div class="aud-tit">${a.titulo}</div><div class="aud-def">${a.def}</div>
+    <div class="cards" id="k_${cod}" style="margin-bottom:18px"></div>
+    <div class="painel"><h2>Ocorrências <span id="s_${cod}"></span></h2><div id="t_${cod}"></div>
+      <div class="sub" id="d_${cod}"></div></div>`).join('<div style="height:26px"></div>');
+  auds.forEach(([cod, a]) => {
+    const doA = base.filter(o => o.auditoria === cod);
+    // um mesmo grupo mãe × remessas pode cair em mais de um teste: o total conta cada grupo UMA vez,
+    // pelo excesso em valor (Σ remessas − mãe), para não somar a mesma diferença duas vezes
+    const porGrupo = {}; doA.forEach(o => porGrupo[o.chave] = Math.max(0, (+o.valor_comparado||0) - (+o.valor_base||0)));
+    const nGrupos = Object.keys(porGrupo).length;
+    const totDif = Object.values(porGrupo).reduce((s,v)=>s+v,0);
+    const itens = Object.entries(a.testes).map(([t, rot]) => {
+      const g = doA.filter(o => o.teste === t);
+      const v = g.reduce((s,o)=>s+Math.max(0,+o.diferenca||0),0);
+      return {t, rot, n:g.length, v};
+    });
+    const totN = itens.reduce((s,i)=>s+i.n,0);
+    $('k_'+cod).innerHTML = [
+      `<div class="kpi ${totN?'al':''}"><div class="t">Ocorrências</div><div class="v">${F.int(totN)}</div>`+
+      `<div class="n">${F.int(nGrupos)} caso(s) distinto(s)${a.excesso ? ' · ' + F.curto(totDif) + ' remessado a mais' : ''} · clique num teste para filtrar</div></div>`,
+      ...itens.map(i => `<div class="kpi clicavel ${i.n?'al':''} ${TESTE_SEL===i.t?'sel':''}" data-t="${i.t}">`+
+        `<div class="t">${i.rot}</div><div class="v">${F.int(i.n)}</div>`+
+        `<div class="n">${pct(i.n,totN)} das ocorrências${a.excesso ? ' · ' + F.curto(i.v) + ' de diferença no teste' : ''}</div></div>`)
+    ].join('');
+    $('k_'+cod).querySelectorAll('.kpi[data-t]').forEach(k => k.onclick = () => {
+      TESTE_SEL = TESTE_SEL === k.dataset.t ? null : k.dataset.t; SUB_SEL = null; pintar(); });
+    const l = doA.filter(o => !TESTE_SEL || o.teste === TESTE_SEL);
+    $('s_'+cod).textContent = `${F.int(l.length)}` + (a.excesso ? ` · ${F.curto(l.reduce((s,o)=>s+Math.max(0,+o.diferenca||0),0))} de diferença` : '') +
+      ` · clique numa linha para ver ${a.excesso ? 'produto a produto' : 'a prova'}`;
+    const moeda = v => v == null ? '—' : F.moeda(v);
+    const cols = [
+      {k:'severidade', t:'Sev.', html:o => `<span class="sev sev-${o.severidade}">${(o.severidade||'').toLowerCase()}</span>`},
+      {k:'teste', t:'Teste', esq:true, fmt:v => ROT_TESTE[v] || v},
+      {k:'documento', t:'NF-mãe', esq:true, cls:'forte'},
+      {k:'emissao', t:'Emissão', fmt:F.data},
+      {k:'cliente_nome', t:'Cliente', esq:true},
+      {k:'uf', t:'UF'},
+      {k:'documentos_ref', t:'Remessas', esq:true},
+      {k:'valor_base', t:'Valor da mãe', fmt:moeda},
+      {k:'valor_comparado', t:a.excesso ? 'Σ remessas' : 'Valor da remessa', fmt:moeda},
+      ...(a.excesso ? [{k:'diferenca', t:'Diferença', fmt:moeda, cls:'forte'}] : []),
+      {k:'descricao', t:'O que foi encontrado', esq:true},
+    ];
+    new Tabela({alvo:'t_'+cod, colunas:cols, linhas:l, ordem:a.excesso ? 'diferenca' : 'emissao', porPagina:20,
+      aoClicar:o => { SUB_SEL = chave(o); pintarSub(cod, l); }});
+    pintarSub(cod, l);
+  });
+}
+
+function pintarSub(cod, l){
+  const alvo = $('d_'+cod); if(!alvo) return;
+  const o = l.find(x => chave(x) === SUB_SEL);
+  if(!o){ alvo.innerHTML = '<h4>Clique numa ocorrência para ver a prova</h4><div class="vazio" style="padding:14px">—</div>'; return; }
+  const det = (typeof o.detalhe === 'string' ? JSON.parse(o.detalhe) : o.detalhe) || [];
+  if(det.length && det[0].campo !== undefined){          // prova em pares campo → valor (ex.: VO_PEDIDO)
+    alvo.innerHTML = `<h4>${ROT_TESTE[o.teste]||o.teste} — NF-mãe ${o.documento}${o.documentos_ref ? ' · remessa ' + o.documentos_ref : ''} — ${o.cliente_nome||''}</h4>`+
+      `<div class="rolar"><table class="tbl"><tbody>` +
+      det.map(p => `<tr><td class="esq forte" style="width:40%">${p.campo}</td><td class="esq">${p.valor}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+    return;
+  }
+  alvo.innerHTML = `<h4>NF-mãe ${o.documento} × remessas ${o.documentos_ref} — ${o.cliente_nome||''}</h4>`+
+    `<div class="rolar"><table class="tbl"><thead><tr><th class="esq">Produto</th><th class="esq">Descrição</th>`+
+    `<th>Qtd mãe</th><th>Qtd remessas</th><th>Δ qtd</th><th>Valor mãe</th><th>Valor remessas</th><th>Δ valor</th></tr></thead><tbody>`+
+    det.map(p => {
+      const dq = (+p.qtd_remessa||0) - (+p.qtd_mae||0), dv = (+p.valor_remessa||0) - (+p.valor_mae||0);
+      const ruim = !(+p.qtd_mae) && (+p.qtd_remessa) || dq > 1e-6 || dv > 1;
+      return `<tr class="${ruim?'dif':''}"><td class="esq forte">${p.produto}</td><td class="esq">${p.descricao||''}</td>`+
+        `<td>${(+p.qtd_mae||0).toLocaleString('pt-BR')}</td><td>${(+p.qtd_remessa||0).toLocaleString('pt-BR')}</td>`+
+        `<td>${dq ? dq.toLocaleString('pt-BR') : '—'}</td><td>${F.moeda(p.valor_mae)}</td><td>${F.moeda(p.valor_remessa)}</td>`+
+        `<td>${Math.abs(dv) >= 0.01 ? F.moeda(dv) : '—'}</td></tr>`;
+    }).join('') + `</tbody></table></div>`;
+}
+
+iniciarPagina(async () => {
+  try { OCOR = await tudo('dash_auditoria','*','auditoria,teste,chave'); }
+  catch(e){
+    $('corpo').innerHTML = '<div class="painel"><div class="vazio">A auditoria ainda não foi carregada '+
+      '(a tabela do banco não existe ou está vazia). Ela entra na próxima atualização do painel.</div></div>';
+    pintarGrupos(); return;
+  }
+  const testes = [...new Set(OCOR.map(o => o.teste))];
+  $('fTeste').innerHTML = '<option value="">Todos</option>' + testes.map(t => `<option value="${t}">${ROT_TESTE[t]||t}</option>`).join('');
+  $('bAplicar').onclick = () => { TESTE_SEL = null; SUB_SEL = null; pintar(); };
+  ['fTeste','fSev'].forEach(id => $(id).addEventListener('change', pintar));
+  $('fCli').addEventListener('input', pintar);
+  $('bXls').onclick = () => exportarXLSX(`AMVOX_AUDITORIA_${GRUPO}_${hojeArq()}.xlsx`, GRUPOS[GRUPO].nome,
+    'Ocorrências da última carga',
+    [{t:'SEVERIDADE',k:'severidade',w:11},{t:'AUDITORIA',k:'auditoria',w:20},{t:'TESTE',k:'teste',w:18},
+     {t:'NF-MÃE',k:'documento',w:14},{t:'EMISSÃO',k:'emissao',w:12},{t:'CLIENTE',k:'cliente_nome',w:34},{t:'UF',k:'uf',w:6},
+     {t:'REMESSAS',k:'documentos_ref',w:24},{t:'VALOR DA MÃE',k:'valor_base',w:15,tipo:'n'},
+     {t:'Σ REMESSAS',k:'valor_comparado',w:15,tipo:'n'},{t:'DIFERENÇA',k:'diferenca',w:14,tipo:'n'},
+     {t:'O QUE FOI ENCONTRADO',k:'descricao',w:70}],
+    filtrar().filter(o => !TESTE_SEL || o.teste === TESTE_SEL));
+  pintar();
+});
+</script></body></html>

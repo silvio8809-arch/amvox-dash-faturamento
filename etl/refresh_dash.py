@@ -11,8 +11,14 @@ Falha de CONEXÃO não é erro (decisão Silvio 23/09/2026): o próprio ETL espe
 novo — até 3 vezes, 5 min entre elas; com --ate, insiste até o horário dado. Erro de DADO
 continua parando na hora.
 
+O QUE o ETL grava e COMO está no MANIFESTO (abaixo): cada tabela do cache, a chave, a varredura
+e se é essencial. Antes de gravar, `confere_estrutura` compara as colunas que o código vai mandar
+com as que existem no Supabase — faltou coluna/tabela, o ETL diz QUAL arquivo de db/migrations/
+rodar. Essencial faltando = não grava nada (sai 1); não essencial = pula só ela e avisa.
+As regras de negócio estão em docs/ESPECIFICACAO_DASH_TV.md (versão em ESPEC_VERSAO).
+
 Uso:
-    python3 etl/refresh_dash.py              # janela padrão (120 dias), até 3 tentativas
+    python3 etl/refresh_dash.py              # janela padrão (desde 01/01/2025), até 3 tentativas
     python3 etl/refresh_dash.py --dias 30
     python3 etl/refresh_dash.py --dry-run    # roda tudo, não grava no Supabase
     python3 etl/refresh_dash.py --ate 18:00  # rodada final do dia: insiste até 18h00
@@ -30,7 +36,31 @@ SQL_DEV = RAIZ / "sql/01_extracao/02_devolucao.sql"
 SQL_VL  = RAIZ / "sql/01_extracao/03_venda_linha.sql"   # venda por região x linha
 SQL_VO  = RAIZ / "sql/01_extracao/04_vo_remessa.sql"    # venda à ordem: notas de remessa
 SQL_VOR = RAIZ / "sql/01_extracao/05_vo_referencia.sql" # índice p/ resolver a NF-mãe citada
+SQL_VOI = RAIZ / "sql/01_extracao/06_vo_itens.sql"      # itens mãe × remessa (auditoria)
 ENVFILE = RAIZ / ".env"
+MIGRACOES = RAIZ / "db/migrations"
+ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
+# Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
+# documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
+ESPEC_VERSAO = "1.2"
+
+# MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
+# db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
+# saber da tabela nova sozinha, e a checagem de estrutura diz o que falta no banco.
+#   varredura "orfas"  → apaga só o que sumiu da origem dentro da janela (teto de 5%)
+#   varredura "rodada" → retrato inteiro a cada carga: apaga o que não reapareceu nesta rodada
+MANIFESTO = [
+    dict(tabela="dash_nf_saida",    conflito="filial,nf,serie", data="emissao",
+         varredura="orfas", essencial=True),
+    dict(tabela="dash_devolucao",   conflito="filial,nf_dev,serie_dev,cliente_cod,cliente_loja",
+         data="emissao_dev", varredura="orfas", essencial=True),
+    dict(tabela="dash_venda_linha", conflito="filial,nf,serie,linha", data="emissao",
+         varredura="orfas", essencial=True),
+    dict(tabela="dash_vo_remessa",  conflito="filial,nf,serie", data="emissao",
+         varredura="orfas", essencial=False),
+    dict(tabela="dash_auditoria",   conflito="auditoria,teste,chave", data=None,
+         varredura="rodada", essencial=False),
+]
 
 
 def carrega_env():
@@ -175,10 +205,11 @@ def _extrai_no_filho(de, ate, saida):
             log("extraindo venda à ordem (remessas + índice das NF citadas)...")
             vo = extrai(conn, sql_com_janela(SQL_VO, de, ate))
             vor = extrai(conn, sql_com_janela(SQL_VOR, de, ate))
-            log(f"  {len(vo)} remessas · índice com {len(vor)} NF")
+            voi = extrai(conn, sql_com_janela(SQL_VOI, de, ate))
+            log(f"  {len(vo)} remessas · índice com {len(vor)} NF · {len(voi)} itens mãe/remessa")
         finally:
             conn.close()
-        res = ("ok", (nf, dev, vl, vo, vor))
+        res = ("ok", (nf, dev, vl, vo, vor, voi))
     except Exception as e:
         res = ("conexao" if falha_de_conexao(e) else "erro", f"{type(e).__name__}: {str(e)[:300]}")
     with open(saida, "wb") as f:
@@ -380,6 +411,11 @@ def monta_vo(reg, idx):
                 break
             if vistos and not achadas:
                 vinc, achadas, texto = "TEXTO", vistos, reg[campo]     # guarda e tenta o próximo texto
+    # 4º (Silvio 23/09/2026) Doc Ref do PEDIDO da remessa — só quando nada acima achou a mãe;
+    # quando acha, ele vira CHECAGEM (auditoria VO_PEDIDO), não fonte.
+    ped = (reg.get("PED_XFILREF") or fil, (reg.get("PED_XDOCREF") or "").zfill(9)) if reg.get("PED_XDOCREF") else None
+    if not achadas and ped and ped in idx:
+        vinc, achadas, texto = "PEDIDO", [ped], f"C5_XDOCREF={reg['PED_XDOCREF']}"
     if not texto:
         texto = reg["TEXTO_NOTA"] or reg["TEXTO_PEDIDO"] or ""
     mae = achadas[0] if achadas else None
@@ -403,6 +439,8 @@ def monta_vo(reg, idx):
                              if tipo != "VENDA_ORDEM" or idx[k][1] == "VENDA_ORDEM") or None,
         texto_vinculo=(texto or "")[:250] or None,
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        # auxiliares da auditoria (prefixo "_" = não vão para o banco; ver upsert)
+        _ped_ref=ped, _pedido=(reg.get("PEDIDO") or None), _cnpj_destino=re.sub(r"\D", "", reg.get("CNPJ_DESTINO") or "") or None,
     )
 
 
@@ -536,6 +574,248 @@ def aplica_devolucao_e_atraso(nfs, devs):
     return marcadas
 
 
+# ------------------------------------------------------------------ auditoria
+# Card "Auditoria" (Silvio, 23/09/2026) com dois subgrupos — LOG e FAT — para controlar acesso
+# por perfil no futuro. Cada auditoria é uma função que devolve OCORRÊNCIAS no formato da tabela
+# dash_auditoria; nova auditoria = nova função + uma linha em AUDITORIAS. Nada aqui altera
+# status ou data de entrega: auditoria só aponta.
+
+def _componentes_vo(vos):
+    """Agrupa NF-mães e remessas ligadas: remessa que cita duas mães junta as duas num grupo só
+    (a comparação de produto não dá para ratear). Devolve [(mães, remessas)]."""
+    pai = {}
+    def raiz(x):
+        pai.setdefault(x, x)
+        while pai[x] != x:
+            pai[x] = pai[pai[x]]; x = pai[x]
+        return x
+    rems = {}
+    for v in vos:
+        if v["status"] == "CANCELADA" or v["vinculo"] == "SEM" or v["mae_tipo"] != "VENDA_ORDEM":
+            continue
+        cit = [v["nf_mae"]] + [x for x in (v["outras_maes"] or "").split(",") if x]
+        maes = [("M", v["filial_mae"], x) for x in dict.fromkeys(cit)]
+        r = ("R", v["filial"], v["nf"], v["serie"])
+        rems[r] = maes
+        for m in maes:
+            pai[raiz(r)] = raiz(m)
+    grupos = {}
+    for r, maes in rems.items():
+        g = grupos.setdefault(raiz(r), (set(), set()))
+        g[1].add(r); g[0].update(maes)
+    return list(grupos.values())
+
+
+def audita_venda_ordem(ctx):
+    """AUDITORIA LOG · VO_REMESSA_X_MAE — "não posso entregar mais produtos (R$) do que foi
+    registrado na nota mãe, muito menos produtos DISTINTOS da nota mãe" (Silvio, 23/09/2026).
+    Três testes por grupo mãe(s) × remessas (não canceladas, vinculadas):
+      VALOR_MAIOR ...... Σ remessas (valor bruto) > Σ mães (valor bruto, com IPI) + max(R$ 1; 0,5%)
+      PRODUTO_DISTINTO . remessa com produto que não está em nenhuma das mães do grupo
+      QTD_MAIOR ........ produto remessado em quantidade maior que a da mãe
+    Não há retorno de remessa na base (0 desde jan/25) — nada a abater."""
+    nfs, vos, itens = ctx["nfs"], ctx["vos"], ctx["itens"]
+    it = {}
+    for r in itens:
+        k = (r["TIPO"], r["FILIAL"], r["NF"], r["SERIE"])
+        it.setdefault(k, {})[r["PRODUTO"]] = (float(r["QUANTIDADE"] or 0), float(r["VALOR_TOTAL"] or 0),
+                                              r["DESCRICAO"] or "")
+    nfk = {(n["filial"], n["nf"]): n for n in nfs}
+    out = []
+    for maes, rems in _componentes_vo(vos):
+        mq, mv, rq, rv, desc = {}, {}, {}, {}, {}
+        docs_m = []
+        for _, fil, nf in sorted(maes):
+            n = nfk.get((fil, nf))
+            if not n or n["status"] == "CANCELADA":
+                continue
+            docs_m.append(n)
+            for p, (q, v, dsc) in it.get(("MAE", fil, nf, n["serie"]), {}).items():
+                mq[p] = mq.get(p, 0) + q; mv[p] = mv.get(p, 0) + v; desc[p] = dsc
+        if not docs_m:
+            continue          # mãe fora do cache (anterior à janela ou cancelada): vai para "órfãs"
+        for _, fil, nf, ser in sorted(rems):
+            for p, (q, v, dsc) in it.get(("REMESSA", fil, nf, ser), {}).items():
+                rq[p] = rq.get(p, 0) + q; rv[p] = rv.get(p, 0) + v; desc[p] = dsc
+        vb, vc = round(sum(mv.values()), 2), round(sum(rv.values()), 2)
+        tol = max(1.0, vb * 0.005)
+        prods = sorted(set(mq) | set(rq))
+        detalhe = [dict(produto=p, descricao=desc.get(p, ""),
+                        qtd_mae=mq.get(p, 0), qtd_remessa=rq.get(p, 0),
+                        valor_mae=round(mv.get(p, 0), 2), valor_remessa=round(rv.get(p, 0), 2))
+                   for p in prods]
+        m0 = docs_m[0]
+        base = dict(grupo="LOG", auditoria="VO_REMESSA_X_MAE",
+                    chave=m0["filial"] + "|" + ",".join(n["nf"] for n in docs_m),
+                    filial=m0["filial"], documento=", ".join(n["nf"] for n in docs_m),
+                    documentos_ref=", ".join(r[2] for r in sorted(rems)),
+                    emissao=m0["emissao"], cliente_nome=m0["cliente_nome"], uf=m0["uf"],
+                    valor_base=vb, valor_comparado=vc, diferenca=round(vc - vb, 2), detalhe=detalhe)
+        dist = [p for p in rq if p not in mq]
+        qmai = [p for p in rq if p in mq and rq[p] > mq[p] + 1e-6]
+        if vc > vb + tol:
+            exc = vc - vb
+            out.append({**base, "teste": "VALOR_MAIOR",
+                        "severidade": "ALTA" if exc > max(1000, 0.10 * vb) else "MEDIA",
+                        "descricao": f"Remessas somam R$ {_brl(vc)} contra R$ {_brl(vb)} da NF-mãe "
+                                     f"(+R$ {_brl(exc)}; " + f"{100*exc/vb if vb else 0:.1f}".replace(".", ",") + "%)"})
+        if dist:
+            out.append({**base, "teste": "PRODUTO_DISTINTO", "severidade": "ALTA",
+                        "diferenca": round(sum(rv[p] for p in dist), 2),
+                        "descricao": f"{len(dist)} produto(s) remessado(s) que não está(ão) na NF-mãe: "
+                                     + "; ".join(f"{p} {desc.get(p,'')[:30]} ({rq[p]:g} un)" for p in dist[:4])})
+        if qmai:
+            out.append({**base, "teste": "QTD_MAIOR", "severidade": "ALTA",
+                        "diferenca": round(sum(rv[p] - mv[p] for p in qmai), 2),
+                        "descricao": f"{len(qmai)} produto(s) remessado(s) acima da quantidade da NF-mãe: "
+                                     + "; ".join(f"{p} mãe {mq[p]:g} × remessa {rq[p]:g}" for p in qmai[:4])})
+    return out
+
+
+CORTE_PEDIDO_VO = "2026-08-01"   # campos do pedido (C5_X*) só valem para notas desde esta data
+
+
+def audita_pedido_venda_ordem(ctx):
+    """AUDITORIA LOG · VO_PEDIDO — checagem complementar pelos campos do PEDIDO (definição e forma de
+    uso aprovadas pelo Silvio em 23/09/2026), só para notas emitidas desde 01/08/2026:
+      VINCULO_DIVERGENTE ....... Doc Ref do pedido da remessa (C5_XDOCREF) ≠ NF-mãe lida pela nota
+                                 ⚠️ pedido AGRUPADOR: um pedido pode gerar várias remessas de mães
+                                 diferentes e o campo só guarda uma (caso MEGAMAMUTE, pedido A70538:
+                                 8 remessas, 8 mães). Então só diverge se a mãe do pedido não for
+                                 nenhuma das mães das remessas DAQUELE pedido.
+      DESTINATARIO_DIVERGENTE .. CNPJ de quem recebeu a remessa ≠ "Venda Ordem" (C5_XVENDAO) do pedido
+                                 da NF-mãe
+      MAE_SEM_VENDA_ORDEM ...... NF-mãe 5118/6118/5119/6119 sem o CNPJ do destinatário no pedido"""
+    nfs, vos, vendao = ctx["nfs"], ctx["vos"], ctx["vendao"]
+    nfk = {(n["filial"], n["nf"]): n for n in nfs if n["status"] != "CANCELADA"}
+    maes_do_pedido = {}
+    for v in vos:
+        if v["status"] != "CANCELADA" and v["nf_mae"] and v.get("_pedido"):
+            maes_do_pedido.setdefault((v["filial"], v["_pedido"]), set()).update(
+                [v["nf_mae"]] + [x for x in (v["outras_maes"] or "").split(",") if x])
+    out = []
+    def base(teste, sev, chave, mae, v, descricao, detalhe, doc_ref=None):
+        return dict(grupo="LOG", auditoria="VO_PEDIDO", teste=teste, severidade=sev, chave=chave,
+                    filial=(mae or v or {}).get("filial"), documento=(mae or {}).get("nf") or "—",
+                    documentos_ref=doc_ref, emissao=(mae or v or {}).get("emissao"),
+                    cliente_nome=(mae or v or {}).get("cliente_nome"), uf=(mae or v or {}).get("uf"),
+                    valor_base=(mae or {}).get("valor_faturado"),
+                    valor_comparado=(v or {}).get("valor_mercadoria"), diferenca=None,
+                    descricao=descricao, detalhe=detalhe)
+    for v in vos:
+        if v["status"] == "CANCELADA" or (v["emissao"] or "") < CORTE_PEDIDO_VO:
+            continue
+        maes = [v["nf_mae"]] + [x for x in (v["outras_maes"] or "").split(",") if x] if v["nf_mae"] else []
+        mae = nfk.get((v["filial_mae"], v["nf_mae"])) if v["nf_mae"] else None
+        ped = v.get("_ped_ref")
+        do_pedido = maes_do_pedido.get((v["filial"], v.get("_pedido")), set())
+        if ped and v["vinculo"] != "PEDIDO" and maes and ped[1] not in maes and ped[1] not in do_pedido:
+            out.append(base("VINCULO_DIVERGENTE", "ALTA", f"{v['filial']}|{v['nf']}", mae, v,
+                f"Remessa {v['nf']}: o pedido aponta a NF-mãe {ped[1]}, a nota cita {', '.join(maes)}",
+                [dict(campo="Doc Ref no pedido da remessa", valor=ped[1]),
+                 dict(campo="NF-mãe lida na nota (" + v["vinculo"].lower() + ")", valor=", ".join(maes)),
+                 dict(campo="Texto da nota", valor=v["texto_vinculo"] or "—")], doc_ref=v["nf"]))
+        cnpj_ped = re.sub(r"\D", "", vendao.get((v["filial_mae"], v["nf_mae"]), "") if v["nf_mae"] else "")
+        if mae and cnpj_ped and v.get("_cnpj_destino") and v["_cnpj_destino"] != cnpj_ped:
+            out.append(base("DESTINATARIO_DIVERGENTE", "ALTA", f"{v['filial']}|{v['nf']}", mae, v,
+                f"Remessa {v['nf']} entregue ao CNPJ {v['_cnpj_destino']} ({v['cliente_nome'] or '—'}); "
+                f"o pedido da NF-mãe {mae['nf']} indica {cnpj_ped}",
+                [dict(campo="CNPJ indicado no pedido da mãe (Venda Ordem)", valor=cnpj_ped),
+                 dict(campo="CNPJ de quem recebeu a remessa", valor=v["_cnpj_destino"]),
+                 dict(campo="Destinatário da remessa", valor=v["cliente_nome"] or "—")], doc_ref=v["nf"]))
+    for n in nfk.values():
+        if n["venda_ordem"] and (n["emissao"] or "") >= CORTE_PEDIDO_VO and \
+                not re.sub(r"\D", "", vendao.get((n["filial"], n["nf"]), "")):
+            out.append(base("MAE_SEM_VENDA_ORDEM", "MEDIA", f"{n['filial']}|{n['nf']}", n, None,
+                f"NF-mãe {n['nf']} sem o CNPJ do destinatário no campo Venda Ordem do pedido",
+                [dict(campo="Campo Venda Ordem (C5_XVENDAO) do pedido da mãe", valor="vazio")]))
+    return out
+
+
+AUDITORIAS = [audita_venda_ordem, audita_pedido_venda_ordem]   # cada uma recebe o contexto (ctx)
+
+
+def vendao_por_mae(vor):
+    """{(filial, NF 9 dígitos): CNPJ do campo Venda Ordem do pedido} — só das mães de venda à ordem."""
+    return {(r["FILIAL"], r["NF"].zfill(9)): (r.get("PED_XVENDAO") or "") for r in vor if r["EH_MAE_VO"]}
+
+
+def _brl(v):
+    """1234.5 → '1.234,50' (as frases da auditoria vão para a tela em português)."""
+    return f"{v:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
+
+
+# ------------------------------------------------------------------ estrutura do banco
+def colunas_supabase(chave_svc):
+    """{tabela: {colunas}} lido do próprio Supabase (OpenAPI do PostgREST) — é o banco que diz
+    o que existe, não uma lista mantida à mão."""
+    import urllib.request
+    req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/",
+                                 headers={"apikey": chave_svc, "Authorization": f"Bearer {chave_svc}",
+                                          "Accept": "application/openapi+json"})
+    d = json.load(urllib.request.urlopen(req, timeout=60))
+    return {t: set((v.get("properties") or {}).keys()) for t, v in (d.get("definitions") or {}).items()}
+
+
+def migracao_que_cria(tabela, coluna=None):
+    """Qual arquivo de db/migrations/ cria a TABELA (coluna=None) ou a COLUNA dessa tabela —
+    por `create table <t> (... <c> ...)` ou `alter table <t> add column [if not exists] <c>`."""
+    for f in sorted(MIGRACOES.glob("*.sql")):
+        txt = re.sub(r"--[^\n]*", "", f.read_text(encoding="utf-8")).lower()
+        cria = re.search(rf"create table (?:if not exists )?{tabela}\s*\((.*?)\n\);", txt, re.S)
+        if coluna is None:
+            if cria:
+                return f.name
+            continue
+        if cria and re.search(rf"^\s*{re.escape(coluna)}\s", cria.group(1), re.M):
+            return f.name
+        if re.search(rf"alter table {tabela} add column (?:if not exists )?{re.escape(coluna)}\b", txt):
+            return f.name
+    return None
+
+
+def confere_estrutura(existentes, dados):
+    """Compara as colunas que o CÓDIGO vai mandar com as que o BANCO tem. Devolve
+    ({tabela: motivo}, [linhas de aviso]) só das tabelas com falta."""
+    faltas, avisos = {}, []
+    for m in MANIFESTO:
+        t = m["tabela"]
+        linhas = dados.get(t) or []
+        precisa = {k for r in linhas for k in r if not k.startswith("_")}
+        if t not in existentes:
+            arq = migracao_que_cria(t)
+            faltas[t] = f"tabela {t} não existe"
+            avisos.append(f"MIGRAÇÃO PENDENTE — {t} não existe no Supabase: rodar "
+                          f"db/migrations/{arq or '(não achei o arquivo!)'} no SQL Editor")
+            continue
+        falta = sorted(precisa - existentes[t])
+        if falta:
+            arqs = sorted({migracao_que_cria(t, c) or "(não achei o arquivo!)" for c in falta})
+            faltas[t] = "faltam colunas " + ", ".join(falta)
+            avisos.append(f"MIGRAÇÃO PENDENTE — {t} sem as colunas {', '.join(falta)}: rodar "
+                          + " e ".join(f"db/migrations/{a}" for a in arqs) + " no SQL Editor")
+    return faltas, avisos
+
+
+def apaga_fora_da_rodada(tabela, chave_svc, rodada):
+    """Varredura "rodada": o retrato é inteiro, então o que não foi regravado agora não existe mais."""
+    import urllib.request, urllib.parse
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/{tabela}?rodada=neq.{urllib.parse.quote(rodada, safe='')}",
+        headers={"apikey": chave_svc, "Authorization": f"Bearer {chave_svc}",
+                 "Prefer": "return=representation"}, method="DELETE")
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return len(json.load(r))
+
+
+def versao_da_especificacao():
+    try:
+        m = re.search(r"\*\*Versão\s+([\d.]+)\*\*", ESPEC.read_text(encoding="utf-8"))
+        return m.group(1) if m else None
+    except OSError:
+        return None
+
+
 # ------------------------------------------------------------------ carga
 def chave_service():
     chave = ENV.get("SUPABASE_SERVICE_KEY", "").strip()
@@ -596,6 +876,7 @@ def upsert(tabela, linhas, chave, conflito, lote=500):
     import urllib.request
     if not linhas:
         return 0
+    linhas = [{k: v for k, v in r.items() if not k.startswith("_")} for r in linhas]   # auxiliares fora
     enviados = 0
     for i in range(0, len(linhas), lote):
         parte = linhas[i:i + lote]
@@ -689,7 +970,7 @@ def main():
         log(f"extração ok na tentativa {n}")
 
     try:
-        nf_bruto, dev_bruto, vl_bruto, vo_bruto, vor_bruto = info
+        nf_bruto, dev_bruto, vl_bruto, vo_bruto, vor_bruto, voi_bruto = info
         nfs  = [monta_nf(r) for r in nf_bruto]
         devs = [monta_dev(r) for r in dev_bruto]
         vls  = [monta_vl(r) for r in vl_bruto]
@@ -730,32 +1011,102 @@ def main():
     log(f"venda à ordem: {len(vos)} remessas · vínculo XDOCREF {cv['XDOCREF']} · texto {cv['TEXTO']} · "
         f"sem vínculo {cv['SEM']} · {sum(1 for v in vos if not v['dt_entrega'])} sem data de entrega")
 
+    # auditorias (só apontam; não mudam nada do resto)
+    rodada = inicio.isoformat()
+    auds = []
+    ctx = dict(nfs=nfs, vos=vos, itens=voi_bruto, vendao=vendao_por_mae(vor_bruto))
+    for f in AUDITORIAS:
+        auds += f(ctx)
+    for a in auds:
+        a["rodada"] = rodada
+    ca = _C((a["grupo"], a["teste"]) for a in auds)
+    log("auditoria: " + (" · ".join(f"{g} {t} {q}" for (g, t), q in sorted(ca.items())) or "nenhuma ocorrência"))
+
     sem_entrega = [n for n in nfs if n["faixa_entrega"]]
     saldo = sum(n["saldo_aberto"] or 0 for n in sem_entrega)
     log(f"fila de cobrança: {len(sem_entrega)} NF sem entrega, R$ {saldo:,.2f} em aberto")
 
+    # o que vai para cada tabela do MANIFESTO
+    dados = {"dash_nf_saida": nfs, "dash_devolucao": devs, "dash_venda_linha": vls,
+             "dash_vo_remessa": vos, "dash_auditoria": auds}
+    assert set(dados) == {m["tabela"] for m in MANIFESTO}, "MANIFESTO e main() fora de sincronia"
+
+    # 3b. Estrutura: o banco tem as colunas que este código manda? (leitura; roda também no dry-run)
+    avisos_estrutura, pular = [], set()
+    chave_leitura = chave
+    if chave_leitura is None:
+        try:
+            chave_leitura = chave_service()
+        except RuntimeError:
+            chave_leitura = None
+    if chave_leitura:
+        try:
+            faltas, avisos_estrutura = confere_estrutura(colunas_supabase(chave_leitura), dados)
+        except Exception as e:
+            if falha_de_conexao(e):
+                log(f"SEM CONEXÃO com o Supabase ao conferir a estrutura: {e} — nada gravado.")
+                return 2
+            raise
+        for a in avisos_estrutura:
+            log("ATENÇÃO — " + a)
+        essenciais = [t for t in faltas if next(m for m in MANIFESTO if m["tabela"] == t)["essencial"]]
+        if essenciais:
+            log(f"ERRO de estrutura: {', '.join(essenciais)} sem o que o código precisa — nada gravado. "
+                f"Rodar a(s) migração(ões) indicada(s) acima e repetir.")
+            return 1
+        pular = set(faltas)
+        if not faltas:
+            log("estrutura do banco: OK (todas as colunas que o código grava existem)")
+
+    esp = versao_da_especificacao()
+    if esp != ESPEC_VERSAO:
+        log(f"ATENÇÃO — especificação desatualizada: o código implementa a versão {ESPEC_VERSAO} e "
+            f"docs/ESPECIFICACAO_DASH_TV.md está na {esp or '(sem versão)'} — atualizar o documento.")
+
+    def resumo(gravados):
+        st = _C(n["status"] for n in nfs)
+        fx = _C(n["faixa_entrega"] for n in sem_entrega)
+        log("RESUMO | " + " · ".join(f"{t} {q}" for t, q in gravados.items()))
+        log(f"RESUMO | status: " + " · ".join(f"{k} {v}" for k, v in sorted(st.items())))
+        log(f"RESUMO | fila sem entrega: {len(sem_entrega)} NF · R$ {saldo:,.2f} em aberto · "
+            + " · ".join(f"{k}: {fx.get(k,0)}" for k in ("0-2", "3-7", "8-15", ">15")))
+        log("RESUMO | auditoria: " + (" · ".join(f"{g}/{t} {q}" for (g, t), q in sorted(ca.items()))
+                                      or "nenhuma ocorrência"))
+        for a in avisos_estrutura:
+            log("RESUMO | ⚠️ " + a)
+        if esp != ESPEC_VERSAO:
+            log(f"RESUMO | ⚠️ especificação {esp or '?'} × código {ESPEC_VERSAO}")
+
     if args.dry_run:
+        resumo({m["tabela"]: len(dados[m["tabela"]]) for m in MANIFESTO if m["tabela"] not in pular})
         log("DRY-RUN — nada gravado no Supabase.")
         return 0
 
-    # 4. Carga (só aqui escreve; falhou antes = não chega aqui)
+    # 4. Carga (só aqui escreve; falhou antes = não chega aqui) — dirigida pelo MANIFESTO
+    gravados = {}
     try:
         log("gravando no Supabase...")
-        n1 = upsert("dash_nf_saida", nfs, chave, "filial,nf,serie")
-        n2 = upsert("dash_devolucao", devs, chave, "filial,nf_dev,serie_dev,cliente_cod,cliente_loja")
-        n3 = upsert("dash_venda_linha", vls, chave, "filial,nf,serie,linha")
-        n4 = upsert("dash_vo_remessa", vos, chave, "filial,nf,serie")
-        # varredura de órfãs: o que sumiu da origem (nota cancelada) tem de sair do cache
-        for tab, dados, cps, cdata in [
-                ("dash_nf_saida",    nfs, ["filial","nf","serie"],                                      "emissao"),
-                ("dash_devolucao",   devs,["filial","nf_dev","serie_dev","cliente_cod","cliente_loja"], "emissao_dev"),
-                ("dash_venda_linha", vls, ["filial","nf","serie","linha"],                              "emissao"),
-                ("dash_vo_remessa",  vos, ["filial","nf","serie"],                                      "emissao")]:
-            qtd, aviso = remove_orfas(tab, dados, chave, cps, cdata, de, ate)
-            if aviso:
-                log("ATENÇÃO — " + aviso)
-            elif qtd:
-                log(f"  {tab}: {qtd} linha(s) removida(s) — sumiram da origem (cancelamento/exclusão)")
+        for m in MANIFESTO:
+            t = m["tabela"]
+            if t in pular:
+                log(f"  {t}: PULADA — migração pendente (ver ATENÇÃO acima)")
+                continue
+            gravados[t] = upsert(t, dados[t], chave, m["conflito"])
+        # varredura: o que sumiu da origem tem de sair do cache
+        for m in MANIFESTO:
+            t = m["tabela"]
+            if t in pular:
+                continue
+            if m["varredura"] == "orfas":
+                qtd, aviso = remove_orfas(t, dados[t], chave, m["conflito"].split(","), m["data"], de, ate)
+                if aviso:
+                    log("ATENÇÃO — " + aviso)
+                elif qtd:
+                    log(f"  {t}: {qtd} linha(s) removida(s) — sumiram da origem (cancelamento/exclusão)")
+            elif m["varredura"] == "rodada":
+                qtd = apaga_fora_da_rodada(t, chave, rodada)
+                if qtd:
+                    log(f"  {t}: {qtd} ocorrência(s) antiga(s) removida(s) — não reapareceram nesta rodada")
     except Exception as e:
         conexao = falha_de_conexao(e)
         log((f"SEM CONEXÃO com o Supabase na carga: {e} — pode ter gravado parte; "
@@ -768,11 +1119,13 @@ def main():
 
     grava_log(chave, started_at=inicio.isoformat(),
               finished_at=dt.datetime.now(dt.timezone.utc).isoformat(),
-              ok=True, rows_nf=n1, rows_dev=n2, janela_de=d(de), janela_ate=d(ate))
+              ok=True, rows_nf=gravados.get("dash_nf_saida", 0), rows_dev=gravados.get("dash_devolucao", 0),
+              janela_de=d(de), janela_ate=d(ate))
     seg = (dt.datetime.now(dt.timezone.utc) - inicio).total_seconds()
-    log(f"OK — {n1} NF, {n2} devoluções, {n3} linhas região x linha e {n4} remessas em {seg:.1f}s"
+    log(f"OK — gravado em {seg:.1f}s"
         + (f" (tentativa {n}; {(time.time() - inicio_rodada) / 60:.0f} min desde o início "
            f"da rodada)" if n > 1 else ""))
+    resumo(gravados)
     return 0
 
 

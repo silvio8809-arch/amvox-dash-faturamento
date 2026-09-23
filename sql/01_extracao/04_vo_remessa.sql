@@ -73,7 +73,14 @@ SELECT
         RTRIM(ISNULL(F2.F2_XSERREF,''))                      XSERREF,
         RTRIM(ISNULL(F2.F2_XFILREF,''))                      XFILREF,
         RTRIM(ISNULL(SC5.C5_MENNOTA,''))                     TEXTO_PEDIDO,
-        RTRIM(ISNULL(F2.F2_MENNOTA,''))                      TEXTO_NOTA
+        RTRIM(ISNULL(F2.F2_MENNOTA,''))                      TEXTO_NOTA,
+        -- checagem complementar (Silvio 23/09/2026, só notas desde 01/08/2026): campos de usuário
+        -- do PEDIDO da remessa que apontam a NF-mãe (SX3: Filial Ref / Serie Ref / Doc Ref)
+        RTRIM(REM.PEDIDO)                                    PEDIDO,
+        RTRIM(ISNULL(SC5.C5_XFILREF,''))                     PED_XFILREF,
+        RTRIM(ISNULL(SC5.C5_XSERREF,''))                     PED_XSERREF,
+        RTRIM(ISNULL(SC5.C5_XDOCREF,''))                     PED_XDOCREF,
+        RTRIM(ISNULL(A1.A1_CGC,''))                          CNPJ_DESTINO       -- quem recebeu a remessa
 FROM        REM
 INNER JOIN  SF2010 F2  ON F2.D_E_L_E_T_ = '' AND F2.F2_FILIAL = REM.FIL
                       AND F2.F2_DOC = REM.DOC AND F2.F2_SERIE = REM.SER
