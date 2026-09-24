@@ -57,9 +57,15 @@
   <!-- ============ SINISTRO / FUNCIONÁRIOS (regra 23/09/2026) ============ -->
   <section class="secao">
     <h3>Sinistro e funcionários — quadro segregado
-      <span>a data de entrega é a real: tem data, mostra; não tem, está pendente — e a nota pendente também está na fila acima, marcada</span></h3>
+      <span>o que se controla é a entrega que ainda tem SALDO A RECEBER — nota sem saldo não é pendência, mesmo sem data de entrega (regra Silvio 24/09/2026); a pendente com saldo também está na fila acima, marcada</span></h3>
     <div class="painel destaque">
-      <div class="corpo"><div class="mini" id="kRegra"></div></div>
+      <div class="corpo">
+        <div class="vo-ctrl">
+          <div class="campo"><label>Situação</label><select id="fRegra">
+            <option value="saldo">Com saldo a receber</option><option value="tudo">Todas</option></select></div>
+        </div>
+        <div class="mini" id="kRegra"></div>
+      </div>
       <div id="tabRegra"></div>
     </div>
   </section>
@@ -72,7 +78,7 @@
       <div class="corpo">
         <div class="vo-ctrl">
           <div class="campo"><label>Situação</label><select id="fVo">
-            <option value="pend">Com pendência</option><option value="tudo">Todas</option></select></div>
+            <option value="pend">Com pendência e saldo a receber</option><option value="tudo">Todas</option></select></div>
           <div class="acoes" style="margin-left:0"><button class="bt" id="bXlsVo">Exportar remessas</button></div>
         </div>
         <div class="mini" id="kVo"></div>
@@ -181,21 +187,31 @@ function pintar(){
 
 /* ------------------------------------------------------------ sinistro / funcionários */
 const FONTE = {FIN:'Financeiro', GFE:'GFE', BAIXA:'Baixa do título'};
+/* Regra Silvio 24/09/2026: o que se controla é a entrega que ainda tem saldo a receber.
+   Sem saldo, a falta de data de entrega não é pendência — vale para sinistro, funcionários e venda à ordem. */
+const temSaldo = x => (+x.saldo_aberto || 0) > 0.005;
+const pendente = x => !x.dt_entrega && temSaldo(x);
+const celEntrega = r => r.dt_entrega ? null
+  : temSaldo(r) ? `<span class="et ${CLSF[r.faixa_entrega]||''}">pendente · ${r.dias_sem_entrega} d</span>`
+  : '<span class="tag tag-comp" style="margin-left:0" title="sem saldo a receber — não é pendência">sem saldo</span>';
 function pintarRegra(){
   const cli = $('fCli').value.trim().toLowerCase();
   const nf = termoNF();
+  // NF digitada acha a nota mesmo sem saldo
   const l = CACHE.nfs.filter(x => ROT_REGRA[x.regra_especial] && x.status !== 'CANCELADA' && dentroPeriodo(x) && casaNF(nf, x.nf) &&
+                                  (nf || $('fRegra').value === 'tudo' || temSaldo(x)) &&
                                   (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
   const soma = a => a.reduce((t,x)=>t+(+x.valor_faturado||0),0);
+  const somaS = a => a.reduce((t,x)=>t+(+x.saldo_aberto||0),0);
   const tot = soma(l);
-  const pend = l.filter(x => !x.dt_entrega);
+  const pend = l.filter(pendente);
   const s = l.filter(x => x.regra_especial === 'SINISTRO'), f = l.filter(x => x.regra_especial === 'FUNCIONARIO');
-  const nPend = a => a.filter(x => !x.dt_entrega).length;
+  const nPend = a => a.filter(pendente).length;
   $('kRegra').innerHTML = [
-    ['Notas no quadro', F.int(l.length), F.curto(tot) + ' faturado', ''],
+    ['Notas no quadro', F.int(l.length), F.curto(tot) + ' faturado · ' + F.curto(somaS(l)) + ' a receber', ''],
     ['Sinistro', F.int(s.length) + ' NF', rotValPct(soma(s), tot) + ` · ${F.int(nPend(s))} pendente(s)`, ''],
     ['Funcionários', F.int(f.length) + ' NF', rotValPct(soma(f), tot) + ` · ${F.int(nPend(f))} pendente(s)`, ''],
-    ['Sem data de entrega', F.int(pend.length) + ' NF', rotValPct(soma(pend), tot) + ' · estão na fila', pend.length ? 'al' : ''],
+    ['Entrega pendente com saldo', F.int(pend.length) + ' NF', F.curto(somaS(pend)) + ' a receber · estão na fila', pend.length ? 'al' : ''],
   ].map(([t,v,n,c]) => `<div class="kpi ${c}"><div class="t">${t}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join('');
   const cols = [
     {k:'nf', t:'NF', esq:true, cls:'forte'}, {k:'emissao', t:'Emissão', fmt:F.data},
@@ -204,10 +220,9 @@ function pintarRegra(){
      html:r => `<span class="tag ${r.regra_especial==='SINISTRO'?'tag-sin':'tag-fun'}" style="margin-left:0">${ROT_REGRA[r.regra_especial]}</span>`},
     {k:'valor_faturado', t:'Valor', fmt:F.moeda, cls:'forte'},
     {k:'valor_faturado', t:'% do quadro', fmt:v => tot ? (100*(+v||0)/tot).toFixed(1).replace('.',',')+'%' : '—'},
-    {k:'dt_entrega', t:'Entrega', html:r => r.dt_entrega ? F.data(r.dt_entrega)
-       : `<span class="et ${CLSF[r.faixa_entrega]||''}">pendente · ${r.dias_sem_entrega} d</span>`},
+    {k:'dt_entrega', t:'Entrega', html:r => celEntrega(r) || F.data(r.dt_entrega)},
     {k:'dt_entrega_origem', t:'Fonte', esq:true, fmt:v => FONTE[v] || '—'},
-    {k:'saldo_aberto', t:'Saldo em aberto', fmt:F.moeda},
+    {k:'saldo_aberto', t:'Saldo em aberto', fmt:F.moeda, cls:'forte'},
   ];
   // pendentes primeiro (mais antigas no topo), depois as entregues
   TREG ? TREG.dados(l) : (TREG = new Tabela({alvo:'tabRegra', colunas:cols, linhas:l, ordem:'dias_sem_entrega', porPagina:15}));
@@ -266,7 +281,8 @@ function pintarVo(){
   const cli = $('fCli').value.trim().toLowerCase();
   // NF digitada acha a mãe pelo número dela OU de qualquer remessa dela, inclusive as concluídas
   const nf = termoNF();
-  const l = maes.filter(m => (nf || $('fVo').value === 'tudo' || m._sit !== 'CONCLUÍDA') && dentroPeriodo(m) &&
+  // "Com pendência" = situação aberta E saldo a receber na mãe (regra Silvio 24/09/2026)
+  const l = maes.filter(m => (nf || $('fVo').value === 'tudo' || (m._sit !== 'CONCLUÍDA' && temSaldo(m))) && dentroPeriodo(m) &&
                              casaNF(nf, m.nf, ...m._rs.map(r => r.nf)) &&
                              (!cli || (m.cliente_nome||'').toLowerCase().includes(cli)));
   const tMerc = l.reduce((s,m)=>s+m._merc,0), tRem = l.reduce((s,m)=>s+m._rem,0),
@@ -286,8 +302,8 @@ function pintarVo(){
     {k:'_ent', t:'Entregue', fmt:F.moeda, cls:'forte'},
     {k:'_pct', t:'% entregue', fmt:v => (+v).toFixed(1).replace('.',',') + '%'},
     {k:'_rs', t:'Remessas', fmt:v => F.int(v.length)},
-    {k:'dt_entrega', t:'Entrega da mãe', html:r => r.dt_entrega ? F.data(r.dt_entrega) + fonteMae(r)
-       : `<span class="et ${CLSF[r.faixa_entrega]||''}">pendente · ${r.dias_sem_entrega} d</span>`},
+    {k:'saldo_aberto', t:'Saldo a receber', fmt:F.moeda, cls:'forte'},
+    {k:'dt_entrega', t:'Entrega da mãe', html:r => celEntrega(r) || (F.data(r.dt_entrega) + fonteMae(r))},
     {k:'_sit', t:'Situação', html:r => `<span class="et ${ETQ_SIT[r._sit]||''}">${r._sit}</span>`},
   ];
   TVO ? TVO.dados(l) : (TVO = new Tabela({alvo:'tabVo', colunas:cols, linhas:l, ordem:'emissao', porPagina:15,
@@ -318,7 +334,7 @@ function pintarSubVo(maes){
   const linhas = m._rs.slice().sort((a,b)=>(a.emissao||'').localeCompare(b.emissao||''));
   alvo.innerHTML = `<h4>Remessas da NF-mãe ${m.nf} — ${m.cliente_nome || ''} · valor da mãe ${F.moeda(m._merc)} · `+
     `remessado ${F.moeda(m._rem)} · a remeter ${F.moeda(m._arem)} · `+
-    `entrega da mãe: ${m.dt_entrega ? F.data(m.dt_entrega) + ' (' + (FONTE_MAE[m.dt_entrega_origem] || m.dt_entrega_origem) + ')' : 'PENDENTE'}</h4>` +
+    `entrega da mãe: ${m.dt_entrega ? F.data(m.dt_entrega) + ' (' + (FONTE_MAE[m.dt_entrega_origem] || m.dt_entrega_origem) + ')' : temSaldo(m) ? 'PENDENTE' : 'sem saldo a receber — não é pendência'}</h4>` +
     (linhas.length ? `<table class="tbl"><thead><tr><th class="esq">Remessa</th><th>Emissão</th><th class="esq">Destinatário</th>`+
       `<th>UF</th><th>Mercadoria</th><th>% da mãe</th><th>Entrega (GFE)</th><th class="esq">Transportadora</th><th class="esq">Vínculo</th></tr></thead><tbody>` +
       linhas.map(r => `<tr><td class="forte">${r.nf}</td><td>${F.data(r.emissao)}</td><td class="esq">${r.cliente_nome||''}</td>`+
@@ -340,6 +356,7 @@ iniciarPagina(async () => {
                      faixa:'faixa_entrega'}, pintar);
   $('bAplicar').onclick = () => { selLimpar(); };
   $('fVo').addEventListener('change', () => pintarVo());
+  $('fRegra').addEventListener('change', () => pintarRegra());
   $('bXls').onclick = () => exportarXLSX(
     `AMVOX_SEM_ENTREGA_${hojeArq()}.xlsx`, 'Notas sem data de entrega',
     'Fila de cobrança · desde jan/2025',

@@ -42,7 +42,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.4"
+ESPEC_VERSAO = "1.5"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a

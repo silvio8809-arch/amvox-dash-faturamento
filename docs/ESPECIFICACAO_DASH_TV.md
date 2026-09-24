@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.4** · 23/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.5** · 24/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -151,7 +151,9 @@ Tolerância de arredondamento: R$ 1 ou 0,5% do valor da mãe, o que for maior.
 O disparo de boleto não é objeto do painel — o Financeiro tem controle próprio e automático.
 
 **Quadro "Venda à ordem"** (tela *Sem data de entrega*): uma linha por NF-mãe com valor, Σ remessas,
-a remeter, entregue, % entregue, data de entrega da mãe (e de onde veio) e situação:
+a remeter, entregue, % entregue, **saldo a receber**, data de entrega da mãe (e de onde veio) e situação.
+O filtro padrão *"Com pendência e saldo a receber"* mostra só a mãe com situação em aberto **e** saldo a
+receber no título; *"Todas"* mostra o quadro inteiro. Mãe sem saldo não é pendência (seção 9.1):
 
 | Situação | Significado |
 |---|---|
@@ -171,7 +173,16 @@ Clicar na NF-mãe abre a cascata das remessas com a entrega de cada uma. Um segu
 - **Regra:** o grupo é só **marcado**. A data de entrega é a real (seção 5): tem data, mostra; não
   tem, está pendente. *Segrega-se, mas não se omite a pendência.*
 - **Onde aparece:** quadro próprio e destacado na tela *Sem data de entrega* (total, sinistro,
-  funcionários, pendentes), e as pendentes também na fila com etiqueta.
+  funcionários, entrega pendente com saldo), e as pendentes também na fila com etiqueta. O filtro padrão
+  do quadro é *"Com saldo a receber"*; *"Todas"* mostra também as notas já quitadas.
+
+### 9.1 Só é pendência a entrega que tem saldo a receber
+
+Definição do Silvio (24/09/2026): *o que se controla é a entrega que ainda tem saldo a receber.* Sem
+saldo em aberto no título, a falta de data de entrega **não é pendência** — a nota aparece com a
+etiqueta *sem saldo*, nunca como *pendente*. Vale para os quadros de sinistro, funcionários e venda à
+ordem. A fila principal (seção 7) não muda: por construção ela não tem nota sem saldo, porque título
+quitado já dá a data de entrega (seção 5).
 
 ## 10. Devoluções
 
@@ -287,3 +298,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.2 | 23/09/2026 | Aprovada a forma de uso dos campos do pedido: 3 testes na Auditoria (seção 13.2) e Doc Ref do pedido como 4ª fonte do vínculo; regra do pedido agrupador | Silvio Amaral |
 | 1.3 | 23/09/2026 | Cada auditoria pertence a um único grupo; as duas auditorias de venda à ordem passam para a Auditoria FAT (LOG fica sem auditoria ativa) | Silvio Amaral |
 | 1.4 | 23/09/2026 | Consulta pelo número da NF em todas as telas de detalhe (seção 1) | Silvio Amaral |
+| 1.5 | 24/09/2026 | Só é pendência a entrega com saldo a receber: quadros de sinistro, funcionários e venda à ordem abrem filtrados pelo saldo; nota sem saldo leva a etiqueta *sem saldo* (seções 8 e 9.1) | Silvio Amaral |
