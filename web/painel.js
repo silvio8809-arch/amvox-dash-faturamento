@@ -136,7 +136,7 @@ function filtraSel(lista, exceto){
 
 const ROTULO_SEL = {cliente:'Cliente', uf:'UF', status:'Status', faixa:'Faixa',
   transportadora:'Transportadora', motivo:'Motivo', origem:'Origem da NF', fonte:'Fonte da entrega',
-  regiao:'Região', linha:'Linha'};
+  regiao:'Região', linha:'Linha', just:'Justificativa'};
 
 function pintarChips(){
   const alvo = $('chipsSel'); if(!alvo) return;
@@ -234,7 +234,12 @@ function Tabela(cfg){
       `<span><button ${pagina===0?'disabled':''} data-p="ant">Anterior</button>` +
       `<button ${pagina>=paginas-1?'disabled':''} data-p="prox">Próxima</button></span></div>`;
     if(cfg.aoClicar) raiz.querySelectorAll('tbody tr[data-r]').forEach(tr =>
-      tr.onclick = () => cfg.aoClicar(fatia[+tr.dataset.r]));
+      tr.onclick = ev => {
+        // campo editável dentro da linha (ex.: justificativa logística) não dispara o filtro cruzado
+        if(ev.target.closest('select,input,textarea,button,a,label')) return;
+        cfg.aoClicar(fatia[+tr.dataset.r]);
+      });
+    if(cfg.aoPintar) cfg.aoPintar(raiz, fatia);
     raiz.querySelectorAll('th').forEach(th => th.onclick = () => {
       const k = th.dataset.k;
       if(ordem === k) desc = !desc; else { ordem = k; desc = true; }
@@ -353,6 +358,17 @@ function zipar(arqs){
   return out;
 }
 
+/* Data ISO do cache ('2026-09-25' ou '2026-09-25T13:14:32...') → nº de série do Excel.
+   Qualquer outra coisa → null (segue como texto). Com hora, devolve fração do dia. */
+function serialData(v){
+  if(typeof v !== 'string') return null;
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m || v.length > 40) return null;
+  const dias = Math.round((Date.UTC(+m[1], +m[2]-1, +m[3]) - Date.UTC(1899, 11, 30)) / 864e5);
+  if(!m[4]) return dias;
+  return +(dias + ((+m[4])*3600 + (+m[5])*60 + (+(m[6]||0)))/86400).toFixed(6);
+}
+
 /* Mesmo padrão dos arquivos do app de preços: cabeçalho AMVOX, aba com o nome do relatório. */
 function exportarXLSX(nomeArq, titulo, subtitulo, colunas, linhas){
   const enc = new TextEncoder(), A = s => enc.encode(s);
@@ -370,6 +386,11 @@ function exportarXLSX(nomeArq, titulo, subtitulo, colunas, linhas){
     rows += `<row r="${r}">` + colunas.map((c,j) => {
       const ref = colLetra(j+1)+r, v = c.val ? c.val(l) : l[c.k];
       if(c.tipo === 'n' && v != null && v !== '') return `<c r="${ref}" s="2"><v>${Number(v).toFixed(2)}</v></c>`;
+      /* Data vai como DATA de verdade no padrão brasileiro (dd/mm/aaaa), não como texto
+         AAAA-MM-DD — pedido da Logística, 25/09/2026. Vale para toda coluna cujo valor seja
+         data ISO do cache, em todas as telas, sem declarar nada na página. */
+      const sd = serialData(v);
+      if(sd != null) return `<c r="${ref}" s="${sd % 1 ? 8 : 7}"><v>${sd}</v></c>`;
       return txt(ref, v == null ? '' : v);
     }).join('') + '</row>';
   });
@@ -382,7 +403,8 @@ function exportarXLSX(nomeArq, titulo, subtitulo, colunas, linhas){
     '</worksheet>';
   const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-    '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>'+
+    '<numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0.00"/>'+
+    '<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/></numFmts>'+
     '<fonts count="6"><font><sz val="11"/><name val="Calibri"/></font>'+
     '<font><b/><sz val="11"/><name val="Calibri"/></font>'+
     '<font><b/><sz val="14"/><color rgb="FF1A1F2E"/><name val="Calibri"/></font>'+
@@ -392,13 +414,15 @@ function exportarXLSX(nomeArq, titulo, subtitulo, colunas, linhas){
     '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
     '<fill><patternFill patternType="solid"><fgColor rgb="FF1A1F2E"/><bgColor indexed="64"/></patternFill></fill></fills>'+
     '<borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
-    '<cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+    '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'+
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
-    '<xf numFmtId="0" fontId="5" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>'+
+    '<xf numFmtId="0" fontId="5" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'+
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'+
+    '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'+
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   const ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+

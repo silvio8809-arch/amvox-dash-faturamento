@@ -23,6 +23,15 @@
   .tag-vo{background:#E8EEF8;color:var(--navy)}
   .vo-ctrl{display:flex;gap:14px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap}
   .sub{background:#FBFCFE}
+  /* justificativa logística (pedido da Logística 25/09/2026) */
+  .just{display:flex;flex-direction:column;gap:4px;min-width:250px;text-align:left}
+  .just select,.just input{padding:4px 7px;border:1px solid var(--borda);border-radius:6px;font:12.5px var(--texto);
+    background:#fff;color:var(--navy);width:100%}
+  .just select.vazia{border-color:#E5C98E;background:#FFF9EC;color:var(--cinza)}
+  .just input:disabled{background:#F4F6FA}
+  .just .quem{font-size:10.5px;color:var(--cinza);white-space:nowrap}
+  .just .quem.ok{color:#14603F} .just .quem.err{color:var(--vermelho)}
+  .just .falta{border-color:var(--laranja)}
   .sub h4{font:600 11px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--cinza);padding:12px 20px 0}
 </style>
 </head><body>
@@ -39,6 +48,7 @@
   <div class="campo"><label>Transportadora</label><select id="fTr"><option value="">Todas</option></select></div>
   <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="campo"><label>Justificativa</label><select id="fJust"><option value="">Todas</option></select></div>
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
 </div>
 <main>
@@ -51,6 +61,7 @@
       <div class="painel"><h2>Top clientes sem entrega <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
       <div class="painel"><h2>Por transportadora <span>&gt;7 dias · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
       <div class="painel"><h2>Saldo por faixa <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
+      <div class="painel"><h2>Justificativa logística <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porJust"></div></div></div>
     </div>
   </div>
 
@@ -115,6 +126,75 @@ const ROT_REGRA = {SINISTRO:'Sinistro (transportadora)', FUNCIONARIO:'Funcionár
 const marca = r => r.venda_ordem ? '<span class="tag tag-vo">venda à ordem</span>'
   : r.regra_especial === 'SINISTRO' ? '<span class="tag tag-sin">sinistro</span>'
   : r.regra_especial === 'FUNCIONARIO' ? '<span class="tag tag-fun">funcionário</span>' : '';
+/* ------------------------------------------------------------ justificativa logística
+   Pedido da Logística (Silvio 25/09/2026): o time informa, NF a NF, por que a nota ainda está sem
+   data de entrega. Grava em dash_justificativa_logistica (migração 005) — tabela escrita pelas
+   pessoas, que o ETL não toca. Quem/quando é carimbado pelo banco (trigger), não pela tela. */
+const JUST = {ok:false, opcoes:[], porCod:{}, porNF:{}};
+const chNF = r => `${r.filial}|${r.nf}|${r.serie}`;
+const SEM_JUST = '(sem justificativa)';
+const rotJust = r => { const j = JUST.porNF[chNF(r)]; return j ? (JUST.porCod[j.justificativa]?.descricao || j.justificativa) : SEM_JUST; };
+async function carregarJustificativas(){
+  const [op, js] = await Promise.all([
+    SB.from('dash_justificativa_opcao').select('*').eq('ativo', true).order('ordem'),
+    tudo('dash_justificativa_logistica', '*', 'filial,nf,serie').catch(e => ({erro:e}))]);
+  if(op.error || js.erro){ JUST.ok = false; return; }     // migração 005 ainda não rodada
+  JUST.ok = true; JUST.opcoes = op.data;
+  JUST.porCod = Object.fromEntries(op.data.map(o => [o.codigo, o]));
+  JUST.porNF  = Object.fromEntries(js.map(j => [chNF(j), j]));
+}
+const dtHora = iso => { if(!iso) return ''; const d = new Date(iso), p = n => String(n).padStart(2,'0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const isoLocal = iso => { if(!iso) return ''; const d = new Date(iso), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const escA = v => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function celJust(r){
+  if(!JUST.ok) return '<span class="tag tag-comp" title="rodar db/migrations/005_justificativa_logistica.sql no Supabase">indisponível</span>';
+  const j = JUST.porNF[chNF(r)], cod = j ? j.justificativa : '';
+  const op = JUST.porCod[cod];
+  const falta = op && op.pede_complemento && !(j.complemento||'').trim();
+  return `<div class="just" data-ch="${escA(chNF(r))}">` +
+    `<select class="${cod?'':'vazia'}"><option value="">— informar —</option>` +
+      JUST.opcoes.map(o => `<option value="${escA(o.codigo)}" ${o.codigo===cod?'selected':''}>${escA(o.descricao)}</option>`).join('') +
+    `</select>` +
+    `<input class="${falta?'falta':''}" maxlength="300" ${cod?'':'disabled'} value="${escA(j?.complemento)}" ` +
+      `placeholder="${op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)'}">` +
+    `<span class="quem">${j ? `${escA(j.usuario||'')} · ${dtHora(j.updated_at)}` : ''}</span></div>`;
+}
+async function salvarJust(caixa){
+  const [filial, nf, serie] = caixa.dataset.ch.split('|');
+  const sel = caixa.querySelector('select'), inp = caixa.querySelector('input'), quem = caixa.querySelector('.quem');
+  const cod = sel.value, compl = inp.value.trim();
+  quem.className = 'quem'; quem.textContent = 'salvando…';
+  sel.disabled = inp.disabled = true;
+  let res;
+  if(!cod) res = await SB.from('dash_justificativa_logistica').delete().match({filial, nf, serie});
+  else res = await SB.from('dash_justificativa_logistica')
+    .upsert({filial, nf, serie, justificativa: cod, complemento: compl || null}, {onConflict:'filial,nf,serie'})
+    .select().single();
+  sel.disabled = false;
+  if(res.error){
+    inp.disabled = !cod; quem.className = 'quem err';
+    quem.textContent = 'não salvou — ' + (res.error.message || 'erro'); return;
+  }
+  const ch = caixa.dataset.ch;
+  if(!cod) delete JUST.porNF[ch]; else JUST.porNF[ch] = res.data;
+  inp.disabled = !cod; if(!cod) inp.value = '';
+  const op = JUST.porCod[cod];
+  sel.classList.toggle('vazia', !cod);
+  inp.classList.toggle('falta', !!(op && op.pede_complemento && !compl));
+  inp.placeholder = op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)';
+  quem.className = 'quem ok';
+  quem.textContent = cod ? `✓ salvo · ${res.data.usuario||''} · ${dtHora(res.data.updated_at)}` : '✓ justificativa removida';
+  pintarLadoJust();
+}
+function ligarJust(raiz){
+  raiz.querySelectorAll('.just').forEach(c => {
+    c.querySelector('select').onchange = () => salvarJust(c);
+    c.querySelector('input').onchange = () => salvarJust(c);
+  });
+}
+
 const COLS = [
   {k:'nf', t:'NF', esq:true, cls:'forte', html:r => r.nf + marca(r)},
   {k:'emissao', t:'Emissão', fmt:F.data},
@@ -126,11 +206,17 @@ const COLS = [
   {k:'devolucao_em_aberto', t:'Devolução em aberto', html:celDev},
   {k:'vencimento_real', t:'Vencimento', fmt:F.data},
   {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${CLSF[r.faixa_entrega]||''}">${r.dias_sem_entrega} d</span>`},
+  {k:'_just', t:'Justificativa logística', esq:true, html:celJust},
 ];
+const casaJust = (fj, x) => {
+  if(!fj) return true;
+  const j = JUST.porNF[chNF(x)];
+  return fj === '__sem' ? !j : fj === '__com' ? !!j : (j && j.justificativa === fj);
+};
 function filtrar(){
   const fx = $('fFaixa').value, uf = $('fUf').value, tr = $('fTr').value,
-        cli = $('fCli').value.trim().toLowerCase(), nf = termoNF();
-  return CACHE.nfs.filter(x => x.faixa_entrega && x.status !== 'CANCELADA' && dentroPeriodo(x) && casaNF(nf, x.nf) &&
+        cli = $('fCli').value.trim().toLowerCase(), nf = termoNF(), fj = $('fJust').value;
+  return CACHE.nfs.filter(x => x.faixa_entrega && casaJust(fj, x) && x.status !== 'CANCELADA' && dentroPeriodo(x) && casaNF(nf, x.nf) &&
     (!fx || x.faixa_entrega === fx) && (!uf || x.uf === uf) &&
     (!tr || (x.transportadora||'—') === tr) &&
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
@@ -161,8 +247,9 @@ function pintar(){
   } else av.style.display = 'none';
 
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(totSaldo)} em aberto`;
+  l.forEach(x => x._just = rotJust(x));          // permite ordenar pela coluna
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
-    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
+    aoClicar:r => selAlterna('cliente', r.cliente_nome||'—'), aoPintar:ligarJust}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
   const totCli = Object.values(cli).reduce((s,v)=>s+v,0);
   barras('porCli', Object.entries(cli).sort((a,b)=>b[1]-a[1]).slice(0,8)
@@ -180,9 +267,25 @@ function pintar(){
     return {nome:rot.split(' · ')[0], valor:k,     // `valor` = código da faixa ('>15'), `nome` = rótulo
             v, rot:rotValPct(v,totFx)};
   }), '', 'faixa');
+  _baseJust = base;
+  pintarLadoJust();
 
   pintarRegra();
   pintarVo();
+}
+
+/* painel "Justificativa logística": saldo em aberto por motivo, com % sobre o saldo da fila inteira */
+let _baseJust = [];
+function pintarLadoJust(){
+  if(!JUST.ok){ $('porJust').innerHTML = '<div class="vazio">Aguardando a migração 005 no Supabase.</div>'; return; }
+  const b = filtraSel(_baseJust, 'just'), g = {};
+  b.forEach(x => { const k = rotJust(x); g[k] = g[k] || {v:0, n:0}; g[k].v += +x.saldo_aberto||0; g[k].n++; });
+  const tot = b.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
+  barras('porJust', Object.entries(g).sort((a,c)=>c[1].v-a[1].v)
+    .map(([k,o]) => ({nome:k, v:o.v, rot:`${F.int(o.n)} NF · ${rotValPct(o.v, tot)}`})), 'vm', 'just');
+  const semJ = _baseJust.filter(x => !JUST.porNF[chNF(x)]).length;
+  const t = $('tSub');
+  t.textContent = t.textContent.replace(/ · \d[\d.]* sem justificativa$/, '') + ` · ${F.int(semJ)} sem justificativa`;
 }
 
 /* ------------------------------------------------------------ sinistro / funcionários */
@@ -346,14 +449,17 @@ function pintarSubVo(maes){
 }
 
 iniciarPagina(async () => {
-  await carregarVendaOrdem();
+  await Promise.all([carregarVendaOrdem(), carregarJustificativas()]);
+  $('fJust').innerHTML = '<option value="">Todas</option><option value="__sem">Sem justificativa</option>'+
+    '<option value="__com">Com justificativa</option>' +
+    JUST.opcoes.map(o => `<option value="${escA(o.codigo)}">${escA(o.descricao)}</option>`).join('');
   const sem = CACHE.nfs.filter(x => x.faixa_entrega);
   $('fUf').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
   $('fTr').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.transportadora||'—'))].sort().map(t=>`<option>${t}</option>`).join('');
   configurarSelecao({cliente:'cliente_nome', uf:'uf', transportadora:x=>x.transportadora||'(sem transportadora)',
-                     faixa:'faixa_entrega'}, pintar);
+                     faixa:'faixa_entrega', just:rotJust}, pintar);
   $('bAplicar').onclick = () => { selLimpar(); };
   $('fVo').addEventListener('change', () => pintarVo());
   $('fRegra').addEventListener('change', () => pintarRegra());
@@ -365,7 +471,11 @@ iniciarPagina(async () => {
      {t:'VALOR',k:'valor_faturado',w:15,tipo:'n'},{t:'SALDO EM ABERTO',k:'saldo_aberto',w:17,tipo:'n'},
      {t:'DEVOLVIDO',k:'valor_devolvido',w:14,tipo:'n'},{t:'DEVOLUÇÃO EM ABERTO (NCC)',k:'devolucao_em_aberto',w:22,tipo:'n'},
      {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS SEM ENTREGA',k:'dias_sem_entrega',w:17},
-     {t:'FAIXA',k:'faixa_entrega',w:10}],
+     {t:'FAIXA',k:'faixa_entrega',w:10},
+     {t:'JUSTIFICATIVA LOGÍSTICA',w:44,val:r => JUST.porNF[chNF(r)] ? rotJust(r) : ''},
+     {t:'COMPLEMENTO',w:44,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
+     {t:'INFORMADO POR',w:28,val:r => JUST.porNF[chNF(r)]?.usuario || ''},
+     {t:'INFORMADO EM',w:17,val:r => isoLocal(JUST.porNF[chNF(r)]?.updated_at)}],
     TAB.atual());
   $('bXlsVo').onclick = () => {
     const {maes, orf} = montaVo();

@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.5** · 24/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.6** · 25/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -109,6 +109,25 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 - **Marcas na fila:** notas de *venda à ordem*, *sinistro* e *funcionário* aparecem na fila com
   etiqueta — os grupos têm quadros próprios, mas a pendência nunca é omitida.
 - A TV mostra a fila inteira e o recado das notas com mais de 7 dias.
+
+### 7.1 Justificativa logística
+
+- Na fila, cada nota tem o campo **Justificativa logística**: uma lista com os principais motivos
+  (em rota, agendamento confirmado, entregue com baixa disponível no TOTVS, funcionário com baixa
+  disponível, NF não enviada para a Logística, faturada sem a nota de remessa, refaturamento aguardando
+  canhoto, devolvida, aguardando devolução, tratativa comercial, faturamento contra o transportador
+  (sinistro/avaria), NF cancelada e outros) e um **complemento** em texto livre.
+- Alguns motivos **pedem complemento** (agendamento, refaturamento, devolvida, tratativa comercial,
+  outros): a tela avisa quando ele falta, mas não impede a gravação.
+- **Quem informou e quando** é gravado pelo próprio banco, a partir do usuário logado — a tela não
+  consegue registrar em nome de outra pessoa. Toda inclusão, troca ou exclusão fica no **histórico**.
+- Quadro **Justificativa logística** ao lado da fila: saldo em aberto por motivo, com a participação no
+  saldo da fila; filtro por motivo, *sem justificativa* e *com justificativa*. O Excel da fila leva a
+  justificativa, o complemento, quem informou e quando.
+- A justificativa é **escrita pelas pessoas, não pela carga automática**: a atualização de hora em hora
+  nunca a apaga. Quando a nota ganha data de entrega, ela sai da fila e a justificativa fica guardada.
+  Nada disso volta para o Protheus. Motivo novo entra na lista sem publicar tela.
+- **Datas no Excel** de todas as telas saem como data de verdade no padrão brasileiro (dd/mm/aaaa).
 
 ## 8. Venda à ordem
 
@@ -285,7 +304,7 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | Assunto | Situação |
 |---|---|
 | Canal B2B × B2C | Campo candidato no cadastro do cliente; falta confirmação de negócio |
-| Perfis de acesso por tela / subgrupo de auditoria | Previsto, não definido |
+| Perfis de acesso por tela / subgrupo de auditoria | Previsto, não definido (inclui quem pode informar a justificativa logística — hoje todo usuário logado) |
 | Próximas auditorias (LOG e FAT) | A listar |
 | Mães sem remessa, remessadas a maior e remessas sem mãe | Casos para correção no Protheus (quadros da seção 8 e Auditoria) |
 
@@ -299,3 +318,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.3 | 23/09/2026 | Cada auditoria pertence a um único grupo; as duas auditorias de venda à ordem passam para a Auditoria FAT (LOG fica sem auditoria ativa) | Silvio Amaral |
 | 1.4 | 23/09/2026 | Consulta pelo número da NF em todas as telas de detalhe (seção 1) | Silvio Amaral |
 | 1.5 | 24/09/2026 | Só é pendência a entrega com saldo a receber: quadros de sinistro, funcionários e venda à ordem abrem filtrados pelo saldo; nota sem saldo leva a etiqueta *sem saldo* (seções 8 e 9.1) | Silvio Amaral |
+| 1.6 | 25/09/2026 | Justificativa logística na fila de notas sem data de entrega (lista de motivos + complemento, quem/quando gravado pelo banco, histórico, quadro e filtro por motivo); datas do Excel em dd/mm/aaaa (seção 7.1) | Silvio Amaral (pedido da Logística) |
