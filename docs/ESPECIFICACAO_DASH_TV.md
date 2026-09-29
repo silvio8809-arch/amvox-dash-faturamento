@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.6** · 25/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.7** · 29/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -128,6 +128,18 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   nunca a apaga. Quando a nota ganha data de entrega, ela sai da fila e a justificativa fica guardada.
   Nada disso volta para o Protheus. Motivo novo entra na lista sem publicar tela.
 - **Datas no Excel** de todas as telas saem como data de verdade no padrão brasileiro (dd/mm/aaaa).
+
+### 7.2 Histórico da justificativa (log de alteração)
+
+- Toda **inclusão, alteração e exclusão** de justificativa gera uma linha no histórico com **antes e
+  depois** (motivo e complemento), **quem** (e-mail do usuário logado, gravado pelo banco) e **quando**
+  (hora do servidor).
+- **Salvar sem mudar nada não gera registro** e não troca o "quem/quando" da justificativa vigente.
+- O histórico é **imutável**: ninguém altera nem apaga uma linha — nem pela tela, nem pelo acesso
+  administrativo do banco. Só se acrescenta.
+- Na fila, o botão **histórico** de cada nota abre a linha do tempo dela (mais recente primeiro). O botão
+  **Exportar histórico** gera o Excel com todas as mudanças de todas as notas (quando, ação, quem, NF,
+  cliente, justificativa e complemento de antes e de depois).
 
 ## 8. Venda à ordem
 
@@ -319,3 +331,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.4 | 23/09/2026 | Consulta pelo número da NF em todas as telas de detalhe (seção 1) | Silvio Amaral |
 | 1.5 | 24/09/2026 | Só é pendência a entrega com saldo a receber: quadros de sinistro, funcionários e venda à ordem abrem filtrados pelo saldo; nota sem saldo leva a etiqueta *sem saldo* (seções 8 e 9.1) | Silvio Amaral |
 | 1.6 | 25/09/2026 | Justificativa logística na fila de notas sem data de entrega (lista de motivos + complemento, quem/quando gravado pelo banco, histórico, quadro e filtro por motivo); datas do Excel em dd/mm/aaaa (seção 7.1) | Silvio Amaral (pedido da Logística) |
+| 1.7 | 29/09/2026 | Histórico da justificativa com antes × depois, quem e quando; salvar sem mudança não registra; histórico imutável; botão de histórico por nota e Excel do histórico (seção 7.2) | Silvio Amaral |

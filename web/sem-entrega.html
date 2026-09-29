@@ -32,6 +32,26 @@
   .just .quem{font-size:10.5px;color:var(--cinza);white-space:nowrap}
   .just .quem.ok{color:#14603F} .just .quem.err{color:var(--vermelho)}
   .just .falta{border-color:var(--laranja)}
+  /* histórico da justificativa (Silvio 29/09/2026 — migração 006: antes × depois, quem, quando) */
+  .just .rodape{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .just .bhist{border:0;background:none;padding:0;font:600 10.5px var(--texto);color:var(--navy);text-decoration:underline;
+    cursor:pointer;white-space:nowrap}
+  .just .bhist:hover{color:var(--laranja)}
+  #histFundo{position:fixed;inset:0;background:rgba(18,18,20,.55);display:none;align-items:flex-start;justify-content:center;
+    padding:60px 16px 24px;z-index:50;overflow:auto}
+  #histFundo.aberto{display:flex}
+  #histCaixa{background:#fff;border-radius:12px;max-width:980px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  #histCaixa header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 20px;border-bottom:1px solid var(--borda)}
+  #histCaixa h3{font:600 15px var(--cond);letter-spacing:.08em;text-transform:uppercase;margin:0}
+  #histCaixa header span{display:block;font-size:12.5px;color:var(--cinza);margin-top:2px}
+  #histCaixa .corpo{padding:6px 20px 18px;overflow-x:auto}
+  #histCaixa header{background:#fff;color:var(--navy);position:static;height:auto;border-radius:12px 12px 0 0}
+  #histCaixa th,#histCaixa td{text-align:left}
+  #histCaixa td{white-space:normal;min-width:90px}
+  #histCaixa td{vertical-align:top;font-size:12.5px}
+  #histCaixa .antes{color:var(--cinza);text-decoration:line-through;text-decoration-color:#C9CDD6}
+  #histCaixa .acao{font:600 10.5px var(--cond);letter-spacing:.1em;padding:1px 7px;border-radius:99px;background:#EEF1F6}
+  #histCaixa .acao.INCLUIU{background:#E3F4EA;color:#14603F} #histCaixa .acao.EXCLUIU{background:#FBE4E4;color:var(--vermelho)}
   .sub h4{font:600 11px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--cinza);padding:12px 20px 0}
 </style>
 </head><body>
@@ -49,7 +69,7 @@
   <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Número da NF, com ou sem zeros; aceita o início do número. Com NF digitada, vale qualquer competência."></div>
   <div class="campo" style="min-width:230px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
   <div class="campo"><label>Justificativa</label><select id="fJust"><option value="">Todas</option></select></div>
-  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button><button class="bt" id="bXls">Exportar Excel</button><button class="bt" id="bXlsHist" title="Todas as inclusões, alterações e exclusões de justificativa, com antes e depois">Exportar histórico</button></div>
 </div>
 <main>
   <div class="chipsSel" id="chipsSel"></div>
@@ -159,7 +179,8 @@ function celJust(r){
     `</select>` +
     `<input class="${falta?'falta':''}" maxlength="300" ${cod?'':'disabled'} value="${escA(j?.complemento)}" ` +
       `placeholder="${op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)'}">` +
-    `<span class="quem">${j ? `${escA(j.usuario||'')} · ${dtHora(j.updated_at)}` : ''}</span></div>`;
+    `<div class="rodape"><span class="quem">${j ? `${escA(j.usuario||'')} · ${dtHora(j.updated_at)}` : ''}</span>` +
+    `<button type="button" class="bhist" title="Quem incluiu, alterou ou excluiu — antes e depois">histórico</button></div></div>`;
 }
 async function salvarJust(caixa){
   const [filial, nf, serie] = caixa.dataset.ch.split('|');
@@ -192,7 +213,73 @@ function ligarJust(raiz){
   raiz.querySelectorAll('.just').forEach(c => {
     c.querySelector('select').onchange = () => salvarJust(c);
     c.querySelector('input').onchange = () => salvarJust(c);
+    c.querySelector('.bhist').onclick = () => abrirHistorico(c.dataset.ch);
   });
+}
+
+/* ------------------------------------------------------------ histórico da justificativa
+   Silvio 29/09/2026 (migração 006): cada inclusão, troca ou exclusão com ANTES e DEPOIS, quem e quando.
+   O histórico é gravado pelo banco (gatilho) e é imutável — a tela só lê. */
+const descJ = c => c ? (JUST.porCod[c]?.descricao || c) : '';
+function eventosHist(linhas){
+  // linhas de uma NF em ordem de id. Registros anteriores à 006 não têm o "antes": vem do evento anterior.
+  let prev = null;
+  return linhas.map(h => {
+    let aJ = h.justificativa_anterior, aC = h.complemento_anterior, dJ = h.justificativa, dC = h.complemento;
+    const pre006 = h.justificativa_anterior == null && h.complemento_anterior == null;
+    if(pre006 && h.acao === 'ALTEROU' && prev){ aJ = prev.dJ; aC = prev.dC; }
+    if(pre006 && h.acao === 'EXCLUIU'){ aJ = h.justificativa; aC = h.complemento; dJ = null; dC = null; }
+    const e = {id:h.id, filial:h.filial, nf:h.nf, serie:h.serie, acao:h.acao, usuario:h.usuario, em:h.em, aJ, aC, dJ, dC};
+    prev = e; return e;
+  });
+}
+const txtJ = (j, c) => j ? escA(descJ(j)) + (c ? `<br><i>${escA(c)}</i>` : '') : '—';
+function fecharHistorico(){ const f = document.getElementById('histFundo'); if(f) f.classList.remove('aberto'); }
+async function abrirHistorico(ch){
+  let f = document.getElementById('histFundo');
+  if(!f){
+    f = document.createElement('div'); f.id = 'histFundo';
+    f.innerHTML = '<div id="histCaixa" role="dialog" aria-modal="true"><header><div><h3 id="histTit"></h3><span id="histSub"></span></div>' +
+      '<button class="bt" id="histFechar">Fechar</button></header><div class="corpo" id="histCorpo"></div></div>';
+    document.body.appendChild(f);
+    f.onclick = ev => { if(ev.target === f) fecharHistorico(); };
+    document.getElementById('histFechar').onclick = fecharHistorico;
+    document.addEventListener('keydown', ev => { if(ev.key === 'Escape') fecharHistorico(); });
+  }
+  const [filial, nf, serie] = ch.split('|');
+  const nota = CACHE.nfs.find(x => chNF(x) === ch);
+  document.getElementById('histTit').textContent = `Histórico da justificativa — NF ${nf}`;
+  document.getElementById('histSub').textContent = (nota ? `${nota.cliente_nome||''} · ` : '') + `filial ${filial} · série ${serie}`;
+  const corpo = document.getElementById('histCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  f.classList.add('aberto');
+  const res = await SB.from('dash_justificativa_hist').select('*').match({filial, nf, serie}).order('id');
+  if(res.error){ corpo.innerHTML = `<div class="vazio">Não foi possível ler o histórico — ${escA(res.error.message)}</div>`; return; }
+  if(!res.data.length){ corpo.innerHTML = '<div class="vazio">Nenhuma justificativa registrada para esta nota.</div>'; return; }
+  const ev = eventosHist(res.data).reverse();                       // mais recente primeiro
+  corpo.innerHTML = '<table class="tbl"><thead><tr><th class="esq">Quando</th><th class="esq">Ação</th><th class="esq">Quem</th>' +
+    '<th class="esq">Antes</th><th class="esq">Depois</th></tr></thead><tbody>' +
+    ev.map(e => `<tr><td>${dtHora(e.em)}</td><td><span class="acao ${e.acao}">${e.acao}</span></td><td>${escA(e.usuario||'—')}</td>` +
+      `<td class="${e.aJ ? 'antes' : ''}">${txtJ(e.aJ, e.aC)}</td><td>${txtJ(e.dJ, e.dC)}</td></tr>`).join('') + '</tbody></table>';
+}
+async function exportarHistorico(){
+  const b = $('bXlsHist'); b.disabled = true; const rot = b.textContent; b.textContent = 'Gerando…';
+  try{
+    const todas = await tudo('dash_justificativa_hist', '*', 'id');
+    const porNF = {};
+    todas.forEach(h => (porNF[chNF(h)] = porNF[chNF(h)] || []).push(h));
+    const nfs = Object.fromEntries(CACHE.nfs.map(x => [chNF(x), x]));
+    const ev = Object.values(porNF).flatMap(eventosHist).sort((a, c) => a.id - c.id).map(e => ({...e,
+      cliente: nfs[chNF(e)]?.cliente_nome || '', emL: isoLocal(e.em),
+      antesJ: descJ(e.aJ), antesC: e.aC || '', depoisJ: descJ(e.dJ), depoisC: e.dC || ''}));
+    exportarXLSX(`AMVOX_JUSTIFICATIVA_HISTORICO_${hojeArq()}.xlsx`, 'Justificativa logística — histórico',
+      'Toda inclusão, alteração e exclusão, com antes e depois · gravado pelo banco, imutável',
+      [{t:'QUANDO',k:'emL',w:17},{t:'AÇÃO',k:'acao',w:10},{t:'QUEM',k:'usuario',w:30},{t:'FILIAL',k:'filial',w:9},
+       {t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:7},{t:'CLIENTE',k:'cliente',w:34},
+       {t:'JUSTIFICATIVA ANTES',k:'antesJ',w:40},{t:'COMPLEMENTO ANTES',k:'antesC',w:36},
+       {t:'JUSTIFICATIVA DEPOIS',k:'depoisJ',w:40},{t:'COMPLEMENTO DEPOIS',k:'depoisC',w:36}], ev);
+  } catch(e){ alert('Não foi possível exportar o histórico: ' + (e.message || e)); }
+  finally { b.disabled = false; b.textContent = rot; }
 }
 
 const COLS = [
@@ -477,6 +564,7 @@ iniciarPagina(async () => {
      {t:'INFORMADO POR',w:28,val:r => JUST.porNF[chNF(r)]?.usuario || ''},
      {t:'INFORMADO EM',w:17,val:r => isoLocal(JUST.porNF[chNF(r)]?.updated_at)}],
     TAB.atual());
+  $('bXlsHist').onclick = exportarHistorico;
   $('bXlsVo').onclick = () => {
     const {maes, orf} = montaVo();
     const idx = Object.fromEntries(maes.map(m => [chMae(m), m]));
