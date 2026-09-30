@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.7** · 29/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.8** · 30/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -286,6 +286,8 @@ as mães das remessas daquele pedido.
 
 ## 14. Atualização automática
 
+- **Tela:** cada tela do painel se recarrega sozinha a cada 10 minutos, para a TV e os usuários sempre verem o último retrato gravado. O recarregamento zera filtros e rolagem escolhidos na tela; com a tela de login aberta ele não acontece.
+
 - **Quando:** de hora em hora das 09h às 16h e uma rodada final às 16h30, em dias úteis. Fora disso a
   TV mostra o último retrato, sempre com a data e a hora dele.
 - **Falha de conexão** (VPN, servidor, Mac em repouso) não é erro: a rotina tenta de novo sozinha
@@ -332,3 +334,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.5 | 24/09/2026 | Só é pendência a entrega com saldo a receber: quadros de sinistro, funcionários e venda à ordem abrem filtrados pelo saldo; nota sem saldo leva a etiqueta *sem saldo* (seções 8 e 9.1) | Silvio Amaral |
 | 1.6 | 25/09/2026 | Justificativa logística na fila de notas sem data de entrega (lista de motivos + complemento, quem/quando gravado pelo banco, histórico, quadro e filtro por motivo); datas do Excel em dd/mm/aaaa (seção 7.1) | Silvio Amaral (pedido da Logística) |
 | 1.7 | 29/09/2026 | Histórico da justificativa com antes × depois, quem e quando; salvar sem mudança não registra; histórico imutável; botão de histórico por nota e Excel do histórico (seção 7.2) | Silvio Amaral |
+| 1.8 | 30/09/2026 | Recarregamento automático de cada tela a cada 10 minutos (padrão do dash de preço); efeito aceito: perda dos filtros da tela (seção 14) | Silvio Amaral |

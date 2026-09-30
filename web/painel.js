@@ -522,6 +522,14 @@ async function abrir(){
   try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }
+/* Atualização da tela a cada 10 min (mesmo padrão do dash de preço). Não recarrega com a
+   tela de login aberta, para não apagar o que a pessoa está digitando. */
+setInterval(() => {
+  const l = $('login');
+  if(l && l.style.display === 'flex') return;
+  location.reload();
+}, 10*60*1000);
+
 function iniciarPagina(fn){
   _pagina = fn;
   document.addEventListener('DOMContentLoaded', () => { montarLogin(); abrir(); });
