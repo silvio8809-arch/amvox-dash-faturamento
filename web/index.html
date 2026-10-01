@@ -282,7 +282,8 @@ let CACHE = null;   // dados buscados uma vez; o seletor de mês só re-renderiz
 
 async function montar(mesEscolhido){
   const hoje = new Date();
-  const mesAtual = mesEscolhido || hoje.toISOString().slice(0,7);
+  // mês LOCAL — toISOString() é UTC e virava o mês às 21h de Brasília (quadros zerados, 30/09/2026)
+  const mesAtual = mesEscolhido || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
   const [aa,mm] = mesAtual.split('-').map(Number);
   const ant = new Date(aa, mm-2, 1);
   const mesAnt = `${ant.getFullYear()}-${String(ant.getMonth()+1).padStart(2,'0')}`;
