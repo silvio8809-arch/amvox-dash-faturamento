@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.9** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.10** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -120,6 +120,10 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
     comercial, faturamento contra o transportador (sinistro/avaria), NF cancelada e outros) e um
     **complemento** curto. Alguns motivos **pedem complemento** (agendamento, refaturamento, devolvida,
     tratativa comercial, outros): a tela avisa quando ele falta, mas não impede a gravação.
+  - **Responsável** — nome da pessoa que a Logística indica para realizar a ação (texto livre; a tela sugere
+    os nomes já usados).
+  - **Prazo** — data até a qual o responsável deve realizar a ação. A tela marca *vencido há N dias*, *vence
+    hoje*, *vence em N dias* ou *em N dias*.
   - **Observações** — texto livre: o que está sendo feito, com quem, próximo passo. Pode ser registrada
     antes de escolher o motivo.
   - **Anexos** — evidências em arquivo (PDF, imagem, Excel, Word, texto, e-mail), até **10 MB** cada,
@@ -129,8 +133,8 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 - **Quem informou e quando** é gravado pelo próprio banco, a partir do usuário logado — a tela não
   consegue registrar em nome de outra pessoa. Toda inclusão, troca, exclusão e anexo fica no **histórico**
   (seção 7.2).
-- Filtro por motivo, *sem justificativa*, *com justificativa* e *com anexo*. O Excel da fila leva a
-  justificativa, o complemento, as observações, a quantidade e o nome dos anexos, quem informou e quando.
+- Filtro por motivo, *sem justificativa*, *com justificativa*, *com anexo*, *prazo vencido* e *sem responsável*. O Excel da fila leva a
+  justificativa, o complemento, o responsável, o prazo e a situação do prazo, as observações, a quantidade e o nome dos anexos, quem informou e quando.
 - O plano de ação é **escrito pelas pessoas, não pela carga automática**: a atualização de hora em hora
   nunca o apaga. Quando a nota ganha data de entrega, ela sai da fila e o plano fica guardado.
   Nada disso volta para o Protheus. Motivo novo entra na lista sem publicar tela.
@@ -139,7 +143,7 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 ### 7.2 Histórico do plano de ação (log de alteração)
 
 - Toda **inclusão, alteração e exclusão** do plano de ação gera uma linha no histórico com **antes e
-  depois** (motivo, complemento e observações); cada anexo incluído ou removido também (nome do arquivo), **quem** (e-mail do usuário logado, gravado pelo banco) e **quando**
+  depois** (motivo, complemento, responsável, prazo e observações); cada anexo incluído ou removido também (nome do arquivo), **quem** (e-mail do usuário logado, gravado pelo banco) e **quando**
   (hora do servidor).
 - **Salvar sem mudar nada não gera registro** e não troca o "quem/quando" da justificativa vigente.
 - O histórico é **imutável**: ninguém altera nem apaga uma linha — nem pela tela, nem pelo acesso
@@ -152,7 +156,7 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 
 - Os gráficos saíram da fila (Silvio 01/10/2026): a tela tem duas abas — **Fila de ação** (a tabela com
   o plano de ação e os quadros de sinistro/funcionários e venda à ordem) e **Dash** (as 9 faixas com
-  quantidade e saldo, *saldo por faixa (aging)*, *plano de ação · justificativa*, *top clientes* e
+  quantidade e saldo, *saldo por faixa (aging)*, *plano de ação · justificativa*, *plano de ação · prazo* (vencido, vence hoje, até 7 dias, no prazo, sem prazo), *top clientes* e
   *por transportadora*).
 - Os filtros do topo valem para as duas abas. Clicar numa barra do Dash filtra a fila (filtro cruzado);
   o Dash mostra quantas notas e quanto saldo ficaram na fila com os filtros do momento.
@@ -352,3 +356,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.7 | 29/09/2026 | Histórico da justificativa com antes × depois, quem e quando; salvar sem mudança não registra; histórico imutável; botão de histórico por nota e Excel do histórico (seção 7.2) | Silvio Amaral |
 | 1.8 | 30/09/2026 | Recarregamento automático de cada tela a cada 10 minutos (padrão do dash de preço); efeito aceito: perda dos filtros da tela (seção 14) | Silvio Amaral |
 | 1.9 | 01/10/2026 | Faixas de dias abertas em 9 (16–30 até acima de 180) na carga, tela, Excel e TV (seção 7); Plano de ação = Justificativa + Observações + Anexos, com histórico (7.1, 7.2); gráficos movidos para a aba Dash (7.3) | Silvio Amaral |
+| 1.10 | 01/10/2026 | Plano de ação ganha Responsável (nome indicado pela Logística) e Prazo (data), com histórico, filtros (prazo vencido, sem responsável), quadro de prazos no Dash e colunas no Excel (seção 7.1) | Silvio Amaral |

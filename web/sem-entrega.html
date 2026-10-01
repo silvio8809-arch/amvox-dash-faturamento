@@ -77,6 +77,16 @@
   .obs textarea{padding:5px 7px;border:1px solid var(--borda);border-radius:6px;font:12.5px/1.35 var(--texto);color:var(--navy);
     resize:vertical;min-height:52px;width:100%}
   .obs .quem{font-size:10.5px;color:var(--cinza)} .obs .quem.ok{color:#14603F} .obs .quem.err{color:var(--vermelho)}
+  /* responsável + prazo do plano de ação (migração 008, Silvio 01/10/2026) */
+  .resp,.prz{display:flex;flex-direction:column;gap:3px;text-align:left}
+  .resp{min-width:170px} .prz{min-width:140px}
+  .resp input,.prz input{padding:4px 7px;border:1px solid var(--borda);border-radius:6px;font:12.5px var(--texto);color:var(--navy);background:#fff;width:100%}
+  .resp .quem,.prz .quem{font-size:10.5px;color:var(--cinza)} .resp .quem.ok,.prz .quem.ok{color:#14603F}
+  .resp .quem.err,.prz .quem.err{color:var(--vermelho)}
+  .prz .st{font:600 10.5px var(--texto);padding:1px 7px;border-radius:99px;align-self:flex-start;white-space:nowrap}
+  .prz .st.venc{background:#FBE4E4;color:var(--vermelho)} .prz .st.hoje{background:#FFF0D6;color:#8A5B00}
+  .prz .st.prox{background:#FFF7E6;color:#8A5B00} .prz .st.ok{background:#E3F4EA;color:#14603F}
+  .prz input.venc{border-color:var(--vermelho);background:#FFF5F5}
   .anx{display:flex;flex-direction:column;gap:4px;min-width:170px;text-align:left;font-size:12px}
   .anx a{color:var(--navy);text-decoration:underline;cursor:pointer;word-break:break-all}
   .anx .arq{display:flex;gap:6px;align-items:baseline;justify-content:space-between}
@@ -116,6 +126,7 @@
     <div class="grade-dash">
       <div class="painel"><h2>Saldo por faixa (aging) <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
       <div class="painel"><h2>Plano de ação · justificativa <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porJust"></div></div></div>
+      <div class="painel"><h2>Plano de ação · prazo <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porPrazo"></div></div></div>
       <div class="painel"><h2>Top clientes sem entrega <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
       <div class="painel"><h2>Por transportadora <span>&gt;7 dias · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
     </div>
@@ -193,27 +204,30 @@ const marca = r => r.venda_ordem ? '<span class="tag tag-vo">venda à ordem</spa
    O time informa, NF a NF, por que a nota ainda está sem data de entrega e o que está sendo feito.
    Tudo é escrito pelas pessoas (o ETL não toca) e quem/quando é carimbado pelo banco (gatilho).
    Histórico único e imutável (migração 006): antes × depois de cada mudança, inclusive anexos. */
-const JUST = {ok:false, v007:false, opcoes:[], porCod:{}, porNF:{}};
+const JUST = {ok:false, v007:false, v008:false, opcoes:[], porCod:{}, porNF:{}};
 const ANX = {ok:false, porNF:{}};
 const BUCKET = 'dash-anexos', ANX_MAX = 10 * 1024 * 1024;      // 10 MB por arquivo (limite também no banco)
 let ENVIANDO = 0;                                               // anexos/gravações em andamento
 /* o recarregamento automático (painel.js) espera: nada sendo enviado, nenhum texto sem salvar, histórico fechado */
 window.telaOcupada = () => ENVIANDO > 0 || !!document.querySelector('#histFundo.aberto') ||
   [...document.querySelectorAll('.obs textarea')].some(t => t.value.trim() !== (JUST.porNF[t.closest('.obs').dataset.ch]?.observacoes || '')) ||
-  [...document.querySelectorAll('.just input')].some(i => !i.disabled && i.value.trim() !== (JUST.porNF[i.closest('.just').dataset.ch]?.complemento || ''));
+  [...document.querySelectorAll('.just input')].some(i => !i.disabled && i.value.trim() !== (JUST.porNF[i.closest('.just').dataset.ch]?.complemento || '')) ||
+  [...document.querySelectorAll('.resp input')].some(i => i.value.trim() !== (JUST.porNF[i.closest('.resp').dataset.ch]?.responsavel || ''));
 const chNF = r => `${r.filial}|${r.nf}|${r.serie}`;
 const SEM_JUST = '(sem justificativa)';
 const temJust = x => !!(JUST.porNF[chNF(x)] || {}).justificativa;
 const rotJust = r => { const j = JUST.porNF[chNF(r)]; return j && j.justificativa ? (JUST.porCod[j.justificativa]?.descricao || j.justificativa) : SEM_JUST; };
 async function carregarJustificativas(){
-  const [op, js, v7, ax] = await Promise.all([
+  const [op, js, v7, ax, v8] = await Promise.all([
     SB.from('dash_justificativa_opcao').select('*').eq('ativo', true).order('ordem'),
     tudo('dash_justificativa_logistica', '*', 'filial,nf,serie').catch(e => ({erro:e})),
     SB.from('dash_justificativa_logistica').select('observacoes').limit(1),
-    tudo('dash_plano_anexo', '*', 'id').catch(e => ({erro:e}))]);
+    tudo('dash_plano_anexo', '*', 'id').catch(e => ({erro:e})),
+    SB.from('dash_justificativa_logistica').select('responsavel,prazo').limit(1)]);
   if(op.error || js.erro){ JUST.ok = false; return; }     // migração 005 ainda não rodada
   JUST.ok = true; JUST.opcoes = op.data;
   JUST.v007 = !v7.error;                                  // migração 007: observações
+  JUST.v008 = !v8.error;                                  // migração 008: responsável + prazo
   JUST.porCod = Object.fromEntries(op.data.map(o => [o.codigo, o]));
   JUST.porNF  = Object.fromEntries(js.map(j => [chNF(j), j]));
   ANX.ok = !ax.erro;                                      // migração 007: anexos
@@ -240,7 +254,45 @@ function celJust(r){
     `<input class="${falta?'falta':''}" maxlength="300" ${cod?'':'disabled'} value="${escA(j?.complemento)}" ` +
       `placeholder="${op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)'}">` +
     `<div class="rodape"><span class="quem">${quemTxt(j)}</span>` +
-    `<button type="button" class="bhist" title="Quem incluiu, alterou ou excluiu — antes e depois (justificativa, observações e anexos)">histórico</button></div></div>`;
+    `<button type="button" class="bhist" title="Quem incluiu, alterou ou excluiu — antes e depois (justificativa, responsável, prazo, observações e anexos)">histórico</button></div></div>`;
+}
+/* ---- responsável e prazo (migração 008, Silvio 01/10/2026) ----
+   Responsável = nome que a Logística indica para realizar a ação (texto livre, com sugestão dos nomes já usados).
+   Prazo = data até a qual essa pessoa deve realizar a ação. Status pelo dia de hoje: vencido · vence hoje ·
+   vence em até 7 dias · no prazo · sem prazo. */
+const hojeISO = () => { const d = new Date(), p = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+const diasAte = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(hojeISO() + 'T00:00:00')) / 864e5);
+const SEM_PRAZO = 'Sem prazo';
+function statusPrazo(x){
+  const pz = (JUST.porNF[chNF(x)] || {}).prazo;
+  if(!pz) return SEM_PRAZO;
+  const d = diasAte(pz);
+  return d < 0 ? 'Prazo vencido' : d === 0 ? 'Vence hoje' : d <= 7 ? 'Vence em até 7 dias' : 'No prazo';
+}
+const dataBrIso = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
+function tagPrazo(pz){
+  if(!pz) return '';
+  const d = diasAte(pz);
+  return d < 0 ? `<span class="st venc">vencido há ${-d} d</span>` : d === 0 ? '<span class="st hoje">vence hoje</span>'
+       : d <= 7 ? `<span class="st prox">vence em ${d} d</span>` : `<span class="st ok">em ${d} d</span>`;
+}
+function celResp(r){
+  if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
+  const j = JUST.porNF[chNF(r)];
+  return `<div class="resp" data-ch="${escA(chNF(r))}"><input maxlength="80" list="dlResp" value="${escA(j?.responsavel)}" ` +
+    `placeholder="quem vai realizar a ação"><span class="quem"></span></div>`;
+}
+function celPrazo(r){
+  if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
+  const j = JUST.porNF[chNF(r)], pz = j?.prazo || '';
+  return `<div class="prz" data-ch="${escA(chNF(r))}"><input type="date" class="${pz && diasAte(pz) < 0 ? 'venc' : ''}" value="${escA(pz)}">` +
+    `${tagPrazo(pz)}<span class="quem"></span></div>`;
+}
+function atualizaDlResp(){
+  let dl = document.getElementById('dlResp');
+  if(!dl){ dl = document.createElement('datalist'); dl.id = 'dlResp'; document.body.appendChild(dl); }
+  const nomes = [...new Set(Object.values(JUST.porNF).map(j => (j.responsavel || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  dl.innerHTML = nomes.map(n => `<option value="${escA(n)}">`).join('');
 }
 function celObs(r){
   if(!JUST.ok || !JUST.v007) return indisp('007_plano_de_acao.sql');
@@ -267,23 +319,28 @@ async function salvarPlano(ch, origem){
   const [filial, nf, serie] = ch.split('|');
   const sel = cj.querySelector('select'), inp = cj.querySelector('input'), quem = cj.querySelector('.quem');
   const ta = co ? co.querySelector('textarea') : null, qObs = co ? co.querySelector('.quem') : null;
+  const cr = tr.querySelector('.resp'), cp = tr.querySelector('.prz');
+  const ir = cr ? cr.querySelector('input') : null, ip = cp ? cp.querySelector('input') : null;
+  const resp = ir ? ir.value.trim() : (JUST.porNF[ch]?.responsavel || ''), prazo = ip ? ip.value : (JUST.porNF[ch]?.prazo || '');
+  const qMap = {obs: qObs, resp: cr && cr.querySelector('.quem'), prazo: cp && cp.querySelector('.quem')};
   const cod = sel.value, compl = cod ? inp.value.trim() : '', obs = ta ? ta.value.trim() : (JUST.porNF[ch]?.observacoes || '');
-  const alvoQuem = origem === 'obs' && qObs ? qObs : quem;
+  const alvoQuem = qMap[origem] || quem;
   if(alvoQuem){ alvoQuem.className = 'quem'; alvoQuem.textContent = 'salvando…'; }
-  sel.disabled = inp.disabled = true; if(ta) ta.disabled = true;
+  sel.disabled = inp.disabled = true; if(ta) ta.disabled = true; if(ir) ir.disabled = true; if(ip) ip.disabled = true;
   let res;
   // sem motivo e sem observação = não há plano: apaga a linha (fica no histórico)
-  const vazio = !cod && !(JUST.v007 && obs);
+  const vazio = !cod && !(JUST.v007 && obs) && !(JUST.v008 && (resp || prazo));
   ENVIANDO++;
   try {
   if(vazio) res = await SB.from('dash_justificativa_logistica').delete().match({filial, nf, serie});
   else {
     const reg = {filial, nf, serie, justificativa: cod || null, complemento: compl || null};
     if(JUST.v007) reg.observacoes = obs || null;
+    if(JUST.v008){ reg.responsavel = resp || null; reg.prazo = prazo || null; }
     res = await SB.from('dash_justificativa_logistica').upsert(reg, {onConflict:'filial,nf,serie'}).select().single();
   }
   } catch(e){ res = {error:e}; } finally { ENVIANDO--; }
-  sel.disabled = false; if(ta) ta.disabled = false;
+  sel.disabled = false; if(ta) ta.disabled = false; if(ir) ir.disabled = false; if(ip) ip.disabled = false;
   if(res.error){
     inp.disabled = !cod;
     if(alvoQuem){ alvoQuem.className = 'quem err'; alvoQuem.textContent = 'não salvou — ' + (res.error.message || 'erro'); }
@@ -297,8 +354,12 @@ async function salvarPlano(ch, origem){
   inp.placeholder = op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)';
   quem.className = 'quem ok';
   quem.textContent = vazio ? '✓ plano removido' : `✓ salvo · ${res.data.usuario||''} · ${dtHora(res.data.updated_at)}`;
-  if(qObs){ qObs.className = 'quem ok'; qObs.textContent = alvoQuem === qObs ? '✓ salvo' : ''; }
-  pintarLadoJust();
+  for(const q of Object.values(qMap)) if(q && q !== alvoQuem){ q.className = 'quem'; q.textContent = ''; }
+  if(alvoQuem && alvoQuem !== quem){ alvoQuem.className = 'quem ok'; alvoQuem.textContent = '✓ salvo'; }
+  if(ip){ const pz = vazio ? '' : (res.data.prazo || ''); ip.classList.toggle('venc', !!pz && diasAte(pz) < 0);
+    cp.querySelectorAll('.st').forEach(e => e.remove()); if(pz) ip.insertAdjacentHTML('afterend', tagPrazo(pz)); }
+  atualizaDlResp();
+  pintarLadoJust(); pintarLadoPrazo();
 }
 
 const nomeSeguro = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
@@ -356,6 +417,8 @@ function ligarJust(raiz){
     c.querySelector('.bhist').onclick = () => abrirHistorico(c.dataset.ch);
   });
   raiz.querySelectorAll('.obs textarea').forEach(t => t.onchange = () => salvarPlano(t.closest('.obs').dataset.ch, 'obs'));
+  raiz.querySelectorAll('.resp input').forEach(i => i.onchange = () => salvarPlano(i.closest('.resp').dataset.ch, 'resp'));
+  raiz.querySelectorAll('.prz input').forEach(i => i.onchange = () => salvarPlano(i.closest('.prz').dataset.ch, 'prazo'));
   raiz.querySelectorAll('.anx').forEach(ligarAnx);
 }
 
@@ -370,18 +433,21 @@ function eventosHist(linhas){
     const anexo = h.acao === 'ANEXOU' || h.acao === 'REMOVEU ANEXO';
     let aJ = h.justificativa_anterior, aC = h.complemento_anterior, aO = h.observacoes_anterior,
         dJ = h.justificativa, dC = h.complemento, dO = h.observacoes;
-    const pre006 = !anexo && h.justificativa_anterior == null && h.complemento_anterior == null && h.observacoes_anterior == null;
+    const aR = h.responsavel_anterior, aP = h.prazo_anterior, dR = h.responsavel, dP = h.prazo;
+    const pre006 = !anexo && h.justificativa_anterior == null && h.complemento_anterior == null && h.observacoes_anterior == null
+                   && h.responsavel_anterior == null && h.prazo_anterior == null;
     if(pre006 && h.acao === 'ALTEROU' && prev){ aJ = prev.dJ; aC = prev.dC; aO = prev.dO; }
     if(pre006 && h.acao === 'EXCLUIU' && h.justificativa){ aJ = h.justificativa; aC = h.complemento; dJ = null; dC = null; }
     const e = {id:h.id, filial:h.filial, nf:h.nf, serie:h.serie, acao:h.acao, usuario:h.usuario, em:h.em,
-               anexo: anexo ? h.anexo : null, aJ, aC, aO, dJ, dC, dO};
+               anexo: anexo ? h.anexo : null, aJ, aC, aO, dJ, dC, dO, aR, aP, dR, dP};
     if(!anexo) prev = e;
     return e;
   });
 }
-const txtPlano = (j, c, o) => {
+const txtPlano = (j, c, o, r, pz) => {
   const p = [];
   if(j) p.push(escA(descJ(j)) + (c ? `<br><i>${escA(c)}</i>` : ''));
+  if(r || pz) p.push(`<span style="color:var(--cinza)">Resp.:</span> ${escA(r || '—')} · <span style="color:var(--cinza)">Prazo:</span> ${pz ? dataBrIso(pz) : '—'}`);
   if(o) p.push(`<span style="color:var(--cinza)">Obs.:</span> ${escA(o)}`);
   return p.length ? p.join('<br>') : '—';
 };
@@ -413,7 +479,7 @@ async function abrirHistorico(ch){
     ev.map(e => `<tr><td>${dtHora(e.em)}</td><td><span class="acao ${e.acao.split(' ')[0]}">${e.acao}</span></td><td>${escA(e.usuario||'—')}</td>` +
       (e.anexo != null
         ? `<td>${e.acao === 'REMOVEU ANEXO' ? '📎 ' + escA(e.anexo) : '—'}</td><td>${e.acao === 'ANEXOU' ? '📎 ' + escA(e.anexo) : '—'}</td>`
-        : `<td class="${e.aJ || e.aO ? 'antes' : ''}">${txtPlano(e.aJ, e.aC, e.aO)}</td><td>${txtPlano(e.dJ, e.dC, e.dO)}</td>`) +
+        : `<td class="${e.aJ || e.aO || e.aR || e.aP ? 'antes' : ''}">${txtPlano(e.aJ, e.aC, e.aO, e.aR, e.aP)}</td><td>${txtPlano(e.dJ, e.dC, e.dO, e.dR, e.dP)}</td>`) +
       `</tr>`).join('') + '</tbody></table>';
 }
 async function exportarHistorico(){
@@ -426,13 +492,16 @@ async function exportarHistorico(){
     const ev = Object.values(porNF).flatMap(eventosHist).sort((a, c) => a.id - c.id).map(e => ({...e,
       cliente: nfs[chNF(e)]?.cliente_nome || '', emL: isoLocal(e.em),
       antesJ: descJ(e.aJ), antesC: e.aC || '', antesO: e.aO || '',
-      depoisJ: descJ(e.dJ), depoisC: e.dC || '', depoisO: e.dO || '', anx: e.anexo || ''}));
+      depoisJ: descJ(e.dJ), depoisC: e.dC || '', depoisO: e.dO || '', anx: e.anexo || '',
+      antesR: e.aR || '', antesP: e.aP || '', depoisR: e.dR || '', depoisP: e.dP || ''}));
     exportarXLSX(`AMVOX_PLANO_DE_ACAO_HISTORICO_${hojeArq()}.xlsx`, 'Plano de ação — histórico',
-      'Toda inclusão, alteração e exclusão (justificativa, observações e anexos), com antes e depois · gravado pelo banco, imutável',
+      'Toda inclusão, alteração e exclusão (justificativa, responsável, prazo, observações e anexos), com antes e depois · gravado pelo banco, imutável',
       [{t:'QUANDO',k:'emL',w:17},{t:'AÇÃO',k:'acao',w:15},{t:'QUEM',k:'usuario',w:30},{t:'FILIAL',k:'filial',w:9},
        {t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:7},{t:'CLIENTE',k:'cliente',w:34},
-       {t:'JUSTIFICATIVA ANTES',k:'antesJ',w:40},{t:'COMPLEMENTO ANTES',k:'antesC',w:30},{t:'OBSERVAÇÕES ANTES',k:'antesO',w:44},
-       {t:'JUSTIFICATIVA DEPOIS',k:'depoisJ',w:40},{t:'COMPLEMENTO DEPOIS',k:'depoisC',w:30},{t:'OBSERVAÇÕES DEPOIS',k:'depoisO',w:44},
+       {t:'JUSTIFICATIVA ANTES',k:'antesJ',w:40},{t:'COMPLEMENTO ANTES',k:'antesC',w:30},{t:'RESPONSÁVEL ANTES',k:'antesR',w:24},
+       {t:'PRAZO ANTES',k:'antesP',w:12},{t:'OBSERVAÇÕES ANTES',k:'antesO',w:44},
+       {t:'JUSTIFICATIVA DEPOIS',k:'depoisJ',w:40},{t:'COMPLEMENTO DEPOIS',k:'depoisC',w:30},{t:'RESPONSÁVEL DEPOIS',k:'depoisR',w:24},
+       {t:'PRAZO DEPOIS',k:'depoisP',w:12},{t:'OBSERVAÇÕES DEPOIS',k:'depoisO',w:44},
        {t:'ANEXO',k:'anx',w:36}], ev);
   } catch(e){ alert('Não foi possível exportar o histórico: ' + (e.message || e)); }
   finally { b.disabled = false; b.textContent = rot; }
@@ -450,6 +519,8 @@ const COLS = [
   {k:'vencimento_real', t:'Vencimento', fmt:F.data},
   {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${clsFx(r)}">${r.dias_sem_entrega} d</span>`},
   {k:'_just', t:'Justificativa', esq:true, html:celJust, grupo:'Plano de ação'},
+  {k:'_resp', t:'Responsável',   esq:true, html:celResp, grupo:'Plano de ação'},
+  {k:'_prazo',t:'Prazo',         esq:true, html:celPrazo,grupo:'Plano de ação'},
   {k:'_obs',  t:'Observações',   esq:true, html:celObs,  grupo:'Plano de ação'},
   {k:'_anx',  t:'Anexos',        esq:true, html:celAnx,  grupo:'Plano de ação'},
 ];
@@ -457,7 +528,9 @@ const casaJust = (fj, x) => {
   if(!fj) return true;
   const j = JUST.porNF[chNF(x)];
   return fj === '__sem' ? !temJust(x) : fj === '__com' ? temJust(x)
-       : fj === '__anx' ? !!(ANX.porNF[chNF(x)] || []).length : (j && j.justificativa === fj);
+       : fj === '__anx' ? !!(ANX.porNF[chNF(x)] || []).length
+       : fj === '__venc' ? statusPrazo(x) === 'Prazo vencido'
+       : fj === '__semresp' ? !(j && j.responsavel) : (j && j.justificativa === fj);
 };
 function filtrar(){
   const fx = $('fFaixa').value, uf = $('fUf').value, tr = $('fTr').value,
@@ -497,7 +570,8 @@ function pintar(){
 
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(totSaldo)} em aberto`;
   _nFila = l.length; _vFila = totSaldo; pintarDica();
-  l.forEach(x => x._just = rotJust(x));          // permite ordenar pela coluna
+  l.forEach(x => { const j = JUST.porNF[chNF(x)] || {};      // permite ordenar pelas colunas do plano
+    x._just = rotJust(x); x._resp = j.responsavel || ''; x._prazo = j.prazo || ''; });
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—'), aoPintar:ligarJust}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
@@ -518,7 +592,7 @@ function pintar(){
             v, rot:`${F.int(g.length)} NF · ${rotValPct(v,totFx)}`};
   }), '', 'faixa');
   _baseJust = base;
-  pintarLadoJust();
+  pintarLadoJust(); pintarLadoPrazo();
 
   pintarRegra();
   pintarVo();
@@ -536,6 +610,17 @@ function pintarLadoJust(){
   const semJ = _baseJust.filter(x => !temJust(x)).length;
   const t = $('tSub');
   t.textContent = t.textContent.replace(/ · \d[\d.]* sem justificativa$/, '') + ` · ${F.int(semJ)} sem justificativa`;
+}
+
+/* painel "Plano de ação · prazo": saldo por situação do prazo (vencido, vence hoje, até 7 dias, no prazo, sem prazo) */
+function pintarLadoPrazo(){
+  const el = $('porPrazo'); if(!el) return;
+  if(!JUST.ok || !JUST.v008){ el.innerHTML = '<div class="vazio">Aguardando a migração 008 no Supabase.</div>'; return; }
+  const ORD = ['Prazo vencido','Vence hoje','Vence em até 7 dias','No prazo', SEM_PRAZO];
+  const b = filtraSel(_baseJust, 'prazo'), g = {};
+  b.forEach(x => { const k = statusPrazo(x); g[k] = g[k] || {v:0, n:0}; g[k].v += +x.saldo_aberto||0; g[k].n++; });
+  const tot = b.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
+  barras('porPrazo', ORD.filter(k => g[k]).map(k => ({nome:k, v:g[k].v, rot:`${F.int(g[k].n)} NF · ${rotValPct(g[k].v, tot)}`})), 'vm', 'prazo');
 }
 
 /* ------------------------------------------------------------ sinistro / funcionários */
@@ -703,6 +788,7 @@ iniciarPagina(async () => {
   $('fFaixa').innerHTML = '<option value="">Todas</option>' + FAIXAS.map(f => `<option value="${f.k}">${f.rot}</option>`).join('');
   $('fJust').innerHTML = '<option value="">Todas</option><option value="__sem">Sem justificativa</option>'+
     '<option value="__com">Com justificativa</option><option value="__anx">Com anexo</option>' +
+    (JUST.v008 ? '<option value="__venc">Prazo vencido</option><option value="__semresp">Sem responsável</option>' : '') +
     JUST.opcoes.map(o => `<option value="${escA(o.codigo)}">${escA(o.descricao)}</option>`).join('');
   const sem = CACHE.nfs.filter(x => x.faixa_entrega);
   $('fUf').innerHTML = '<option value="">Todas</option>' +
@@ -710,7 +796,8 @@ iniciarPagina(async () => {
   $('fTr').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.transportadora||'—'))].sort().map(t=>`<option>${t}</option>`).join('');
   configurarSelecao({cliente:'cliente_nome', uf:'uf', transportadora:x=>x.transportadora||'(sem transportadora)',
-                     faixa:fxDe, just:rotJust}, pintar);
+                     faixa:fxDe, just:rotJust, prazo:statusPrazo}, pintar);
+  atualizaDlResp();
   $('bAplicar').onclick = () => { selLimpar(); };
   $('fVo').addEventListener('change', () => pintarVo());
   $('fRegra').addEventListener('change', () => pintarRegra());
@@ -725,6 +812,9 @@ iniciarPagina(async () => {
      {t:'FAIXA',w:16,val:r => (FX_POR_K[fxDe(r)] || {}).rot || ''},
      {t:'PLANO DE AÇÃO · JUSTIFICATIVA',w:44,val:r => temJust(r) ? rotJust(r) : ''},
      {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
+     {t:'RESPONSÁVEL',w:28,val:r => JUST.porNF[chNF(r)]?.responsavel || ''},
+     {t:'PRAZO',w:12,val:r => JUST.porNF[chNF(r)]?.prazo || ''},
+     {t:'SITUAÇÃO DO PRAZO',w:20,val:r => JUST.porNF[chNF(r)]?.prazo ? statusPrazo(r) : ''},
      {t:'OBSERVAÇÕES',w:50,val:r => JUST.porNF[chNF(r)]?.observacoes || ''},
      {t:'ANEXOS',w:9,val:r => (ANX.porNF[chNF(r)] || []).length || ''},
      {t:'NOMES DOS ANEXOS',w:44,val:r => (ANX.porNF[chNF(r)] || []).map(a => a.nome).join('; ')},
