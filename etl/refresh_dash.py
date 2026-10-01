@@ -42,7 +42,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.8"
+ESPEC_VERSAO = "1.9"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -446,7 +446,12 @@ def monta_vo(reg, idx):
 
 def faixa_de(dias):
     """Mesma régua do 01_nf_saida.sql (FAIXA_ENTREGA)."""
-    return "0-2" if dias <= 2 else "3-7" if dias <= 7 else "8-15" if dias <= 15 else ">15"
+    # 9 faixas (Silvio 01/10/2026) — mesma régua de FAIXAS em web/painel.js e da TV (index.html)
+    for ate, k in ((2, "0-2"), (7, "3-7"), (15, "8-15"), (30, "16-30"), (45, "31-45"),
+                   (60, "46-60"), (90, "61-90"), (180, "91-180")):
+        if dias <= ate:
+            return k
+    return ">180"
 
 
 def remessas_por_mae(nfs, vos):
@@ -1072,7 +1077,7 @@ def main():
         log("RESUMO | " + " · ".join(f"{t} {q}" for t, q in gravados.items()))
         log(f"RESUMO | status: " + " · ".join(f"{k} {v}" for k, v in sorted(st.items())))
         log(f"RESUMO | fila sem entrega: {len(sem_entrega)} NF · R$ {saldo:,.2f} em aberto · "
-            + " · ".join(f"{k}: {fx.get(k,0)}" for k in ("0-2", "3-7", "8-15", ">15")))
+            + " · ".join(f"{k}: {fx.get(k,0)}" for k in ("0-2", "3-7", "8-15", "16-30", "31-45", "46-60", "61-90", "91-180", ">180")))
         log("RESUMO | auditoria: " + (" · ".join(f"{g}/{t} {q}" for (g, t), q in sorted(ca.items()))
                                       or "nenhuma ocorrência"))
         for a in avisos_estrutura:

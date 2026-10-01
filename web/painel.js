@@ -197,9 +197,31 @@ function kpis(destino, lista){
     `<div class="v">${k.valor}</div><div class="n">${k.nota||''}</div></div>`).join('');
 }
 
+/* ---------------------------------------------------------------- faixas de dias sem entrega
+   Régua aprovada pelo Silvio em 01/10/2026: o antigo "acima de 15 dias" abre em 16–30, 31–45, 46–60,
+   61–90, 91–180 e acima de 180. MESMA régua de faixa_de() em etl/refresh_dash.py e do FAIXA_ENTREGA
+   de sql/01_extracao/01_nf_saida.sql. A tela recalcula a faixa pelos dias (fxDe) para não depender
+   do código gravado na carga — assim nenhuma tela quebra entre a carga e a publicação. */
+const FAIXAS = [
+  {k:'0-2',    rot:'0–2 dias',          nota:'normal',                cls:'et-0-2',    tv:'f1', ate:2},
+  {k:'3-7',    rot:'3–7 dias',          nota:'acompanhar',            cls:'et-3-7',    tv:'f2', ate:7},
+  {k:'8-15',   rot:'8–15 dias',         nota:'cobrar transportadora', cls:'et-8-15',   tv:'f3', ate:15},
+  {k:'16-30',  rot:'16–30 dias',        nota:'risco',                 cls:'et-16-30',  tv:'f4', ate:30},
+  {k:'31-45',  rot:'31–45 dias',        nota:'risco',                 cls:'et-31-45',  tv:'f5', ate:45},
+  {k:'46-60',  rot:'46–60 dias',        nota:'risco',                 cls:'et-46-60',  tv:'f6', ate:60},
+  {k:'61-90',  rot:'61–90 dias',        nota:'risco alto',            cls:'et-61-90',  tv:'f7', ate:90},
+  {k:'91-180', rot:'91–180 dias',       nota:'risco alto',            cls:'et-91-180', tv:'f8', ate:180},
+  {k:'>180',   rot:'acima de 180 dias', nota:'crítico',               cls:'et-180',    tv:'f9', ate:Infinity},
+];
+const FX_POR_K = Object.fromEntries(FAIXAS.map(f => [f.k, f]));
+const faixaDe = dias => FAIXAS.find(f => (+dias || 0) <= f.ate).k;
+/* faixa da nota: só quem está na fila (sem data de entrega) tem faixa */
+const fxDe = x => x && x.faixa_entrega ? faixaDe(x.dias_sem_entrega) : null;
+
 /* ---------------------------------------------------------------- tabela */
 function Tabela(cfg){
-  // cfg: { alvo, colunas:[{k,t,fmt,cls,esq,html}], linhas, porPagina, ordem, desc }
+  // cfg: { alvo, colunas:[{k,t,fmt,cls,esq,html,grupo}], linhas, porPagina, ordem, desc }
+  // `grupo` (opcional): colunas vizinhas com o mesmo grupo ganham um cabeçalho comum acima (ex.: Plano de ação)
   let ordem = cfg.ordem, desc = cfg.desc !== false, pagina = 0;
   const pp = cfg.porPagina || 50;
   const raiz = $(cfg.alvo);
@@ -220,7 +242,7 @@ function Tabela(cfg){
     if(pagina >= paginas) pagina = paginas-1;
     const fatia = ord.slice(pagina*pp, pagina*pp+pp);
     raiz.innerHTML =
-      `<div class="rolar"><table class="tbl"><thead><tr>` +
+      `<div class="rolar"><table class="tbl"><thead>` + cabGrupos(cfg.colunas) + `<tr>` +
         cfg.colunas.map(c =>
           `<th class="${c.esq?'esq':''} ${ordem===c.k?'ord '+(desc?'':'asc'):''}" data-k="${c.k}">${c.t}</th>`).join('') +
       `</tr></thead><tbody>` +
@@ -240,7 +262,7 @@ function Tabela(cfg){
         cfg.aoClicar(fatia[+tr.dataset.r]);
       });
     if(cfg.aoPintar) cfg.aoPintar(raiz, fatia);
-    raiz.querySelectorAll('th').forEach(th => th.onclick = () => {
+    raiz.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
       const k = th.dataset.k;
       if(ordem === k) desc = !desc; else { ordem = k; desc = true; }
       pagina = 0; pintar();
@@ -253,6 +275,17 @@ function Tabela(cfg){
   this.dados = l => { cfg.linhas = l; pagina = 0; pintar(); };
   this.atual = () => ordenar(cfg.linhas);
   pintar();
+}
+
+function cabGrupos(colunas){
+  if(!colunas.some(c => c.grupo)) return '';
+  const blocos = [];
+  colunas.forEach(c => {
+    const g = c.grupo || '';
+    if(blocos.length && blocos[blocos.length-1].g === g) blocos[blocos.length-1].n++;
+    else blocos.push({g, n:1});
+  });
+  return '<tr class="grupo">' + blocos.map(b => `<th colspan="${b.n}" class="${b.g ? 'gr' : ''}">${b.g}</th>`).join('') + '</tr>';
 }
 
 /* ---------------------------------------------------------------- painel lateral de barras */
@@ -523,12 +556,21 @@ async function abrir(){
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }
 /* Atualização da tela a cada 10 min (mesmo padrão do dash de preço). Não recarrega com a
-   tela de login aberta, para não apagar o que a pessoa está digitando. */
+   tela de login aberta, para não apagar o que a pessoa está digitando.
+   01/10/2026 (plano de ação editável na fila): também NÃO recarrega com um campo em edição (foco num
+   input/textarea/select) nem quando a página avisa que está ocupada (`window.telaOcupada()`: envio de
+   anexo em andamento, texto ainda não salvo, histórico aberto). Vencidos os 10 min, tenta a cada minuto
+   até a tela ficar livre. */
+const _carregadaEm = Date.now();
 setInterval(() => {
+  if(Date.now() - _carregadaEm < 10*60*1000) return;
   const l = $('login');
   if(l && l.style.display === 'flex') return;
+  const a = document.activeElement;
+  if(a && a.matches && a.matches('input,textarea,select')) return;
+  if(typeof window.telaOcupada === 'function' && window.telaOcupada()) return;
   location.reload();
-}, 10*60*1000);
+}, 60*1000);
 
 function iniciarPagina(fn){
   _pagina = fn;

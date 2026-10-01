@@ -121,6 +121,16 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .et-3-7{background:var(--am-suave);color:#8A5B00}
 .et-8-15{background:var(--vm-suave);color:var(--vermelho)}
 .et-15{background:#F7DADA;color:var(--vinho)}
+/* faixas abertas acima de 15 dias (Silvio 01/10/2026) — mais escuro quanto mais antiga */
+.et-16-30{background:#F7DADA;color:var(--vinho)}
+.et-31-45{background:#F0C3C3;color:var(--vinho)}
+.et-46-60{background:#E6A3A3;color:#5E0F14}
+.et-61-90{background:#D46F6F;color:#fff}
+.et-91-180{background:var(--vinho);color:#fff}
+.et-180{background:#3E070B;color:#fff}
+/* cabeçalho de grupo de colunas (Tabela, `grupo`) */
+.tbl thead tr.grupo th{background:#fff;border-bottom:0;padding-bottom:0;cursor:default}
+.tbl thead tr.grupo th.gr{background:var(--navy);color:#fff;text-align:center;border-radius:7px 7px 0 0;padding:6px 10px}
 
 /* barras dentro de painel lateral */
 .linhab{display:flex;flex-direction:column;gap:10px}

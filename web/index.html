@@ -99,12 +99,14 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 .rank .br{height:9px;background:var(--laranja);border-radius:5px;margin-top:4px}
 .rank .vl{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 /* faixas */
-.faixas{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.faixas{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:10px;margin-top:16px}
 .faixa{border-radius:11px;padding:13px 14px;color:#fff}
-.faixa .q{font:700 38px/1 var(--cond)} .faixa .t{font-size:11.5px;margin-top:5px;opacity:.95}
+.faixa .q{font:700 32px/1 var(--cond)} .faixa .t{font-size:11.5px;margin-top:5px;opacity:.95}
 .faixa .v{font-size:12px;margin-top:3px;opacity:.9;font-variant-numeric:tabular-nums}
 .f1{background:var(--verde)} .f2{background:var(--laranja);color:var(--navy)}
-.f3{background:var(--vermelho)} .f4{background:var(--vinho)}
+.f3{background:var(--vermelho)} .f4{background:#C0392B} .f5{background:#A93226} .f6{background:#922B21}
+.f7{background:var(--vinho)} .f8{background:#5E0F14} .f9{background:#3E070B}
+/* 9 faixas (Silvio 01/10/2026): o antigo "acima de 15" abriu em 16–30 … acima de 180 */
 /* devoluções */
 .dev{display:grid;grid-template-columns:150px 1fr;gap:22px;margin-top:14px;align-items:center}
 .donut{position:relative;width:150px;height:150px}
@@ -226,6 +228,13 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 
 <script>
 "use strict";
+/* 9 faixas de dias sem entrega (Silvio 01/10/2026). A TV não carrega o painel.js: esta é uma CÓPIA da
+   régua FAIXAS de web/painel.js — mudou lá, muda aqui (e em faixa_de() do ETL e no 01_nf_saida.sql). */
+const FAIXAS = [
+  {k:'0-2',rot:'0–2 dias',tv:'f1',ate:2}, {k:'3-7',rot:'3–7 dias',tv:'f2',ate:7}, {k:'8-15',rot:'8–15 dias',tv:'f3',ate:15},
+  {k:'16-30',rot:'16–30 dias',tv:'f4',ate:30}, {k:'31-45',rot:'31–45 dias',tv:'f5',ate:45}, {k:'46-60',rot:'46–60 dias',tv:'f6',ate:60},
+  {k:'61-90',rot:'61–90 dias',tv:'f7',ate:90}, {k:'91-180',rot:'91–180 dias',tv:'f8',ate:180}, {k:'>180',rot:'acima de 180 dias',tv:'f9',ate:Infinity}];
+const fxDe = x => x && x.faixa_entrega ? FAIXAS.find(f => (+x.dias_sem_entrega || 0) <= f.ate).k : null;
 const SUPABASE_URL = 'https://dzxekwdpktvishdsmiep.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_i59McYEiS6vZq6lfLUqB2w_NRVQ6DWN';
 const SB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -372,11 +381,11 @@ async function montar(mesEscolhido){
   const topSem = Object.entries(cliSem).sort((a,b)=>b[1]-a[1]).slice(0,2);
   $('s_frase').innerHTML = `<b>${mais7.length} notas passaram de 7 dias</b> sem baixa — o boleto não é gerado.`
     + (topSem.length ? ` Atenção com <b>${topSem.map(c=>c[0]).join('</b> e <b>')}</b>.` : '');
-  const FX = [['0-2','0–2 dias','f1'],['3-7','3–7 dias','f2'],['8-15','8–15 dias','f3'],['>15','acima de 15 dias','f4']];
-  $('s_faixas').innerHTML = FX.map(([k,rot,c]) => {
-    const g = sem.filter(x=>x.faixa_entrega===k);
+  // 9 faixas — mesma régua da tela Sem data de entrega (FAIXAS em painel.js, Silvio 01/10/2026)
+  $('s_faixas').innerHTML = FAIXAS.map(f => {
+    const g = sem.filter(x => fxDe(x) === f.k);
     const v = g.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
-    return `<div class="faixa ${c}"><div class="q">${g.length}</div><div class="t">${rot}</div><div class="v">${milhoes(v)}</div></div>`;
+    return `<div class="faixa ${f.tv}"><div class="q">${g.length}</div><div class="t">${f.rot}</div><div class="v">${milhoes(v)}</div></div>`;
   }).join('');
 
   /* ---------------- 4 · devoluções (só devolução de VENDA) ---------------- */

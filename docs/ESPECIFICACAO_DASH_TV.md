@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.8** · 30/09/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.9** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -100,8 +100,9 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 
 - **O que entra:** toda nota não cancelada sem data de entrega, **desde jan/2025, sem corte de
   dias** — mostra a realidade, e a fila diminui à medida que as áreas resolvem.
-- **Faixas por dias desde a emissão:** 0–2 (normal) · 3–7 (acompanhar) · 8–15 (cobrar transportadora)
-  · acima de 15 (risco).
+- **Faixas por dias desde a emissão** (9 faixas, Silvio 01/10/2026 — o antigo "acima de 15 dias" foi
+  aberto): 0–2 (normal) · 3–7 (acompanhar) · 8–15 (cobrar transportadora) · 16–30 · 31–45 · 46–60 (risco)
+  · 61–90 · 91–180 (risco alto) · acima de 180 (crítico). Mesma régua na carga, na tela, no Excel e na TV.
 - **Valor principal:** saldo em aberto dos títulos, em R$, com a participação de cada faixa.
 - **Devolução em aberto:** para cada nota, o valor devolvido pelo cliente cujo crédito (NCC) o
   Financeiro ainda não compensou, com a marca *total*, *parcial* ou *compensada*. Mostra que a nota
@@ -110,29 +111,35 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   etiqueta — os grupos têm quadros próprios, mas a pendência nunca é omitida.
 - A TV mostra a fila inteira e o recado das notas com mais de 7 dias.
 
-### 7.1 Justificativa logística
+### 7.1 Plano de ação (Justificativa + Observações + Anexos)
 
-- Na fila, cada nota tem o campo **Justificativa logística**: uma lista com os principais motivos
-  (em rota, agendamento confirmado, entregue com baixa disponível no TOTVS, funcionário com baixa
-  disponível, NF não enviada para a Logística, faturada sem a nota de remessa, refaturamento aguardando
-  canhoto, devolvida, aguardando devolução, tratativa comercial, faturamento contra o transportador
-  (sinistro/avaria), NF cancelada e outros) e um **complemento** em texto livre.
-- Alguns motivos **pedem complemento** (agendamento, refaturamento, devolvida, tratativa comercial,
-  outros): a tela avisa quando ele falta, mas não impede a gravação.
+- Na fila, a seção **Plano de ação** tem três campos por nota (Silvio 01/10/2026):
+  - **Justificativa** — lista com os principais motivos (em rota, agendamento confirmado, entregue com
+    baixa disponível no TOTVS, funcionário com baixa disponível, NF não enviada para a Logística, faturada
+    sem a nota de remessa, refaturamento aguardando canhoto, devolvida, aguardando devolução, tratativa
+    comercial, faturamento contra o transportador (sinistro/avaria), NF cancelada e outros) e um
+    **complemento** curto. Alguns motivos **pedem complemento** (agendamento, refaturamento, devolvida,
+    tratativa comercial, outros): a tela avisa quando ele falta, mas não impede a gravação.
+  - **Observações** — texto livre: o que está sendo feito, com quem, próximo passo. Pode ser registrada
+    antes de escolher o motivo.
+  - **Anexos** — evidências em arquivo (PDF, imagem, Excel, Word, texto, e-mail), até **10 MB** cada,
+    guardados numa pasta privada (só usuário logado abre; o link de abertura vale 5 minutos).
+    **Remover** um anexo só o tira da fila: o arquivo continua guardado e a remoção fica registrada.
+    Ninguém apaga nem substitui um arquivo.
 - **Quem informou e quando** é gravado pelo próprio banco, a partir do usuário logado — a tela não
-  consegue registrar em nome de outra pessoa. Toda inclusão, troca ou exclusão fica no **histórico**.
-- Quadro **Justificativa logística** ao lado da fila: saldo em aberto por motivo, com a participação no
-  saldo da fila; filtro por motivo, *sem justificativa* e *com justificativa*. O Excel da fila leva a
-  justificativa, o complemento, quem informou e quando.
-- A justificativa é **escrita pelas pessoas, não pela carga automática**: a atualização de hora em hora
-  nunca a apaga. Quando a nota ganha data de entrega, ela sai da fila e a justificativa fica guardada.
+  consegue registrar em nome de outra pessoa. Toda inclusão, troca, exclusão e anexo fica no **histórico**
+  (seção 7.2).
+- Filtro por motivo, *sem justificativa*, *com justificativa* e *com anexo*. O Excel da fila leva a
+  justificativa, o complemento, as observações, a quantidade e o nome dos anexos, quem informou e quando.
+- O plano de ação é **escrito pelas pessoas, não pela carga automática**: a atualização de hora em hora
+  nunca o apaga. Quando a nota ganha data de entrega, ela sai da fila e o plano fica guardado.
   Nada disso volta para o Protheus. Motivo novo entra na lista sem publicar tela.
 - **Datas no Excel** de todas as telas saem como data de verdade no padrão brasileiro (dd/mm/aaaa).
 
-### 7.2 Histórico da justificativa (log de alteração)
+### 7.2 Histórico do plano de ação (log de alteração)
 
-- Toda **inclusão, alteração e exclusão** de justificativa gera uma linha no histórico com **antes e
-  depois** (motivo e complemento), **quem** (e-mail do usuário logado, gravado pelo banco) e **quando**
+- Toda **inclusão, alteração e exclusão** do plano de ação gera uma linha no histórico com **antes e
+  depois** (motivo, complemento e observações); cada anexo incluído ou removido também (nome do arquivo), **quem** (e-mail do usuário logado, gravado pelo banco) e **quando**
   (hora do servidor).
 - **Salvar sem mudar nada não gera registro** e não troca o "quem/quando" da justificativa vigente.
 - O histórico é **imutável**: ninguém altera nem apaga uma linha — nem pela tela, nem pelo acesso
@@ -140,6 +147,15 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 - Na fila, o botão **histórico** de cada nota abre a linha do tempo dela (mais recente primeiro). O botão
   **Exportar histórico** gera o Excel com todas as mudanças de todas as notas (quando, ação, quem, NF,
   cliente, justificativa e complemento de antes e de depois).
+
+### 7.3 Área Dash da tela
+
+- Os gráficos saíram da fila (Silvio 01/10/2026): a tela tem duas abas — **Fila de ação** (a tabela com
+  o plano de ação e os quadros de sinistro/funcionários e venda à ordem) e **Dash** (as 9 faixas com
+  quantidade e saldo, *saldo por faixa (aging)*, *plano de ação · justificativa*, *top clientes* e
+  *por transportadora*).
+- Os filtros do topo valem para as duas abas. Clicar numa barra do Dash filtra a fila (filtro cruzado);
+  o Dash mostra quantas notas e quanto saldo ficaram na fila com os filtros do momento.
 
 ## 8. Venda à ordem
 
@@ -335,3 +351,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.6 | 25/09/2026 | Justificativa logística na fila de notas sem data de entrega (lista de motivos + complemento, quem/quando gravado pelo banco, histórico, quadro e filtro por motivo); datas do Excel em dd/mm/aaaa (seção 7.1) | Silvio Amaral (pedido da Logística) |
 | 1.7 | 29/09/2026 | Histórico da justificativa com antes × depois, quem e quando; salvar sem mudança não registra; histórico imutável; botão de histórico por nota e Excel do histórico (seção 7.2) | Silvio Amaral |
 | 1.8 | 30/09/2026 | Recarregamento automático de cada tela a cada 10 minutos (padrão do dash de preço); efeito aceito: perda dos filtros da tela (seção 14) | Silvio Amaral |
+| 1.9 | 01/10/2026 | Faixas de dias abertas em 9 (16–30 até acima de 180) na carga, tela, Excel e TV (seção 7); Plano de ação = Justificativa + Observações + Anexos, com histórico (7.1, 7.2); gráficos movidos para a aba Dash (7.3) | Silvio Amaral |
