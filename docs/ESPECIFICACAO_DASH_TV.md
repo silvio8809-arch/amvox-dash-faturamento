@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.10** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.11** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -160,6 +160,12 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   *por transportadora*).
 - Os filtros do topo valem para as duas abas. Clicar numa barra do Dash filtra a fila (filtro cruzado);
   o Dash mostra quantas notas e quanto saldo ficaram na fila com os filtros do momento.
+- **Cards de resumo acima da grade** (Silvio 01/10/2026): na Fila de ação, as 9 faixas aparecem em cards logo acima
+  da grade, no mesmo padrão do quadro de Sinistro e funcionários; o Dash repete os cards como visão geral.
+- **Card é sempre filtro** (regra Silvio 01/10/2026, vale para todo card de resumo): clicou no card, a grade abaixo mostra
+  exatamente as notas que formam aquele número; clicou de novo (ou no card de total), o filtro sai. O card ativo fica
+  destacado. Faixas: filtra a fila (e o Dash). Sinistro e funcionários: total · sinistro · funcionários · entrega pendente com
+  saldo. Venda à ordem: total · com remessa · com entrega · com remessa sem entrega.
 
 ## 8. Venda à ordem
 
@@ -357,3 +363,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.8 | 30/09/2026 | Recarregamento automático de cada tela a cada 10 minutos (padrão do dash de preço); efeito aceito: perda dos filtros da tela (seção 14) | Silvio Amaral |
 | 1.9 | 01/10/2026 | Faixas de dias abertas em 9 (16–30 até acima de 180) na carga, tela, Excel e TV (seção 7); Plano de ação = Justificativa + Observações + Anexos, com histórico (7.1, 7.2); gráficos movidos para a aba Dash (7.3) | Silvio Amaral |
 | 1.10 | 01/10/2026 | Plano de ação ganha Responsável (nome indicado pela Logística) e Prazo (data), com histórico, filtros (prazo vencido, sem responsável), quadro de prazos no Dash e colunas no Excel (seção 7.1) | Silvio Amaral |
+| 1.11 | 01/10/2026 | Cards de resumo das faixas acima da grade da fila (padrão do quadro de Sinistro e funcionários); todo card de resumo vira filtro — clicou, filtrou; clicou de novo, tira (seção 7.3) | Silvio Amaral |

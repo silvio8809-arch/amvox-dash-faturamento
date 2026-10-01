@@ -65,6 +65,13 @@
   .cards9{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-top:16px}
   .cards9 .kpi{padding:12px 13px} .cards9 .kpi .v{font-size:28px} .cards9 .kpi .t{letter-spacing:.08em}
   .cards9 .kpi .n{font-size:11.5px}
+  /* card = filtro (Silvio 01/10/2026): clicou, filtrou; clicou de novo, tira o filtro */
+  .kpi.clic{cursor:pointer;transition:border-color .12s, box-shadow .12s}
+  .kpi.clic:hover{border-color:var(--navy)}
+  .kpi.sel{border-color:var(--laranja);box-shadow:inset 0 0 0 2px var(--laranja);background:#FFFBF2}
+  @media (min-width:1100px){ .cards9{grid-template-columns:repeat(9,minmax(0,1fr))}
+    .cards9 .kpi{padding:10px 10px} .cards9 .kpi .v{font-size:26px} .cards9 .kpi .t{font-size:9.5px;letter-spacing:.05em}
+    .cards9 .kpi .n{font-size:10.5px} }
   .grade-dash{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px;align-items:start}
   @media (max-width:980px){ .grade-dash{grid-template-columns:1fr} }
   /* fila larga (plano de ação à direita): a coluna NF fica fixa ao rolar para o lado */
@@ -122,7 +129,7 @@
 
   <!-- ============ ÁREA DASH (Silvio 01/10/2026): os gráficos saíram da fila ============ -->
   <div class="aba" id="abaDash" hidden>
-    <div class="cards9" id="cards"></div>
+    <div class="cards9" id="cardsDash"></div>
     <div class="grade-dash">
       <div class="painel"><h2>Saldo por faixa (aging) <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
       <div class="painel"><h2>Plano de ação · justificativa <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porJust"></div></div></div>
@@ -135,7 +142,10 @@
   <!-- ============ FILA DE AÇÃO ============ -->
   <div class="aba" id="abaFila">
   <div class="aviso-dev" id="avisoDev"></div>
-  <div class="painel" style="margin-top:18px"><h2>Fila de ação — mais antigas primeiro <span id="tSub"></span></h2><div id="tabela"></div></div>
+  <!-- cards de resumo ACIMA da grade, no padrão do quadro de Sinistro e funcionários (Silvio 01/10/2026) -->
+  <div class="painel" style="margin-top:18px"><h2>Fila de ação — mais antigas primeiro <span id="tSub"></span></h2>
+    <div class="corpo" style="padding-bottom:4px"><div class="cards9" id="cards" style="margin-top:0"></div></div>
+    <div id="tabela"></div></div>
 
   <!-- ============ SINISTRO / FUNCIONÁRIOS (regra 23/09/2026) ============ -->
   <section class="secao">
@@ -541,6 +551,17 @@ function filtrar(){
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
 }
 
+/* Card = filtro (regra Silvio 01/10/2026, vale para todo card de resumo da tela): clicar filtra a grade logo
+   abaixo pelo que o card mostra; clicar de novo (ou no card "total") tira o filtro. O card ativo fica destacado. */
+function cardsClicaveis(elId, chaves, ativo, aoClicar){
+  const el = $(elId); if(!el) return;
+  el.querySelectorAll('.kpi').forEach((k, i) => {
+    const ch = chaves[i]; if(ch === undefined) return;
+    k.classList.add('clic'); k.classList.toggle('sel', ch !== '' && ch === ativo);
+    k.title = ch === '' ? 'Clique para ver todas (tira o filtro do card)' : (ch === ativo ? 'Clique para tirar o filtro' : 'Clique para filtrar a grade por este card');
+    k.onclick = () => aoClicar(ch);
+  });
+}
 let _nFila = 0, _vFila = 0;
 function pintarDica(){
   const d = $('dicaAba'); if(!d) return;
@@ -551,12 +572,16 @@ function pintar(){
   const base = filtrar();
   const l = filtraSel(base);
   const totSaldo = l.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
+  const lc = filtraSel(base, 'faixa'), totC = lc.reduce((s,x)=>s+(+x.saldo_aberto||0),0);   // cards: todas as faixas, mesmo com uma selecionada
   kpis('cards', FAIXAS.map(f => {
-    const g = l.filter(x => fxDe(x) === f.k);
+    const g = lc.filter(x => fxDe(x) === f.k);
     const v = g.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
     return {titulo:`${f.rot} · ${f.nota}`, valor:F.int(g.length), alerta:!['0-2','3-7'].includes(f.k),
-            nota:rotValPct(v, totSaldo) + ' do saldo em aberto'};
+            nota:rotValPct(v, totC) + ' do saldo em aberto'};
   }));
+  $('cardsDash').innerHTML = $('cards').innerHTML;    // o Dash mostra os mesmos cards (visão geral)
+  for(const id of ['cards','cardsDash'])
+    cardsClicaveis(id, FAIXAS.map(f => f.k), SEL.faixa, k => selAlterna('faixa', k, FX_POR_K[k].rot));
   // quantas da fila já foram devolvidas — o que falta é o Financeiro compensar a NCC
   const comDev = l.filter(x => (+x.devolucao_em_aberto||0) > 0.005);
   const av = $('avisoDev');
@@ -632,6 +657,7 @@ const pendente = x => !x.dt_entrega && temSaldo(x);
 const celEntrega = r => r.dt_entrega ? null
   : temSaldo(r) ? `<span class="et ${clsFx(r)}">pendente · ${r.dias_sem_entrega} d</span>`
   : '<span class="tag tag-comp" style="margin-left:0" title="sem saldo a receber — não é pendência">sem saldo</span>';
+let REG_FILTRO = '';                                  // card ativo do quadro: '' | SINISTRO | FUNCIONARIO | PEND
 function pintarRegra(){
   const cli = $('fCli').value.trim().toLowerCase();
   const nf = termoNF();
@@ -651,6 +677,9 @@ function pintarRegra(){
     ['Funcionários', F.int(f.length) + ' NF', rotValPct(soma(f), tot) + ` · ${F.int(nPend(f))} pendente(s)`, ''],
     ['Entrega pendente com saldo', F.int(pend.length) + ' NF', F.curto(somaS(pend)) + ' a receber · estão na fila', pend.length ? 'al' : ''],
   ].map(([t,v,n,c]) => `<div class="kpi ${c}"><div class="t">${t}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join('');
+  cardsClicaveis('kRegra', ['', 'SINISTRO', 'FUNCIONARIO', 'PEND'], REG_FILTRO,
+    k => { REG_FILTRO = (k === '' || k === REG_FILTRO) ? '' : k; pintarRegra(); });
+  const lt = !REG_FILTRO ? l : REG_FILTRO === 'PEND' ? pend : l.filter(x => x.regra_especial === REG_FILTRO);
   const cols = [
     {k:'nf', t:'NF', esq:true, cls:'forte'}, {k:'emissao', t:'Emissão', fmt:F.data},
     {k:'cliente_nome', t:'Cliente', esq:true}, {k:'uf', t:'UF'},
@@ -663,7 +692,7 @@ function pintarRegra(){
     {k:'saldo_aberto', t:'Saldo em aberto', fmt:F.moeda, cls:'forte'},
   ];
   // pendentes primeiro (mais antigas no topo), depois as entregues
-  TREG ? TREG.dados(l) : (TREG = new Tabela({alvo:'tabRegra', colunas:cols, linhas:l, ordem:'dias_sem_entrega', porPagina:15}));
+  TREG ? TREG.dados(lt) : (TREG = new Tabela({alvo:'tabRegra', colunas:cols, linhas:lt, ordem:'dias_sem_entrega', porPagina:15}));
 }
 
 /* ------------------------------------------------------------ venda à ordem */
@@ -714,6 +743,7 @@ const fonteMae = r => r.dt_entrega_origem === 'REMESSA' ? ''
   : `<span class="tag tag-comp" title="as remessas não fecham — vale a data da própria NF-mãe">${FONTE_MAE[r.dt_entrega_origem] || r.dt_entrega_origem}</span>`;
 const ETQ_SIT = {'CONCLUÍDA':'et-ent','A REMETER':'et-tra','REMESSA SEM ENTREGA':'et-8-15',
                  'SEM REMESSA':'et-3-7','REMESSADO A MAIOR':'et-dev'};
+let VO_FILTRO = '';                                   // card ativo: '' | REM (com remessa) | ENT (com entrega) | SEM (remessa sem entrega)
 function pintarVo(){
   const {maes, orf} = montaVo();
   const cli = $('fCli').value.trim().toLowerCase();
@@ -731,6 +761,9 @@ function pintarVo(){
     ['Entregue (remessa com data)', F.curto(tEnt), (tMerc ? (100*tEnt/tMerc).toFixed(1).replace('.',',') : '0') + '% do valor das mães'],
     ['Remessas sem entrega', F.int(nSem), 'sem data no GFE'],
   ].map(([t,v,n]) => `<div class="kpi ${t.startsWith('Remessas sem') && nSem ? 'al':''}"><div class="t">${t}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join('');
+  cardsClicaveis('kVo', ['', 'REM', 'ENT', 'SEM'], VO_FILTRO,
+    k => { VO_FILTRO = (k === '' || k === VO_FILTRO) ? '' : k; pintarVo(); });
+  const lv = !VO_FILTRO ? l : l.filter(m => VO_FILTRO === 'REM' ? m._rem > 0.005 : VO_FILTRO === 'ENT' ? m._ent > 0.005 : m._nsem > 0);
   const cols = [
     {k:'nf', t:'NF-mãe', esq:true, cls:'forte'}, {k:'emissao', t:'Emissão', fmt:F.data},
     {k:'cliente_nome', t:'Cliente (quem paga)', esq:true}, {k:'uf', t:'UF'},
@@ -744,7 +777,7 @@ function pintarVo(){
     {k:'dt_entrega', t:'Entrega da mãe', html:r => celEntrega(r) || (F.data(r.dt_entrega) + fonteMae(r))},
     {k:'_sit', t:'Situação', html:r => `<span class="et ${ETQ_SIT[r._sit]||''}">${r._sit}</span>`},
   ];
-  TVO ? TVO.dados(l) : (TVO = new Tabela({alvo:'tabVo', colunas:cols, linhas:l, ordem:'emissao', porPagina:15,
+  TVO ? TVO.dados(lv) : (TVO = new Tabela({alvo:'tabVo', colunas:cols, linhas:lv, ordem:'emissao', porPagina:15,
     aoClicar:r => { VO_SEL = chMae(r); pintarSubVo(maes); }}));
   pintarSubVo(maes);
   // remessas órfãs
