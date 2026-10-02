@@ -67,6 +67,7 @@ function fatDoMes(mes){
   return CACHE.nfs.filter(x => x.status !== 'CANCELADA' && (!mes || (x.emissao||'').startsWith(mes)))
     .reduce((s,x)=>s+(+x.valor_faturado||0),0);
 }
+let DV_CARD = '';                       // card ativo: '' (todas) | ORIGEM (com venda de origem localizada)
 function pintar(){
   pintarChips();
   const base = filtrar(), mes = $('fMes').value;
@@ -95,8 +96,10 @@ function pintar(){
     {titulo:'Venda → devolução', valor:dias.length ? Math.round(dias.reduce((s,x)=>s+x,0)/dias.length) + ' dias' : '—',
      nota:`${F.int(dias.length)} notas com origem localizada`},
   ]);
-  $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(v)}`;
-  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao_dev', porPagina:40,
+  cardsClicaveis('cards', ['', '', '', 'ORIGEM'], DV_CARD, (k, sel) => { DV_CARD = (k === '' || sel) ? '' : k; pintar(); });
+  const lt = DV_CARD === 'ORIGEM' ? l.filter(x => x.emissao_origem && x.emissao_dev) : l;
+  $('tSub').textContent = `${F.int(lt.length)} notas · ${F.curto(lt.reduce((s,x)=>s+(+x.valor||0),0))}`;
+  TAB ? TAB.dados(lt) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lt, ordem:'emissao_dev', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
   const mot = {}; filtraSel(base,'motivo').forEach(x => { const k = x.motivo_causa || '— sem motivo —';
     mot[k] = mot[k] || {n:0, v:0}; mot[k].n++; mot[k].v += (+x.valor||0); });

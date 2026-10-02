@@ -84,6 +84,10 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .kpi .v{font:700 40px/1.05 var(--cond);margin-top:8px}
 .kpi .n{font-size:12.5px;color:var(--cinza);margin-top:6px;min-height:17px}
 .kpi.al .v{color:var(--vermelho)}
+/* card = filtro (regra Silvio 01/10/2026, todas as telas) */
+.kpi.clic{cursor:pointer;transition:border-color .12s, box-shadow .12s}
+.kpi.clic:hover{border-color:var(--navy)}
+.kpi.sel{border-color:var(--laranja);box-shadow:inset 0 0 0 2px var(--laranja);background:#FFFBF2}
 .colunas{display:grid;grid-template-columns:1fr 400px;gap:18px;margin-top:18px;align-items:start}
 .painel{background:var(--card);border:1px solid var(--borda);border-radius:13px;overflow:hidden}
 .painel h2{font:600 12px var(--cond);letter-spacing:.14em;text-transform:uppercase;padding:15px 20px;

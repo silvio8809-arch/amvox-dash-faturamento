@@ -197,6 +197,22 @@ function kpis(destino, lista){
     `<div class="v">${k.valor}</div><div class="n">${k.nota||''}</div></div>`).join('');
 }
 
+/* ---------------------------------------------------------------- card = filtro
+   Regra Silvio 01/10/2026 (TODAS as telas): card de resumo é sempre filtro — clicou, a grade abaixo mostra os dados
+   que sustentam o número; clicou de novo (ou no card de total, chave ''), o filtro sai. O card ativo fica destacado.
+   chaves[i] = chave do i-ésimo card ('' = total / tira o filtro); ativo = chave ativa (ou lista de chaves ativas). */
+function cardsClicaveis(elId, chaves, ativo, aoClicar){
+  const el = $(elId); if(!el) return;
+  const at = Array.isArray(ativo) ? ativo : [ativo];
+  el.querySelectorAll('.kpi').forEach((k, i) => {
+    const ch = chaves[i]; if(ch === undefined || ch === null) return;
+    const sel = ch !== '' && at.includes(ch);
+    k.classList.add('clic'); k.classList.toggle('sel', sel);
+    k.title = ch === '' ? 'Clique para ver tudo (tira o filtro do card)' : (sel ? 'Clique para tirar o filtro' : 'Clique para filtrar a grade por este card');
+    k.onclick = () => aoClicar(ch, sel);
+  });
+}
+
 /* ---------------------------------------------------------------- faixas de dias sem entrega
    Régua aprovada pelo Silvio em 01/10/2026: o antigo "acima de 15 dias" abre em 16–30, 31–45, 46–60,
    61–90, 91–180 e acima de 180. MESMA régua de faixa_de() em etl/refresh_dash.py e do FAIXA_ENTREGA

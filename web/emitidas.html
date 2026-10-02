@@ -62,6 +62,7 @@ function filtrar(){
     (!uf  || x.uf === uf) &&
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
 }
+let EM_CARD = '';                       // card ativo: '' (todas) | VIVAS | CANC — regra card = filtro
 function pintar(){
   pintarChips();
   const base = filtrar();                 // filtros da barra superior
@@ -76,8 +77,10 @@ function pintar(){
     {titulo:'Canceladas', valor:F.int(canc.length), alerta:canc.length>0,
      nota:canc.length ? F.curto(canc.reduce((s,x)=>s+(+x.valor_faturado||0),0)) + ' anulados' : 'nenhuma'},
   ]);
-  $('tSub').textContent = `${F.int(l.length)} registros · ordene clicando no cabeçalho`;
-  TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'emissao', porPagina:40,
+  cardsClicaveis('cards', ['', 'VIVAS', 'VIVAS', 'CANC'], EM_CARD, (k, sel) => { EM_CARD = (k === '' || sel) ? '' : k; pintar(); });
+  const lt = EM_CARD === 'VIVAS' ? vivas : EM_CARD === 'CANC' ? canc : l;
+  $('tSub').textContent = `${F.int(lt.length)} registros · ordene clicando no cabeçalho`;
+  TAB ? TAB.dados(lt) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lt, ordem:'emissao', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—')}));
   const dia = {}; vivas.forEach(x => dia[x.emissao] = (dia[x.emissao]||0)+1);
   const dias = Object.keys(dia).sort(), max = Math.max(1,...Object.values(dia));

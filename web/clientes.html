@@ -74,6 +74,7 @@ function agregar(){
     .map((x,i) => ({...x, pos:i+1}));
   return {lista, tot};
 }
+let CL_CARD = '';                       // card ativo: '' (todos) | TOP10 | TOP1 | TOP3
 function pintar(){
   pintarChips();
   const {lista:todos, tot} = agregar();
@@ -91,8 +92,10 @@ function pintar(){
     {titulo:'Top 3 concentram', valor:tot ? F.pct(100*top3.reduce((s,x)=>s+x.fat,0)/tot) : '—',
      nota:top3.map(x=>x.nome.split(' ')[0]).join(' · ')},
   ]);
-  $('tSub').textContent = `${F.int(lista.length)} clientes · ordene clicando no cabeçalho`;
-  TAB ? TAB.dados(lista) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lista, ordem:'liq', porPagina:30,
+  cardsClicaveis('cards', ['', 'TOP10', 'TOP1', 'TOP3'], CL_CARD, (k, sel) => { CL_CARD = (k === '' || sel) ? '' : k; pintar(); });
+  const lt = CL_CARD === 'TOP10' ? top10 : CL_CARD === 'TOP3' ? top3 : CL_CARD === 'TOP1' ? porFat.slice(0,1) : lista;
+  $('tSub').textContent = `${F.int(lt.length)} clientes · ordene clicando no cabeçalho`;
+  TAB ? TAB.dados(lt) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:lt, ordem:'liq', porPagina:30,
     aoClicar:r => selAlterna('cliente', r.nome)}));
   const resto = tot - top10.reduce((s,x)=>s+x.fat,0);
   barras('conc', [

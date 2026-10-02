@@ -65,10 +65,6 @@
   .cards9{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-top:16px}
   .cards9 .kpi{padding:12px 13px} .cards9 .kpi .v{font-size:28px} .cards9 .kpi .t{letter-spacing:.08em}
   .cards9 .kpi .n{font-size:11.5px}
-  /* card = filtro (Silvio 01/10/2026): clicou, filtrou; clicou de novo, tira o filtro */
-  .kpi.clic{cursor:pointer;transition:border-color .12s, box-shadow .12s}
-  .kpi.clic:hover{border-color:var(--navy)}
-  .kpi.sel{border-color:var(--laranja);box-shadow:inset 0 0 0 2px var(--laranja);background:#FFFBF2}
   @media (min-width:1100px){ .cards9{grid-template-columns:repeat(9,minmax(0,1fr))}
     .cards9 .kpi{padding:10px 10px} .cards9 .kpi .v{font-size:26px} .cards9 .kpi .t{font-size:9.5px;letter-spacing:.05em}
     .cards9 .kpi .n{font-size:10.5px} }
@@ -551,17 +547,7 @@ function filtrar(){
     (!cli || (x.cliente_nome||'').toLowerCase().includes(cli)));
 }
 
-/* Card = filtro (regra Silvio 01/10/2026, vale para todo card de resumo da tela): clicar filtra a grade logo
-   abaixo pelo que o card mostra; clicar de novo (ou no card "total") tira o filtro. O card ativo fica destacado. */
-function cardsClicaveis(elId, chaves, ativo, aoClicar){
-  const el = $(elId); if(!el) return;
-  el.querySelectorAll('.kpi').forEach((k, i) => {
-    const ch = chaves[i]; if(ch === undefined) return;
-    k.classList.add('clic'); k.classList.toggle('sel', ch !== '' && ch === ativo);
-    k.title = ch === '' ? 'Clique para ver todas (tira o filtro do card)' : (ch === ativo ? 'Clique para tirar o filtro' : 'Clique para filtrar a grade por este card');
-    k.onclick = () => aoClicar(ch);
-  });
-}
+/* card = filtro: helper cardsClicaveis em painel.js (regra Silvio 01/10/2026) */
 let _nFila = 0, _vFila = 0;
 function pintarDica(){
   const d = $('dicaAba'); if(!d) return;

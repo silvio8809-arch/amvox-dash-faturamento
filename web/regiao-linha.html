@@ -97,6 +97,10 @@ function pintar(){
      nota:topR && fat ? F.curto(topR[1]) + ' · ' + (100*topR[1]/fat).toFixed(1).replace('.',',') + '% do recorte' : '—'},
     {titulo:'Ticket médio por NF', valor:nNf ? F.curto(fat/nNf) : '—', nota:'faturado ÷ notas distintas'},
   ]);
+  cardsClicaveis('cards', ['', top ? 'LINHA' : null, topR ? 'REGIAO' : null, ''],
+    [top && SEL.linha === top[0] ? 'LINHA' : '', topR && SEL.regiao === topR[0] ? 'REGIAO' : ''],
+    k => { if(k === '') { selLimpar('linha'); selLimpar('regiao'); return; }
+           if(k === 'LINHA') selAlterna('linha', top[0], capital(top[0])); else selAlterna('regiao', topR[0], capital(topR[0])); });
 
   // a matriz não se auto-filtra por região NEM por linha — senão sobra uma célula só
   // e o usuário fica preso na seleção, sem conseguir trocar de célula.

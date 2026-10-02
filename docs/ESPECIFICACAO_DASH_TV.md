@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.11** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.12** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -166,6 +166,10 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   exatamente as notas que formam aquele número; clicou de novo (ou no card de total), o filtro sai. O card ativo fica
   destacado. Faixas: filtra a fila (e o Dash). Sinistro e funcionários: total · sinistro · funcionários · entrega pendente com
   saldo. Venda à ordem: total · com remessa · com entrega · com remessa sem entrega.
+- **A regra vale para todas as telas do dash** (Silvio 01/10/2026, v1.12): Notas emitidas (total · vivas · valor · canceladas),
+  Devoluções (cards de total e o de origem da devolução), Top clientes (top 10 · maior cliente · top 3), Região × linha
+  (linha e região dominantes viram seleção cruzada; os cards de total limpam) e Auditoria (o card de ocorrências limpa o
+  filtro de teste). Card que já é o total da tela não filtra — limpa.
 
 ## 8. Venda à ordem
 
@@ -364,3 +368,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.9 | 01/10/2026 | Faixas de dias abertas em 9 (16–30 até acima de 180) na carga, tela, Excel e TV (seção 7); Plano de ação = Justificativa + Observações + Anexos, com histórico (7.1, 7.2); gráficos movidos para a aba Dash (7.3) | Silvio Amaral |
 | 1.10 | 01/10/2026 | Plano de ação ganha Responsável (nome indicado pela Logística) e Prazo (data), com histórico, filtros (prazo vencido, sem responsável), quadro de prazos no Dash e colunas no Excel (seção 7.1) | Silvio Amaral |
 | 1.11 | 01/10/2026 | Cards de resumo das faixas acima da grade da fila (padrão do quadro de Sinistro e funcionários); todo card de resumo vira filtro — clicou, filtrou; clicou de novo, tira (seção 7.3) | Silvio Amaral |
+| 1.12 | 01/10/2026 | Card-filtro estendido às demais telas: Notas emitidas, Devoluções, Top clientes, Região × linha e Auditoria (seção 7.3) | Silvio Amaral |

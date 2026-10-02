@@ -27,6 +27,7 @@ Saída: 0 = gravou · 1 = erro de DADO (reportar) · 2 = sem conexão depois das
 (ignorar: o painel segue com o retrato anterior e a próxima rodada tenta de novo).
 """
 import argparse
+import urllib.request, urllib.error
 import re, json, os, re, socket, subprocess, sys, tempfile, time, datetime as dt
 from pathlib import Path
 
@@ -42,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.11"
+ESPEC_VERSAO = "1.12"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -880,24 +881,72 @@ def remove_orfas(tabela, linhas, chave_svc, campos_chave, campo_data, de, ate, t
     return len(orfas), None
 
 
-def upsert(tabela, linhas, chave, conflito, lote=500):
+# Gravação resiliente (01/10/2026): em 01/10 a rede caiu no meio da carga e um lote ficou 17 min
+# pendurado. Agora: timeout curto por lote, retentativa com espera crescente (o upsert é
+# idempotente, então repetir o lote É a retomada) e prazo total de relógio de parede.
+LOTE_TIMEOUT   = 30          # s por requisição de gravação
+LOTE_TENTATIVAS = 5          # tentativas por lote
+LOTE_ESPERA    = (5, 10, 20, 40)   # s entre tentativas
+CARGA_TETO_MIN = 20          # teto de relógio de parede de toda a fase de gravação
+_PRAZO_CARGA   = [None]      # time.time() limite; definido em main()
+
+
+def supabase_no_ar(timeout=10):
+    """Pré-checagem: DNS + TLS do Supabase respondem? (sem tocar em dados)"""
     import urllib.request
+    try:
+        urllib.request.urlopen(urllib.request.Request(SUPABASE_URL + "/rest/v1/", method="HEAD"),
+                               timeout=timeout)
+        return True
+    except urllib.error.HTTPError:
+        return True              # respondeu (401/404 etc.): a rede está de pé
+    except Exception:
+        return False
+
+
+def aguarda_supabase(max_seg=300, passo=15):
+    """Espera a rede do Supabase voltar, até max_seg. True = no ar."""
+    fim = time.time() + max_seg
+    while True:
+        if supabase_no_ar():
+            return True
+        if time.time() + passo > fim:
+            return False
+        log(f"  Supabase inacessível — nova checagem em {passo}s")
+        time.sleep(passo)
+
+
+def upsert(tabela, linhas, chave, conflito, lote=500):
+    import urllib.request, urllib.error
     if not linhas:
         return 0
     linhas = [{k: v for k, v in r.items() if not k.startswith("_")} for r in linhas]   # auxiliares fora
     enviados = 0
     for i in range(0, len(linhas), lote):
         parte = linhas[i:i + lote]
-        req = urllib.request.Request(
-            f"{SUPABASE_URL}/rest/v1/{tabela}?on_conflict={conflito}",
-            data=json.dumps(parte, default=str).encode("utf-8"),
-            method="POST",
-            headers={"apikey": chave, "Authorization": f"Bearer {chave}",
-                     "Content-Type": "application/json",
-                     "Prefer": "resolution=merge-duplicates,return=minimal"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            if r.status not in (200, 201, 204):
-                raise RuntimeError(f"{tabela}: HTTP {r.status}")
+        corpo = json.dumps(parte, default=str).encode("utf-8")
+        for n in range(1, LOTE_TENTATIVAS + 1):
+            if _PRAZO_CARGA[0] and time.time() > _PRAZO_CARGA[0]:
+                raise TimeoutError(f"{tabela}: carga passou de {CARGA_TETO_MIN} min de relógio — abortada")
+            req = urllib.request.Request(
+                f"{SUPABASE_URL}/rest/v1/{tabela}?on_conflict={conflito}",
+                data=corpo, method="POST",
+                headers={"apikey": chave, "Authorization": f"Bearer {chave}",
+                         "Content-Type": "application/json",
+                         "Prefer": "resolution=merge-duplicates,return=minimal"})
+            try:
+                with urllib.request.urlopen(req, timeout=LOTE_TIMEOUT) as r:
+                    if r.status not in (200, 201, 204):
+                        raise RuntimeError(f"{tabela}: HTTP {r.status}")
+                break
+            except Exception as e:
+                if not falha_de_conexao(e) or n == LOTE_TENTATIVAS:
+                    raise
+                espera = LOTE_ESPERA[min(n - 1, len(LOTE_ESPERA) - 1)]
+                log(f"    {tabela}: lote {i // lote + 1} falhou ({type(e).__name__}: {e}) — "
+                    f"tentativa {n}/{LOTE_TENTATIVAS}; nova em {espera}s")
+                time.sleep(espera)
+                aguarda_supabase(max_seg=120)
         enviados += len(parte)
         log(f"    {tabela}: {enviados}/{len(linhas)}")
     return enviados
@@ -1093,6 +1142,10 @@ def main():
     # 4. Carga (só aqui escreve; falhou antes = não chega aqui) — dirigida pelo MANIFESTO
     gravados = {}
     try:
+        if not aguarda_supabase():
+            log("SEM CONEXÃO com o Supabase antes da carga (5 min de espera) — nada gravado.")
+            return 2
+        _PRAZO_CARGA[0] = time.time() + CARGA_TETO_MIN * 60
         log("gravando no Supabase...")
         for m in MANIFESTO:
             t = m["tabela"]

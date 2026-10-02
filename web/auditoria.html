@@ -15,7 +15,7 @@
   .grupos button:not(.on) .qt.zero{background:#EEF1F6;color:var(--cinza)}
   .aud-tit{font:600 13px var(--cond);letter-spacing:.14em;text-transform:uppercase;margin:4px 0 4px 2px}
   .aud-def{font-size:13px;color:var(--cinza);margin:0 0 12px 2px;max-width:1100px}
-  .kpi.clicavel{cursor:pointer} .kpi.sel{outline:2px solid var(--laranja)}
+  .kpi.clicavel{cursor:pointer}   /* destaque do card ativo = .kpi.sel do painel.css (regra card = filtro) */
   .sev{display:inline-block;padding:1px 8px;border-radius:99px;font:600 11px var(--texto)}
   .sev-ALTA{background:#F7DADA;color:var(--vinho)} .sev-MEDIA{background:var(--am-suave);color:#8A5B00}
   .sev-BAIXA{background:#EEF1F6;color:var(--cinza)}
@@ -123,7 +123,7 @@ function pintar(){
     });
     const totN = itens.reduce((s,i)=>s+i.n,0);
     $('k_'+cod).innerHTML = [
-      `<div class="kpi ${totN?'al':''}"><div class="t">Ocorrências</div><div class="v">${F.int(totN)}</div>`+
+      `<div class="kpi clic ${totN?'al':''}" data-todas="1" title="Clique para ver todas (tira o filtro do teste)"><div class="t">Ocorrências</div><div class="v">${F.int(totN)}</div>`+
       `<div class="n">${F.int(nGrupos)} caso(s) distinto(s)${a.excesso ? ' · ' + F.curto(totDif) + ' remessado a mais' : ''} · clique num teste para filtrar</div></div>`,
       ...itens.map(i => `<div class="kpi clicavel ${i.n?'al':''} ${TESTE_SEL===i.t?'sel':''}" data-t="${i.t}">`+
         `<div class="t">${i.rot}</div><div class="v">${F.int(i.n)}</div>`+
@@ -131,6 +131,8 @@ function pintar(){
     ].join('');
     $('k_'+cod).querySelectorAll('.kpi[data-t]').forEach(k => k.onclick = () => {
       TESTE_SEL = TESTE_SEL === k.dataset.t ? null : k.dataset.t; SUB_SEL = null; pintar(); });
+    const kt = $('k_'+cod).querySelector('.kpi[data-todas]');
+    if(kt) kt.onclick = () => { TESTE_SEL = null; SUB_SEL = null; pintar(); };
     const l = doA.filter(o => !TESTE_SEL || o.teste === TESTE_SEL);
     $('s_'+cod).textContent = `${F.int(l.length)}` + (a.excesso ? ` · ${F.curto(l.reduce((s,o)=>s+Math.max(0,+o.diferenca||0),0))} de diferença` : '') +
       ` · clique numa linha para ver ${a.excesso ? 'produto a produto' : 'a prova'}`;
