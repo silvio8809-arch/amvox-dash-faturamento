@@ -136,7 +136,7 @@ function filtraSel(lista, exceto){
 
 const ROTULO_SEL = {cliente:'Cliente', uf:'UF', status:'Status', faixa:'Faixa',
   transportadora:'Transportadora', motivo:'Motivo', origem:'Origem da NF', fonte:'Fonte da entrega',
-  regiao:'Região', linha:'Linha', just:'Justificativa'};
+  regiao:'Região', linha:'Linha', just:'Justificativa', prazo:'Status do plano', resp:'Responsável', pzdata:'Prazo'};
 
 function pintarChips(){
   const alvo = $('chipsSel'); if(!alvo) return;

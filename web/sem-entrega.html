@@ -89,6 +89,45 @@
   .prz .st{font:600 10.5px var(--texto);padding:1px 7px;border-radius:99px;align-self:flex-start;white-space:nowrap}
   .prz .st.venc{background:#FBE4E4;color:var(--vermelho)} .prz .st.hoje{background:#FFF0D6;color:#8A5B00}
   .prz .st.prox{background:#FFF7E6;color:#8A5B00} .prz .st.ok{background:#E3F4EA;color:#14603F}
+  /* status da linha pelo prazo do plano de ação (Silvio 02/10/2026) */
+  .stl{display:inline-block;padding:3px 9px;border-radius:99px;font:600 11px var(--texto);white-space:nowrap}
+  .stl.venc{background:#FBE4E4;color:var(--vermelho)} .stl.hoje{background:#FFE2B8;color:#7A4A00}
+  .stl.prox{background:#FFF4DB;color:#8A5B00} .stl.ok{background:#E3F4EA;color:#14603F}
+  .stl.semprazo{background:#EEF1F6;color:var(--cinza)} .stl.semplano{background:#fff;color:var(--cinza);border:1px dashed #C9CFDC}
+  .cards6{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+  .cards6 .kpi{padding:10px 12px} .cards6 .kpi .v{font-size:24px} .cards6 .kpi .t{font-size:9.5px;letter-spacing:.06em}
+  .cards6 .kpi .n{font-size:10.5px}
+  @media (min-width:1100px){ .cards6{grid-template-columns:repeat(6,minmax(0,1fr))} }
+  .rot-cards{font:600 10.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--cinza);margin-top:14px}
+  .painel.largo{grid-column:1 / -1}
+  .pend{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  .pend th{font:600 10.5px var(--cond);letter-spacing:.1em;text-transform:uppercase;color:var(--cinza);text-align:right;padding:7px 9px;border-bottom:1px solid var(--borda);white-space:nowrap}
+  .pend th:first-child,.pend td:first-child{text-align:left}
+  .pend td{padding:7px 9px;border-bottom:1px solid #EEF1F6;text-align:right;white-space:nowrap}
+  .pend td.nm{font-weight:600;cursor:pointer} .pend td.nm:hover{color:var(--laranja)}
+  .pend td.q{cursor:pointer} .pend td.q:hover{outline:2px solid var(--laranja);outline-offset:-2px;border-radius:4px}
+  .pend td.q.venc b{color:var(--vermelho)} .pend td.q.hoje b{color:#7A4A00} .pend td.q.zero{color:#C9CFDC;cursor:default}
+  .pend td.q.zero:hover{outline:0}
+  .pend tr.sel td{background:#FFF4DB} .pend tr.tot td{font-weight:700;border-top:2px solid var(--borda);border-bottom:0}
+  .pend .pct{color:var(--cinza);font-size:11.5px;margin-left:4px}
+  /* gráficos do plano de ação (Silvio 05/10/2026) — cor = estado do prazo, sempre com legenda e rótulo */
+  .legst{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:12px;font-size:12px}
+  .legst .lg{cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--cinza);white-space:nowrap}
+  .legst .lg i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .legst .lg b{color:var(--navy);font-weight:600} .legst .lg.sel{color:var(--navy);text-decoration:underline;text-underline-offset:3px}
+  .emp{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center;padding:4px 0}
+  .emp .nm{font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .emp .nm:hover,.emp.sel .nm{color:var(--laranja)}
+  .emp .trilho{display:flex;align-items:center;gap:8px;min-width:0}
+  .emp .barra{display:flex;gap:2px;height:16px;min-width:4px;flex:none}
+  .emp .sg{cursor:pointer;min-width:3px} .emp .sg:first-child{border-radius:4px 0 0 4px}
+  .emp .sg:last-child{border-radius:0 4px 4px 0} .emp .sg:only-child{border-radius:4px} .emp .sg:hover{filter:brightness(.88)}
+  .emp .tt{font-size:11.5px;white-space:nowrap;color:var(--navy);font-weight:600}
+  .colg svg{width:100%;height:auto;display:block;overflow:visible} .colg .c{cursor:pointer} .colg .c:hover{filter:brightness(.88)}
+  .colg .nc{cursor:default}
+  .tipg{position:fixed;z-index:60;background:#1A1F2E;color:#fff;padding:7px 10px;border-radius:8px;font:12px/1.45 var(--texto);
+    pointer-events:none;display:none;max-width:300px;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+  .tipg b{color:#fff}
   .prz input.venc{border-color:var(--vermelho);background:#FFF5F5}
   .anx{display:flex;flex-direction:column;gap:4px;min-width:170px;text-align:left;font-size:12px}
   .anx a{color:var(--navy);text-decoration:underline;cursor:pointer;word-break:break-all}
@@ -126,7 +165,14 @@
   <!-- ============ ÁREA DASH (Silvio 01/10/2026): os gráficos saíram da fila ============ -->
   <div class="aba" id="abaDash" hidden>
     <div class="cards9" id="cardsDash"></div>
+    <div class="rot-cards" id="rotStDash">Status do plano de ação — pelo prazo</div>
+    <div class="cards6" id="cardsStDash"></div>
     <div class="grade-dash">
+      <div class="painel largo"><h2>Pendências por responsável <span>notas e saldo pelo status do prazo · clique no nome ou num número para filtrar a fila</span></h2><div class="corpo" style="overflow-x:auto"><div id="pendResp"></div></div></div>
+      <div class="painel largo"><h2>Status do plano por faixa de dias <span>notas por status do prazo em cada faixa · clique na barra, no nome ou na legenda para filtrar a fila</span></h2><div class="corpo"><div id="gFaixaSt"></div></div></div>
+      <div class="painel"><h2>Status do plano por responsável <span>notas · clique para filtrar</span></h2><div class="corpo"><div id="gRespSt"></div></div></div>
+      <div class="painel"><h2>Agenda de prazos <span>notas por dia de vencimento · vencidos + próximos 14 dias · clique para filtrar</span></h2><div class="corpo colg"><div id="porAgenda"></div></div></div>
+      <div class="painel largo"><h2>Atividade no plano de ação <span>notas com plano incluído ou alterado por dia · últimos 30 dias</span></h2><div class="corpo colg"><div id="gAtiv"></div></div></div>
       <div class="painel"><h2>Saldo por faixa (aging) <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porFx"></div></div></div>
       <div class="painel"><h2>Plano de ação · justificativa <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porJust"></div></div></div>
       <div class="painel"><h2>Plano de ação · prazo <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porPrazo"></div></div></div>
@@ -140,7 +186,8 @@
   <div class="aviso-dev" id="avisoDev"></div>
   <!-- cards de resumo ACIMA da grade, no padrão do quadro de Sinistro e funcionários (Silvio 01/10/2026) -->
   <div class="painel" style="margin-top:18px"><h2>Fila de ação — mais antigas primeiro <span id="tSub"></span></h2>
-    <div class="corpo" style="padding-bottom:4px"><div class="cards9" id="cards" style="margin-top:0"></div></div>
+    <div class="corpo" style="padding-bottom:4px"><div class="cards9" id="cards" style="margin-top:0"></div>
+      <div class="rot-cards" id="rotSt">Status do plano de ação — pelo prazo</div><div class="cards6" id="cardsSt"></div></div>
     <div id="tabela"></div></div>
 
   <!-- ============ SINISTRO / FUNCIONÁRIOS (regra 23/09/2026) ============ -->
@@ -224,18 +271,20 @@ const SEM_JUST = '(sem justificativa)';
 const temJust = x => !!(JUST.porNF[chNF(x)] || {}).justificativa;
 const rotJust = r => { const j = JUST.porNF[chNF(r)]; return j && j.justificativa ? (JUST.porCod[j.justificativa]?.descricao || j.justificativa) : SEM_JUST; };
 async function carregarJustificativas(){
-  const [op, js, v7, ax, v8] = await Promise.all([
+  const [op, js, v7, ax, v8, hi] = await Promise.all([
     SB.from('dash_justificativa_opcao').select('*').eq('ativo', true).order('ordem'),
     tudo('dash_justificativa_logistica', '*', 'filial,nf,serie').catch(e => ({erro:e})),
     SB.from('dash_justificativa_logistica').select('observacoes').limit(1),
     tudo('dash_plano_anexo', '*', 'id').catch(e => ({erro:e})),
-    SB.from('dash_justificativa_logistica').select('responsavel,prazo').limit(1)]);
+    SB.from('dash_justificativa_logistica').select('responsavel,prazo').limit(1),
+    tudo('dash_justificativa_hist', 'id,filial,nf,serie,acao,usuario,em,anexo', 'id').catch(e => ({erro:e}))]);
   if(op.error || js.erro){ JUST.ok = false; return; }     // migração 005 ainda não rodada
   JUST.ok = true; JUST.opcoes = op.data;
   JUST.v007 = !v7.error;                                  // migração 007: observações
   JUST.v008 = !v8.error;                                  // migração 008: responsável + prazo
   JUST.porCod = Object.fromEntries(op.data.map(o => [o.codigo, o]));
   JUST.porNF  = Object.fromEntries(js.map(j => [chNF(j), j]));
+  JUST.hist   = hi && !hi.erro ? hi : [];                 // gráfico de atividade do plano (05/10/2026)
   ANX.ok = !ax.erro;                                      // migração 007: anexos
   ANX.porNF = {};
   if(ANX.ok) ax.filter(a => !a.removido_em).forEach(a => (ANX.porNF[chNF(a)] = ANX.porNF[chNF(a)] || []).push(a));
@@ -276,6 +325,32 @@ function statusPrazo(x){
   return d < 0 ? 'Prazo vencido' : d === 0 ? 'Vence hoje' : d <= 7 ? 'Vence em até 7 dias' : 'No prazo';
 }
 const dataBrIso = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
+/* STATUS DA LINHA (Silvio 02/10/2026): cada nota da fila tem um status em função do prazo do plano de ação.
+   Vencido · Vence hoje · Vence em até 7 dias · No prazo · Sem prazo (há plano, falta a data) · Sem plano (nada informado). */
+const SEM_PLANO = 'Sem plano';
+const ST_LINHA = [{k:'Prazo vencido', cls:'venc', rot:'Vencido', al:true}, {k:'Vence hoje', cls:'hoje', rot:'Vence hoje', al:true},
+  {k:'Vence em até 7 dias', cls:'prox', rot:'Vence em até 7 dias'}, {k:'No prazo', cls:'ok', rot:'No prazo'},
+  {k:SEM_PRAZO, cls:'semprazo', rot:'Sem prazo'}, {k:SEM_PLANO, cls:'semplano', rot:'Sem plano'}];
+const ST_POR_K = Object.fromEntries(ST_LINHA.map(e => [e.k, e]));
+const temPlano = x => { const j = JUST.porNF[chNF(x)]; return !!(j && (j.justificativa || j.responsavel || j.prazo || j.observacoes)); };
+function statusLinha(x){ const s = statusPrazo(x); return s === SEM_PRAZO && !temPlano(x) ? SEM_PLANO : s; }
+/* chave de ordenação da coluna Status: maior = mais urgente (a grade ordena do maior para o menor) */
+function ordStatus(x){
+  const pz = (JUST.porNF[chNF(x)] || {}).prazo;
+  if(!pz) return temPlano(x) ? 20 : 10;
+  const d = diasAte(pz);
+  return d < 0 ? 1000 - d : d === 0 ? 900 : d <= 7 ? 800 - d : 500 - Math.min(d, 400);
+}
+function txtStatus(x){
+  const s = statusLinha(x), pz = (JUST.porNF[chNF(x)] || {}).prazo, d = pz ? diasAte(pz) : null;
+  return s === 'Prazo vencido' ? `Vencido há ${-d} d` : s === 'Vence hoje' ? 'Vence hoje'
+       : s === 'Vence em até 7 dias' ? `Vence em ${d} d` : s === 'No prazo' ? `No prazo · ${d} d` : s;
+}
+function celStatus(r){
+  if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
+  const e = ST_POR_K[statusLinha(r)];
+  return `<span class="stl ${e.cls}" data-stl="${escA(chNF(r))}" title="Status do plano de ação pelo prazo">${txtStatus(r)}</span>`;
+}
 function tagPrazo(pz){
   if(!pz) return '';
   const d = diasAte(pz);
@@ -365,7 +440,9 @@ async function salvarPlano(ch, origem){
   if(ip){ const pz = vazio ? '' : (res.data.prazo || ''); ip.classList.toggle('venc', !!pz && diasAte(pz) < 0);
     cp.querySelectorAll('.st').forEach(e => e.remove()); if(pz) ip.insertAdjacentHTML('afterend', tagPrazo(pz)); }
   atualizaDlResp();
-  pintarLadoJust(); pintarLadoPrazo();
+  const reg = CACHE.nfs.find(x => chNF(x) === ch), st = tr.querySelector('.stl');   // status da linha acompanha o prazo salvo
+  if(reg && st) st.outerHTML = celStatus(reg);
+  pintarLadoJust(); pintarLadoPrazo(); pintarPlanoStatus();
 }
 
 const nomeSeguro = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
@@ -524,6 +601,7 @@ const COLS = [
   {k:'devolucao_em_aberto', t:'Devolução em aberto', html:celDev},
   {k:'vencimento_real', t:'Vencimento', fmt:F.data},
   {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${clsFx(r)}">${r.dias_sem_entrega} d</span>`},
+  {k:'_stord', t:'Status',       esq:true, html:celStatus, grupo:'Plano de ação'},
   {k:'_just', t:'Justificativa', esq:true, html:celJust, grupo:'Plano de ação'},
   {k:'_resp', t:'Responsável',   esq:true, html:celResp, grupo:'Plano de ação'},
   {k:'_prazo',t:'Prazo',         esq:true, html:celPrazo,grupo:'Plano de ação'},
@@ -582,7 +660,7 @@ function pintar(){
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(totSaldo)} em aberto`;
   _nFila = l.length; _vFila = totSaldo; pintarDica();
   l.forEach(x => { const j = JUST.porNF[chNF(x)] || {};      // permite ordenar pelas colunas do plano
-    x._just = rotJust(x); x._resp = j.responsavel || ''; x._prazo = j.prazo || ''; });
+    x._just = rotJust(x); x._resp = j.responsavel || ''; x._prazo = j.prazo || ''; x._stord = ordStatus(x); });
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—'), aoPintar:ligarJust}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
@@ -603,7 +681,7 @@ function pintar(){
             v, rot:`${F.int(g.length)} NF · ${rotValPct(v,totFx)}`};
   }), '', 'faixa');
   _baseJust = base;
-  pintarLadoJust(); pintarLadoPrazo();
+  pintarLadoJust(); pintarLadoPrazo(); pintarPlanoStatus();
 
   pintarRegra();
   pintarVo();
@@ -618,7 +696,7 @@ function pintarLadoJust(){
   const tot = b.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
   barras('porJust', Object.entries(g).sort((a,c)=>c[1].v-a[1].v)
     .map(([k,o]) => ({nome:k, v:o.v, rot:`${F.int(o.n)} NF · ${rotValPct(o.v, tot)}`})), 'vm', 'just');
-  const semJ = _baseJust.filter(x => !temJust(x)).length;
+  const semJ = filtraSel(_baseJust).filter(x => !temJust(x)).length;   // acompanha os filtros da tela (02/10/2026)
   const t = $('tSub');
   t.textContent = t.textContent.replace(/ · \d[\d.]* sem justificativa$/, '') + ` · ${F.int(semJ)} sem justificativa`;
 }
@@ -627,11 +705,175 @@ function pintarLadoJust(){
 function pintarLadoPrazo(){
   const el = $('porPrazo'); if(!el) return;
   if(!JUST.ok || !JUST.v008){ el.innerHTML = '<div class="vazio">Aguardando a migração 008 no Supabase.</div>'; return; }
-  const ORD = ['Prazo vencido','Vence hoje','Vence em até 7 dias','No prazo', SEM_PRAZO];
+  const ORD = ST_LINHA.map(e => e.k);
   const b = filtraSel(_baseJust, 'prazo'), g = {};
-  b.forEach(x => { const k = statusPrazo(x); g[k] = g[k] || {v:0, n:0}; g[k].v += +x.saldo_aberto||0; g[k].n++; });
+  b.forEach(x => { const k = statusLinha(x); g[k] = g[k] || {v:0, n:0}; g[k].v += +x.saldo_aberto||0; g[k].n++; });
   const tot = b.reduce((s,x)=>s+(+x.saldo_aberto||0),0);
   barras('porPrazo', ORD.filter(k => g[k]).map(k => ({nome:k, v:g[k].v, rot:`${F.int(g[k].n)} NF · ${rotValPct(g[k].v, tot)}`})), 'vm', 'prazo');
+}
+
+/* ---- STATUS DO PLANO + PENDÊNCIAS POR RESPONSÁVEL + AGENDA (Silvio 02/10/2026) ----
+   Cards de status (fila e Dash, card = filtro), quadro por responsável (clique no nome = filtra o responsável;
+   clique num número = responsável + status) e agenda dos prazos (vencidos + próximos 14 dias). */
+const SEM_RESP = '(sem responsável)';
+const respDe = x => ((JUST.porNF[chNF(x)] || {}).responsavel || '').trim() || SEM_RESP;
+const pzDataDe = x => { const pz = (JUST.porNF[chNF(x)] || {}).prazo; if(!pz) return '—';
+  return diasAte(pz) < 0 ? 'Vencidos' : dataBrIso(pz); };
+function selDefine(pares){                      // vários filtros de uma vez (responsável + status)
+  for(const [k, v, rot] of pares){ SEL[k] = v; SEL_ROT[k] = rot || v; }
+  pintar();
+}
+function pintarPlanoStatus(){
+  const ok = JUST.ok && JUST.v008;
+  for(const id of ['cardsSt','cardsStDash','rotSt','rotStDash']) if($(id)) $(id).style.display = ok ? '' : 'none';
+  if(!ok){ $('pendResp').innerHTML = '<div class="vazio">Aguardando a migração 008 no Supabase.</div>';
+           $('porAgenda').innerHTML = ''; return; }
+  // cards de status: todas as situações, mesmo com uma selecionada
+  const bs = filtraSel(_baseJust, 'prazo'), totS = bs.reduce((t,x)=>t+(+x.saldo_aberto||0),0);
+  kpis('cardsSt', ST_LINHA.map(e => {
+    const g = bs.filter(x => statusLinha(x) === e.k), v = g.reduce((t,x)=>t+(+x.saldo_aberto||0),0);
+    return {titulo:e.rot, valor:F.int(g.length), alerta:!!e.al && g.length > 0, nota:rotValPct(v, totS) + ' do saldo'};
+  }));
+  $('cardsStDash').innerHTML = $('cardsSt').innerHTML;
+  for(const id of ['cardsSt','cardsStDash'])
+    cardsClicaveis(id, ST_LINHA.map(e => e.k), SEL.prazo, k => selAlterna('prazo', k, ST_POR_K[k].rot));
+
+  // pendências por responsável
+  const b = filtraSel(_baseJust, ['resp','prazo']), totB = b.reduce((t,x)=>t+(+x.saldo_aberto||0),0);
+  const g = {};
+  b.forEach(x => {
+    const r = respDe(x), s = statusLinha(x), pz = (JUST.porNF[chNF(x)] || {}).prazo;
+    const o = g[r] = g[r] || {n:0, v:0, st:{}, atraso:0, prox:null};
+    o.n++; o.v += +x.saldo_aberto||0; o.st[s] = (o.st[s]||0) + 1;
+    if(pz){ const d = diasAte(pz); if(d < 0) o.atraso = Math.max(o.atraso, -d); else if(!o.prox || pz < o.prox) o.prox = pz; }
+  });
+  const nomes = Object.keys(g).sort((a,c) => (a === SEM_RESP) - (c === SEM_RESP) ||
+    (g[c].st['Prazo vencido']||0) - (g[a].st['Prazo vencido']||0) || g[c].v - g[a].v);
+  const tot = {n:0, v:0, st:{}, atraso:0, prox:null};
+  nomes.forEach(r => { const o = g[r]; tot.n += o.n; tot.v += o.v; tot.atraso = Math.max(tot.atraso, o.atraso);
+    if(o.prox && (!tot.prox || o.prox < tot.prox)) tot.prox = o.prox;
+    for(const [k,q] of Object.entries(o.st)) tot.st[k] = (tot.st[k]||0) + q; });
+  const celQ = (r, e, o) => { const q = o.st[e.k] || 0;
+    return `<td class="q ${e.cls} ${q?'':'zero'}" ${q && r ? `data-r="${escA(r)}" data-s="${escA(e.k)}"` : ''}>${q ? '<b>'+F.int(q)+'</b>' : '—'}</td>`; };
+  const linha = (r, o, cls) => `<tr class="${cls||''}">` +
+    (r ? `<td class="nm" data-r="${escA(r)}" title="Filtrar a fila por ${escA(r)}">${escA(r)}</td>` : '<td>Total</td>') +
+    `<td>${F.int(o.n)}</td><td>${F.moeda(o.v)}<span class="pct">${totB ? (100*o.v/totB).toFixed(1).replace('.',',') : '0,0'}%</span></td>` +
+    ST_LINHA.map(e => celQ(r, e, o)).join('') +
+    `<td>${o.atraso ? o.atraso + ' d' : '—'}</td><td>${o.prox ? dataBrIso(o.prox) : '—'}</td></tr>`;
+  $('pendResp').innerHTML = nomes.length ? `<table class="pend"><thead><tr><th>Responsável</th><th>Notas</th><th>Saldo em aberto</th>` +
+      ST_LINHA.map(e => `<th>${e.rot}</th>`).join('') + `<th>Maior atraso</th><th>Próximo prazo</th></tr></thead><tbody>` +
+      nomes.map(r => linha(r, g[r], SEL.resp === r ? 'sel' : '')).join('') + linha(null, tot, 'tot') + `</tbody></table>`
+    : '<div class="vazio">Sem notas na fila com estes filtros.</div>';
+  $('pendResp').querySelectorAll('td.nm').forEach(td => td.onclick = () => selAlterna('resp', td.dataset.r, td.dataset.r));
+  $('pendResp').querySelectorAll('td.q[data-r]').forEach(td => td.onclick = () =>
+    selDefine([['resp', td.dataset.r, td.dataset.r], ['prazo', td.dataset.s, ST_POR_K[td.dataset.s].rot]]));
+
+  // agenda: vencidos (juntos) + cada dia dos próximos 14
+  const ba = filtraSel(_baseJust, 'pzdata'), ga = {};
+  ba.forEach(x => { const pz = (JUST.porNF[chNF(x)] || {}).prazo; if(!pz) return; const d = diasAte(pz);
+    if(d > 14) return; const k = d < 0 ? 'Vencidos' : dataBrIso(pz);
+    const o = ga[k] = ga[k] || {n:0, v:0, ord: d < 0 ? -1 : d}; o.n++; o.v += +x.saldo_aberto||0; });
+  const totA = Object.values(ga).reduce((t,o)=>t+o.v,0);
+  const itA = [{k:'Vencidos', rot:'Vencidos', d:-1}];
+  for(let d = 0; d <= 14; d++){ const dt = new Date(hojeISO() + 'T00:00:00'); dt.setDate(dt.getDate() + d);
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    itA.push({k:dataBrIso(iso), rot: d === 0 ? 'hoje' : dataBrIso(iso).slice(0,5), d}); }
+  colunas('porAgenda', itA.map(i => { const o = ga[i.k] || {n:0, v:0};
+    const st = i.d < 0 ? 'Prazo vencido' : i.d === 0 ? 'Vence hoje' : i.d <= 7 ? 'Vence em até 7 dias' : 'No prazo';
+    return {rot:i.rot, valor:i.k, n:o.n, cor:COR_ST[st], tip:`<b>${i.k === 'Vencidos' ? 'Prazos vencidos' : 'Prazo ' + i.k}</b><br>${F.int(o.n)} NF · ${F.moeda(o.v)} em aberto<br>${rotValPct(o.v, totA)} do saldo com prazo nesta janela`}; }),
+    'pzdata', i => i.valor);
+  pintarGraficosPlano();
+}
+
+/* ---- GRÁFICOS DO PLANO DE AÇÃO (Silvio 05/10/2026) ----
+   Cor = estado do prazo (paleta de status: crítico · sério · alerta · bom + dois cinzas), sempre com legenda e rótulo
+   (a cor nunca carrega o significado sozinha). Hover = dica com números; clique = filtro (regra card = filtro). */
+const COR_ST = {'Prazo vencido':'#d03b3b', 'Vence hoje':'#ec835a', 'Vence em até 7 dias':'#fab219', 'No prazo':'#0ca30c',
+                [SEM_PRAZO]:'#8C95A8', [SEM_PLANO]:'#D5DAE3'};
+let _tip = null;
+function dicaG(ev, html){
+  if(!_tip){ _tip = document.createElement('div'); _tip.className = 'tipg'; document.body.appendChild(_tip); }
+  if(!html){ _tip.style.display = 'none'; return; }
+  _tip.innerHTML = html; _tip.style.display = 'block';
+  _tip.style.left = Math.min(ev.clientX + 14, innerWidth - _tip.offsetWidth - 8) + 'px';
+  _tip.style.top = Math.min(ev.clientY + 14, innerHeight - _tip.offsetHeight - 8) + 'px';
+}
+/* barras horizontais empilhadas por status: linhas = [{nome, valor, rot, n, v, st:{status:{n,v}}}] */
+function empilhadas(destino, linhas, chave, rodape){
+  const alvo = $(destino); if(!alvo) return;
+  const max = Math.max(1, ...linhas.map(l => l.n)), tot = {};
+  linhas.forEach(l => ST_LINHA.forEach(e => tot[e.k] = (tot[e.k] || 0) + ((l.st[e.k] || {}).n || 0)));
+  alvo.innerHTML = `<div class="legst">` + ST_LINHA.map(e => `<span class="lg ${SEL.prazo === e.k ? 'sel' : ''}" data-s="${escA(e.k)}" `+
+      `title="Filtrar a fila: ${escA(e.rot)}"><i style="background:${COR_ST[e.k]}"></i>${e.rot} <b>${F.int(tot[e.k] || 0)}</b></span>`).join('') + `</div>` +
+    (linhas.length ? linhas.map((l, i) => `<div class="emp ${SEL[chave] === l.valor ? 'sel' : ''}"><div class="nm" data-i="${i}" title="Filtrar a fila por ${escA(l.nome)}">${escA(l.nome)}</div>`+
+      `<div class="trilho"><div class="barra" style="width:calc((100% - 130px) * ${(l.n / max).toFixed(4)})">` +
+      ST_LINHA.filter(e => (l.st[e.k] || {}).n).map(e => `<span class="sg" data-i="${i}" data-s="${escA(e.k)}" style="flex:${l.st[e.k].n};background:${COR_ST[e.k]}"></span>`).join('') +
+      `</div><span class="tt">${F.int(l.n)} NF · ${F.curto(l.v)}</span></div></div>`).join('')
+     : '<div class="vazio">Sem notas na fila com estes filtros.</div>') + (rodape || '');
+  alvo.querySelectorAll('.lg').forEach(x => x.onclick = () => selAlterna('prazo', x.dataset.s, ST_POR_K[x.dataset.s].rot));
+  alvo.querySelectorAll('.nm').forEach(x => x.onclick = () => { const l = linhas[+x.dataset.i]; selAlterna(chave, l.valor, l.rot || l.nome); });
+  alvo.querySelectorAll('.sg').forEach(x => { const l = linhas[+x.dataset.i], s = x.dataset.s, o = l.st[s];
+    x.onmousemove = ev => dicaG(ev, `<b>${escA(l.nome)}</b><br>${ST_POR_K[s].rot}: <b>${F.int(o.n)} NF</b> (${Math.round(100 * o.n / l.n)}% da linha)<br>${F.moeda(o.v)} em aberto<br><i>clique para filtrar a fila</i>`);
+    x.onmouseleave = () => dicaG();
+    x.onclick = () => { dicaG(); selDefine([[chave, l.valor, l.rot || l.nome], ['prazo', s, ST_POR_K[s].rot]]); }; });
+}
+/* colunas verticais (SVG): itens = [{rot, valor, n, cor, tip}]; chave = filtro do clique (null = sem filtro) */
+function colunas(destino, itens, chave, rotSel){
+  const alvo = $(destino); if(!alvo) return;
+  if(!itens.some(i => i.n)){ alvo.innerHTML = '<div class="vazio">Sem registros nesta janela.</div>'; return; }
+  // desenhado na largura REAL do painel (1 unidade = 1 px): texto em tamanho legível e sem sobreposição
+  const W = Math.max(300, Math.round(alvo.clientWidth || 600)), H = 200, pt = 22, pb = 26, n = itens.length, max = Math.max(1, ...itens.map(i => i.n));
+  const passo = W / n, bw = Math.max(6, Math.min(30, passo - 6)), h = v => (H - pt - pb) * v / max;
+  const passoRot = Math.max(1, Math.ceil(n / Math.floor(W / 42)));
+  alvo.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="gráfico de colunas">` +
+    `<line x1="0" x2="${W}" y1="${H - pb}" y2="${H - pb}" stroke="#C9CFDC" stroke-width="1"/>` +
+    itens.map((it, i) => { const x = i * passo + (passo - bw) / 2, hh = h(it.n), y = H - pb - hh;
+      const sel = chave && SEL[chave] === it.valor;
+      return (it.n ? `<path class="${chave ? 'c' : 'nc'}" data-i="${i}" fill="${it.cor}" ${sel ? 'stroke="#1A1F2E" stroke-width="2"' : ''} ` +
+          `d="M${x},${H - pb} V${y + Math.min(4, hh)} Q${x},${y} ${x + Math.min(4, bw / 2)},${y} H${x + bw - Math.min(4, bw / 2)} Q${x + bw},${y} ${x + bw},${y + Math.min(4, hh)} V${H - pb} Z"/>` +
+          `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="600" fill="#1A1F2E">${F.int(it.n)}</text>` : '') +
+        (i % passoRot === 0 || it.valor === 'Vencidos' ? `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="#5B6478">${escA(it.rot)}</text>` : '') +
+        `<rect class="${chave ? 'c' : 'nc'}" data-i="${i}" x="${i * passo}" y="${pt - 18}" width="${passo}" height="${H - pb - pt + 18}" fill="transparent"/>`;
+    }).join('') + `</svg>`;
+  alvo.querySelectorAll('[data-i]').forEach(e => { const it = itens[+e.dataset.i];
+    e.onmousemove = ev => dicaG(ev, it.tip + (chave && it.n ? '<br><i>clique para filtrar a fila</i>' : ''));
+    e.onmouseleave = () => dicaG();
+    if(chave) e.onclick = () => { if(!it.n) return; dicaG(); selAlterna(chave, it.valor, rotSel ? rotSel(it) : it.rot); }; });
+}
+function pintarGraficosPlano(){
+  if(!JUST.ok || !JUST.v008) return;
+  const soma = (lista, chaveL) => { const g = {};
+    lista.forEach(x => { const k = chaveL(x), s = statusLinha(x), v = +x.saldo_aberto || 0;
+      const o = g[k] = g[k] || {n:0, v:0, st:{}}; o.n++; o.v += v;
+      const q = o.st[s] = o.st[s] || {n:0, v:0}; q.n++; q.v += v; });
+    return g; };
+  // por faixa (todas as 9, na ordem)
+  const gf = soma(filtraSel(_baseJust, ['faixa','prazo']), fxDe);
+  empilhadas('gFaixaSt', FAIXAS.filter(f => gf[f.k]).map(f => ({nome:f.rot, valor:f.k, rot:f.rot, ...gf[f.k]})), 'faixa');
+  // por responsável (mais vencidos primeiro; sem responsável por último)
+  // "(sem responsável)" sai do gráfico (achataria os demais) e vira linha de resumo clicável
+  const gr = soma(filtraSel(_baseJust, ['resp','prazo']), respDe), sr = gr[SEM_RESP];
+  empilhadas('gRespSt', Object.keys(gr).filter(r => r !== SEM_RESP).sort((a, c) =>
+      ((gr[c].st['Prazo vencido'] || {}).n || 0) - ((gr[a].st['Prazo vencido'] || {}).n || 0) || gr[c].n - gr[a].n)
+    .map(r => ({nome:r, valor:r, ...gr[r]})), 'resp',
+    sr ? `<div class="emp ${SEL.resp === SEM_RESP ? 'sel' : ''}" style="border-top:1px dashed var(--borda);margin-top:6px;padding-top:8px">` +
+         `<div class="nm" id="gSemResp" title="Filtrar a fila: notas sem responsável">${SEM_RESP}</div>` +
+         `<div class="trilho"><span class="tt" style="white-space:normal">${F.int(sr.n)} NF · ${F.curto(sr.v)} — ${F.int((sr.st[SEM_PLANO] || {}).n || 0)} sem plano, ` +
+         `${F.int(sr.n - ((sr.st[SEM_PLANO] || {}).n || 0))} com plano sem responsável</span></div></div>` : '');
+  const bsr = $('gSemResp'); if(bsr) bsr.onclick = () => selAlterna('resp', SEM_RESP, SEM_RESP);
+  // atividade: notas com plano incluído/alterado por dia (histórico imutável), últimos 30 dias
+  const dias = [], ini = new Date(hojeISO() + 'T00:00:00'); ini.setDate(ini.getDate() - 29);
+  const p2 = n => String(n).padStart(2,'0'), isoD = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+  const porDia = {};
+  (JUST.hist || []).forEach(h => { if(!h.em) return; const d = isoD(new Date(h.em));
+    const o = porDia[d] = porDia[d] || {nf:new Set(), ac:{}, us:new Set()};
+    o.nf.add(chNF(h)); const a = h.anexo ? 'ANEXO' : h.acao; o.ac[a] = (o.ac[a] || 0) + 1; if(h.usuario) o.us.add(h.usuario.split('@')[0]); });
+  for(let i = 0; i < 30; i++){ const d = new Date(ini); d.setDate(ini.getDate() + i); dias.push(isoD(d)); }
+  const ROT_AC = {INCLUIU:'inclusões', ALTEROU:'alterações', EXCLUIU:'exclusões', ANEXO:'anexos'};
+  colunas('gAtiv', dias.map(d => { const o = porDia[d];
+    return {rot:dataBrIso(d).slice(0,5), valor:d, n:o ? o.nf.size : 0, cor:'#1A1F2E',
+      tip:`<b>${dataBrIso(d)}</b><br>${o ? F.int(o.nf.size) : 0} nota(s) com plano mexido` +
+        (o ? '<br>' + Object.entries(o.ac).map(([a, q]) => `${F.int(q)} ${ROT_AC[a] || a.toLowerCase()}`).join(' · ') + '<br>por ' + [...o.us].join(', ') : '')}; }), null);
 }
 
 /* ------------------------------------------------------------ sinistro / funcionários */
@@ -815,7 +1057,7 @@ iniciarPagina(async () => {
   $('fTr').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.transportadora||'—'))].sort().map(t=>`<option>${t}</option>`).join('');
   configurarSelecao({cliente:'cliente_nome', uf:'uf', transportadora:x=>x.transportadora||'(sem transportadora)',
-                     faixa:fxDe, just:rotJust, prazo:statusPrazo}, pintar);
+                     faixa:fxDe, just:rotJust, prazo:statusLinha, resp:respDe, pzdata:pzDataDe}, pintar);
   atualizaDlResp();
   $('bAplicar').onclick = () => { selLimpar(); };
   $('fVo').addEventListener('change', () => pintarVo());
@@ -833,7 +1075,8 @@ iniciarPagina(async () => {
      {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
      {t:'RESPONSÁVEL',w:28,val:r => JUST.porNF[chNF(r)]?.responsavel || ''},
      {t:'PRAZO',w:12,val:r => JUST.porNF[chNF(r)]?.prazo || ''},
-     {t:'SITUAÇÃO DO PRAZO',w:20,val:r => JUST.porNF[chNF(r)]?.prazo ? statusPrazo(r) : ''},
+     {t:'STATUS DO PLANO',w:20,val:r => JUST.ok && JUST.v008 ? (ST_POR_K[statusLinha(r)] || {}).rot || '' : ''},
+     {t:'DIAS P/ O PRAZO',w:15,tipo:'n',val:r => JUST.porNF[chNF(r)]?.prazo ? diasAte(JUST.porNF[chNF(r)].prazo) : null},
      {t:'OBSERVAÇÕES',w:50,val:r => JUST.porNF[chNF(r)]?.observacoes || ''},
      {t:'ANEXOS',w:9,val:r => (ANX.porNF[chNF(r)] || []).length || ''},
      {t:'NOMES DOS ANEXOS',w:44,val:r => (ANX.porNF[chNF(r)] || []).map(a => a.nome).join('; ')},
@@ -864,8 +1107,10 @@ iniciarPagina(async () => {
     $('abaFila').hidden = a !== 'fila'; $('abaDash').hidden = a !== 'dash';
     history.replaceState(null, '', a === 'dash' ? '#dash' : location.pathname + location.search);
     pintarDica();
+    if(a === 'dash') pintarPlanoStatus();          // colunas medem a largura do painel: redesenhar ao abrir o Dash
   };
   document.querySelectorAll('.abas button').forEach(b => b.onclick = () => abrirAba(b.dataset.aba));
+  let _rz; addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(() => { if(!$('abaDash').hidden) pintarPlanoStatus(); }, 250); });
   pintar();
   abrirAba(location.hash === '#dash' ? 'dash' : 'fila');
 });

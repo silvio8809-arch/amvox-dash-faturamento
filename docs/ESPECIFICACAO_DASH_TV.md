@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.12** · 01/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.13** · 05/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -123,6 +123,7 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   - **Responsável** — nome da pessoa que a Logística indica para realizar a ação (texto livre; a tela sugere
     os nomes já usados).
   - **Prazo** — data até a qual o responsável deve realizar a ação. A tela marca *vencido há N dias*, *vence
+- **Status da linha** (Silvio 02/10/2026) — cada nota da fila mostra o status do plano em função do prazo: **Vencido há N d** · **Vence hoje** · **Vence em N d** (até 7 dias) · **No prazo** (mais de 7 dias) · **Sem prazo** (há plano, falta a data) · **Sem plano** (nada informado). A coluna ordena do mais urgente para o menos urgente e muda na hora em que o prazo é gravado. Acima da grade, 6 cards de status (card = filtro). O Excel leva **STATUS DO PLANO** (todas as linhas) e **DIAS P/ O PRAZO** (negativo = vencido).
     hoje*, *vence em N dias* ou *em N dias*.
   - **Observações** — texto livre: o que está sendo feito, com quem, próximo passo. Pode ser registrada
     antes de escolher o motivo.
@@ -170,6 +171,7 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   Devoluções (cards de total e o de origem da devolução), Top clientes (top 10 · maior cliente · top 3), Região × linha
   (linha e região dominantes viram seleção cruzada; os cards de total limpam) e Auditoria (o card de ocorrências limpa o
   filtro de teste). Card que já é o total da tela não filtra — limpa.
+- **Painel de pendências do plano de ação no Dash** (Silvio 02 e 05/10/2026): cards de status; quadro **Pendências por responsável** (notas, saldo e % do saldo, quantidade por status, maior atraso, próximo prazo — clique no nome filtra o responsável; num número, responsável + status); gráficos **Status do plano por faixa de dias** e **por responsável** (barras empilhadas por status; "sem responsável" em linha de resumo), **Agenda de prazos** (vencidos + cada dia dos próximos 14) e **Atividade no plano de ação** (notas com plano incluído/alterado/anexado por dia, últimos 30 dias, a partir do histórico imutável). Cores = estado do prazo (vermelho vencido · laranja hoje · amarelo até 7 dias · verde no prazo · cinza sem prazo · cinza-claro sem plano), sempre com legenda e rótulo.
 
 ## 8. Venda à ordem
 
@@ -369,3 +371,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.10 | 01/10/2026 | Plano de ação ganha Responsável (nome indicado pela Logística) e Prazo (data), com histórico, filtros (prazo vencido, sem responsável), quadro de prazos no Dash e colunas no Excel (seção 7.1) | Silvio Amaral |
 | 1.11 | 01/10/2026 | Cards de resumo das faixas acima da grade da fila (padrão do quadro de Sinistro e funcionários); todo card de resumo vira filtro — clicou, filtrou; clicou de novo, tira (seção 7.3) | Silvio Amaral |
 | 1.12 | 01/10/2026 | Card-filtro estendido às demais telas: Notas emitidas, Devoluções, Top clientes, Região × linha e Auditoria (seção 7.3) | Silvio Amaral |
+| 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
