@@ -83,6 +83,7 @@
   /* responsável + prazo do plano de ação (migração 008, Silvio 01/10/2026) */
   .resp,.prz{display:flex;flex-direction:column;gap:3px;text-align:left}
   .resp{min-width:170px} .prz{min-width:140px}
+  .resp .padrao{display:inline-block;margin-top:3px;padding:0 7px;border-radius:99px;background:#FFF4DB;color:#8A5B00;font:600 10px var(--texto)}
   .resp input,.prz input{padding:4px 7px;border:1px solid var(--borda);border-radius:6px;font:12.5px var(--texto);color:var(--navy);background:#fff;width:100%}
   .resp .quem,.prz .quem{font-size:10.5px;color:var(--cinza)} .resp .quem.ok,.prz .quem.ok{color:#14603F}
   .resp .quem.err,.prz .quem.err{color:var(--vermelho)}
@@ -265,8 +266,13 @@ let ENVIANDO = 0;                                               // anexos/grava�
 window.telaOcupada = () => ENVIANDO > 0 || !!document.querySelector('#histFundo.aberto') ||
   [...document.querySelectorAll('.obs textarea')].some(t => t.value.trim() !== (JUST.porNF[t.closest('.obs').dataset.ch]?.observacoes || '')) ||
   [...document.querySelectorAll('.just input')].some(i => !i.disabled && i.value.trim() !== (JUST.porNF[i.closest('.just').dataset.ch]?.complemento || '')) ||
-  [...document.querySelectorAll('.resp input')].some(i => i.value.trim() !== (JUST.porNF[i.closest('.resp').dataset.ch]?.responsavel || ''));
+  [...document.querySelectorAll('.resp input')].some(i => i.value.trim() !== ((JUST.porNF[i.closest('.resp').dataset.ch]?.responsavel || '').trim() || RESP_PADRAO));
 const chNF = r => `${r.filial}|${r.nf}|${r.serie}`;
+/* RESPONSÁVEL PADRÃO (Silvio 05/10/2026): a Ingride é a responsável geral da Logística — toda nota sem responsável informado
+   é dela; delegar = trocar o nome. Mesmo valor do banco (migração 009: default + carimbo + função dash_plano_resp_padrao). */
+const RESP_PADRAO = 'Ingride Soares';
+const respInformado = r => ((JUST.porNF[chNF(r)] || {}).responsavel || '').trim();
+const respEf = r => respInformado(r) || RESP_PADRAO;
 const SEM_JUST = '(sem justificativa)';
 const temJust = x => !!(JUST.porNF[chNF(x)] || {}).justificativa;
 const rotJust = r => { const j = JUST.porNF[chNF(r)]; return j && j.justificativa ? (JUST.porCod[j.justificativa]?.descricao || j.justificativa) : SEM_JUST; };
@@ -360,8 +366,11 @@ function tagPrazo(pz){
 function celResp(r){
   if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
   const j = JUST.porNF[chNF(r)];
-  return `<div class="resp" data-ch="${escA(chNF(r))}"><input maxlength="80" list="dlResp" value="${escA(j?.responsavel)}" ` +
-    `placeholder="quem vai realizar a ação"><span class="quem"></span></div>`;
+  const inf = respInformado(r);
+  return `<div class="resp" data-ch="${escA(chNF(r))}"><input maxlength="80" list="dlResp" value="${escA(inf || RESP_PADRAO)}" ` +
+    `placeholder="${escA(RESP_PADRAO)}" title="Responsável pela ação. Padrão: ${escA(RESP_PADRAO)} (responsável geral) — troque o nome para delegar">` +
+    (inf ? '' : `<span class="padrao" title="Responsável geral da Logística (padrão) — troque o nome para delegar">padrão</span>`) +
+    `<span class="quem"></span></div>`;
 }
 function celPrazo(r){
   if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
@@ -402,7 +411,7 @@ async function salvarPlano(ch, origem){
   const ta = co ? co.querySelector('textarea') : null, qObs = co ? co.querySelector('.quem') : null;
   const cr = tr.querySelector('.resp'), cp = tr.querySelector('.prz');
   const ir = cr ? cr.querySelector('input') : null, ip = cp ? cp.querySelector('input') : null;
-  const resp = ir ? ir.value.trim() : (JUST.porNF[ch]?.responsavel || ''), prazo = ip ? ip.value : (JUST.porNF[ch]?.prazo || '');
+  const resp = (ir ? ir.value.trim() : (JUST.porNF[ch]?.responsavel || '').trim()) || RESP_PADRAO, prazo = ip ? ip.value : (JUST.porNF[ch]?.prazo || '');
   const qMap = {obs: qObs, resp: cr && cr.querySelector('.quem'), prazo: cp && cp.querySelector('.quem')};
   const cod = sel.value, compl = cod ? inp.value.trim() : '', obs = ta ? ta.value.trim() : (JUST.porNF[ch]?.observacoes || '');
   const alvoQuem = qMap[origem] || quem;
@@ -410,7 +419,8 @@ async function salvarPlano(ch, origem){
   sel.disabled = inp.disabled = true; if(ta) ta.disabled = true; if(ir) ir.disabled = true; if(ip) ip.disabled = true;
   let res;
   // sem motivo e sem observação = não há plano: apaga a linha (fica no histórico)
-  const vazio = !cod && !(JUST.v007 && obs) && !(JUST.v008 && (resp || prazo));
+  // o responsável PADRÃO sozinho não é plano: sem motivo, observação, prazo nem responsável delegado = não há plano
+  const vazio = !cod && !(JUST.v007 && obs) && !(JUST.v008 && ((resp && resp !== RESP_PADRAO) || prazo));
   ENVIANDO++;
   try {
   if(vazio) res = await SB.from('dash_justificativa_logistica').delete().match({filial, nf, serie});
@@ -439,6 +449,8 @@ async function salvarPlano(ch, origem){
   if(alvoQuem && alvoQuem !== quem){ alvoQuem.className = 'quem ok'; alvoQuem.textContent = '✓ salvo'; }
   if(ip){ const pz = vazio ? '' : (res.data.prazo || ''); ip.classList.toggle('venc', !!pz && diasAte(pz) < 0);
     cp.querySelectorAll('.st').forEach(e => e.remove()); if(pz) ip.insertAdjacentHTML('afterend', tagPrazo(pz)); }
+  if(cr){ const tg = cr.querySelector('.padrao'); if(tg && !vazio && (res.data.responsavel || '').trim()) tg.remove();
+          if(ir && vazio){ ir.value = RESP_PADRAO; if(!tg) ir.insertAdjacentHTML('afterend', '<span class="padrao">padrão</span>'); } }
   atualizaDlResp();
   const reg = CACHE.nfs.find(x => chNF(x) === ch), st = tr.querySelector('.stl');   // status da linha acompanha o prazo salvo
   if(reg && st) st.outerHTML = celStatus(reg);
@@ -614,7 +626,7 @@ const casaJust = (fj, x) => {
   return fj === '__sem' ? !temJust(x) : fj === '__com' ? temJust(x)
        : fj === '__anx' ? !!(ANX.porNF[chNF(x)] || []).length
        : fj === '__venc' ? statusPrazo(x) === 'Prazo vencido'
-       : fj === '__semresp' ? !(j && j.responsavel) : (j && j.justificativa === fj);
+       : fj === '__semresp' ? !respInformado(x) : (j && j.justificativa === fj);
 };
 function filtrar(){
   const fx = $('fFaixa').value, uf = $('fUf').value, tr = $('fTr').value,
@@ -660,7 +672,7 @@ function pintar(){
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(totSaldo)} em aberto`;
   _nFila = l.length; _vFila = totSaldo; pintarDica();
   l.forEach(x => { const j = JUST.porNF[chNF(x)] || {};      // permite ordenar pelas colunas do plano
-    x._just = rotJust(x); x._resp = j.responsavel || ''; x._prazo = j.prazo || ''; x._stord = ordStatus(x); });
+    x._just = rotJust(x); x._resp = respEf(x); x._prazo = j.prazo || ''; x._stord = ordStatus(x); });
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—'), aoPintar:ligarJust}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
@@ -716,7 +728,7 @@ function pintarLadoPrazo(){
    Cards de status (fila e Dash, card = filtro), quadro por responsável (clique no nome = filtra o responsável;
    clique num número = responsável + status) e agenda dos prazos (vencidos + próximos 14 dias). */
 const SEM_RESP = '(sem responsável)';
-const respDe = x => ((JUST.porNF[chNF(x)] || {}).responsavel || '').trim() || SEM_RESP;
+const respDe = respEf;                           // vazio = responsável padrão (05/10/2026) — SEM_RESP deixou de existir na prática
 const pzDataDe = x => { const pz = (JUST.porNF[chNF(x)] || {}).prazo; if(!pz) return '—';
   return diasAte(pz) < 0 ? 'Vencidos' : dataBrIso(pz); };
 function selDefine(pares){                      // vários filtros de uma vez (responsável + status)
@@ -1049,7 +1061,7 @@ iniciarPagina(async () => {
   $('fFaixa').innerHTML = '<option value="">Todas</option>' + FAIXAS.map(f => `<option value="${f.k}">${f.rot}</option>`).join('');
   $('fJust').innerHTML = '<option value="">Todas</option><option value="__sem">Sem justificativa</option>'+
     '<option value="__com">Com justificativa</option><option value="__anx">Com anexo</option>' +
-    (JUST.v008 ? '<option value="__venc">Prazo vencido</option><option value="__semresp">Sem responsável</option>' : '') +
+    (JUST.v008 ? '<option value="__venc">Prazo vencido</option><option value="__semresp">Responsável padrão (não informado)</option>' : '') +
     JUST.opcoes.map(o => `<option value="${escA(o.codigo)}">${escA(o.descricao)}</option>`).join('');
   const sem = CACHE.nfs.filter(x => x.faixa_entrega);
   $('fUf').innerHTML = '<option value="">Todas</option>' +
@@ -1073,7 +1085,8 @@ iniciarPagina(async () => {
      {t:'FAIXA',w:16,val:r => (FX_POR_K[fxDe(r)] || {}).rot || ''},
      {t:'PLANO DE AÇÃO · JUSTIFICATIVA',w:44,val:r => temJust(r) ? rotJust(r) : ''},
      {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
-     {t:'RESPONSÁVEL',w:28,val:r => JUST.porNF[chNF(r)]?.responsavel || ''},
+     {t:'RESPONSÁVEL',w:28,val:r => JUST.ok && JUST.v008 ? respEf(r) : ''},
+     {t:'RESPONSÁVEL DEFINIDO?',w:20,val:r => JUST.ok && JUST.v008 ? (respInformado(r) ? 'informado' : 'padrão (responsável geral)') : ''},
      {t:'PRAZO',w:12,val:r => JUST.porNF[chNF(r)]?.prazo || ''},
      {t:'STATUS DO PLANO',w:20,val:r => JUST.ok && JUST.v008 ? (ST_POR_K[statusLinha(r)] || {}).rot || '' : ''},
      {t:'DIAS P/ O PRAZO',w:15,tipo:'n',val:r => JUST.porNF[chNF(r)]?.prazo ? diasAte(JUST.porNF[chNF(r)].prazo) : null},
