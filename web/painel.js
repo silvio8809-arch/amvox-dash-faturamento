@@ -561,6 +561,21 @@ function montarLogin(){
   });
 }
 
+/* ---------------------------------------------------------------- acesso por aplicativo (07/10/2026)
+   Usuário sem o Dash liberado no perfil vê um aviso no lugar do painel (o banco também bloqueia).
+   Perfil sem a coluna `apps` (transição) ou falha de leitura = segue; quem trava de verdade é o banco. */
+async function semAppDash(session){
+  let apps = null;
+  try { const r = await SB.from('profiles').select('*').eq('id', session.user.id).single(); apps = r.data && r.data.apps; } catch(_){}
+  if(!Array.isArray(apps) || apps.includes('dash')) return false;
+  document.body.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:28px;font:15px/1.6 -apple-system,sans-serif;' +
+    'background:#fff;border:1px solid #E6E5E2;border-radius:12px;color:#17181A"><b>Seu usuário não tem acesso ao Dash de Faturamento &amp; Logística.</b><br>' +
+    'Se precisar, fale com a Controladoria.<div style="margin-top:16px"><a href="https://silvio8809-arch.github.io/app.ctrl_amvox/">Ir para o início</a> · ' +
+    '<a href="#" id="semAppSair">Sair</a></div></div>';
+  document.getElementById('semAppSair').onclick = async e => { e.preventDefault(); await SB.auth.signOut(); location.reload(); };
+  return true;
+}
+
 /* ---------------------------------------------------------------- arranque */
 let _pagina = null;
 async function abrir(){
@@ -568,6 +583,7 @@ async function abrir(){
   const convite = /type=(invite|recovery|signup)/.test(location.hash);
   if(!session || convite){ $('login').style.display='flex'; return; }
   $('login').style.display='none';
+  if(await semAppDash(session)) return;
   try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }
