@@ -576,6 +576,13 @@ async function semAppDash(session){
   return true;
 }
 
+/* registro de acesso (Silvio 13/10/2026 — informe de gestão de uso): grava quando a tela está VISÍVEL (abrir, recarregar
+   ou voltar para a aba); o banco limita a 1 registro a cada 30 min por pessoa. Falhou = segue (não atrapalha a tela). */
+function registraAcesso(origem){
+  try { if(document.visibilityState === 'visible')
+    SB.rpc('dash_registra_acesso', {p_origem:origem, p_pagina:(location.pathname.split('/').pop() || 'index.html')}).then(() => {}, () => {}); } catch(_){}
+}
+
 /* ---------------------------------------------------------------- arranque */
 let _pagina = null;
 async function abrir(){
@@ -584,6 +591,8 @@ async function abrir(){
   if(!session || convite){ $('login').style.display='flex'; return; }
   $('login').style.display='none';
   if(await semAppDash(session)) return;
+  registraAcesso('painel');
+  if(!window._acessoVis){ window._acessoVis = true; document.addEventListener('visibilitychange', () => registraAcesso('painel')); }
   try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }
   catch(e){ $('erro').style.display='block'; $('erro').textContent = 'Falha ao carregar: ' + (e.message||e); }
 }

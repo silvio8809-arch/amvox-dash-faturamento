@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.14** · 05/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.15** · 07/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -344,9 +344,14 @@ as mães das remessas daquele pedido.
 
 ## 15. Acesso
 
-Login individual por e-mail (mesmo cadastro do app de preços). Hoje todos os usuários têm o mesmo
-perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segregação por perfil
-(ex.: LOG × FAT) está prevista e ainda não definida.
+Login individual por e-mail (mesmo cadastro do app de preços). **Acesso por aplicativo (07/10/2026):**
+cada usuário tem a lista de aplicativos liberados — **Preços** e/ou **Dash** — e o banco só entrega os
+dados do Dash a quem tem o Dash (trava no banco, não só na tela; vale também para os anexos do plano de
+ação). Quem não tem vê o aviso "Seu usuário não tem acesso…". Divisão vigente: Logística (Ingride,
+Larissa, Emilly) só Dash; comercial, comercial3 e vendas só Preços; Controladoria, gerentes e diretor de
+operações os dois. A TV usa o login de um usuário da Logística. O menu do app de preços tem o cartão do
+Dash. Dentro do Dash, todos os usuários com acesso veem todas as telas, inclusive os dois subgrupos da
+Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não definida.
 
 ## 16. Em aberto — aguardando definição
 
@@ -376,3 +381,4 @@ perfil e veem todas as telas, inclusive os dois subgrupos da Auditoria. A segreg
 | 1.12 | 01/10/2026 | Card-filtro estendido às demais telas: Notas emitidas, Devoluções, Top clientes, Região × linha e Auditoria (seção 7.3) | Silvio Amaral |
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
+| 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
