@@ -42,6 +42,25 @@ GFE AS (
       AND   EXISTS (SELECT 1 FROM REM WHERE REM.FIL = GW.GWU_FILIAL AND REM.DOC = GW.GWU_NRDC)
     GROUP BY GW.GWU_FILIAL, LTRIM(RTRIM(GW.GWU_NRDC))
 ),
+-- ROTEIRIZAÇÃO (Silvio 14/10/2026): romaneio da REMESSA — a NF-mãe de venda à ordem não embarca;
+-- quem embarca é a remessa, e o ETL leva o romaneio dela para a mãe. Mesma leitura do 01_nf_saida: GW1 = documento de carga (tipo NFS = nota de saída; 1 por NF — conferido 14/10,
+-- 0 duplicadas desde jun/26), GW1_NRROM = romaneio; GWN = cabeçalho do romaneio (GWN_SIT
+-- 1=Digitado 2=Emitido 3=Liberado 4=Encerrado; GWN_DTSAI/HRSAI = saída). É a mesma leitura do SFA
+-- (NF 000280444: romaneio 00088932, saída 13/10 14:28, previsão 14/10).
+ROM AS (
+    SELECT  G1.GW1_FILIAL                  FIL,
+            G1.GW1_NRDC                    NRDC,
+            G1.GW1_SERDC                   SER,
+            MAX(RTRIM(G1.GW1_NRROM))       ROMANEIO,
+            MAX(GN.GWN_SIT)                ROM_SIT,
+            MAX(NULLIF(GN.GWN_DTSAI,''))   ROM_DTSAI,
+            MAX(NULLIF(GN.GWN_HRSAI,''))   ROM_HRSAI
+    FROM    GW1010 G1
+    LEFT JOIN GWN010 GN ON GN.D_E_L_E_T_ = '' AND GN.GWN_FILIAL = G1.GW1_FILIAL AND GN.GWN_NRROM = G1.GW1_NRROM
+    WHERE   G1.D_E_L_E_T_ = '' AND G1.GW1_CDTPDC = 'NFS' AND G1.GW1_NRROM <> ''
+      AND   EXISTS (SELECT 1 FROM REM W WHERE W.FIL = G1.GW1_FILIAL AND W.DOC = G1.GW1_NRDC AND W.SER = G1.GW1_SERDC)
+    GROUP BY G1.GW1_FILIAL, G1.GW1_NRDC, G1.GW1_SERDC
+),
 CANC AS (
     SELECT  F3_FILIAL FIL, F3_NFISCAL NF, F3_SERIE SER, MAX(NULLIF(F3_DTCANC,'')) DT_CANCELAMENTO
     FROM    SF3010
@@ -67,6 +86,11 @@ SELECT
         RTRIM(ISNULL(G.TRANSP_NOME_GFE,''))                  TRANSPORTADORA,
         G.DT_ENTREGA_GFE                                     DT_ENTREGA,
         G.DT_PREVISTA                                        DT_PREVISTA,
+        -- ---------- roteirização (romaneio do GFE) ----------
+        R.ROMANEIO                                           ROMANEIO,
+        R.ROM_SIT                                            ROMANEIO_SIT,
+        R.ROM_DTSAI                                                ROMANEIO_DTSAI,
+        R.ROM_HRSAI                                                ROMANEIO_HRSAI,
         CANC.DT_CANCELAMENTO                                 DT_CANCELAMENTO,
         -- vínculo com a NF-mãe: os três campos custom + os dois textos (o ETL decide)
         RTRIM(ISNULL(F2.F2_XDOCREF,''))                      XDOCREF,
@@ -87,5 +111,6 @@ INNER JOIN  SF2010 F2  ON F2.D_E_L_E_T_ = '' AND F2.F2_FILIAL = REM.FIL
 LEFT JOIN   SA1010 A1  ON A1.D_E_L_E_T_ = '' AND A1.A1_COD = F2.F2_CLIENTE AND A1.A1_LOJA = F2.F2_LOJA
 LEFT JOIN   SC5010 SC5 ON SC5.D_E_L_E_T_ = '' AND SC5.C5_FILIAL = REM.FIL AND SC5.C5_NUM = REM.PEDIDO
 LEFT JOIN   GFE G      ON G.FIL = F2.F2_FILIAL AND G.NRDC = LTRIM(RTRIM(F2.F2_DOC))
+LEFT JOIN   ROM R      ON R.FIL = F2.F2_FILIAL AND R.NRDC = F2.F2_DOC AND R.SER = F2.F2_SERIE
 LEFT JOIN   CANC       ON CANC.FIL = F2.F2_FILIAL AND CANC.NF = F2.F2_DOC AND CANC.SER = F2.F2_SERIE
 ORDER BY    F2.F2_EMISSAO DESC, F2.F2_DOC;

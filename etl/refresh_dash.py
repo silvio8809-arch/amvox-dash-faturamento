@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.15"
+ESPEC_VERSAO = "1.16"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -113,6 +113,24 @@ def d(v):
 
 def num(v):
     return float(v) if v is not None else None
+
+
+# ROTEIRIZAÇÃO (Silvio 14/10/2026): romaneio do GFE atrelado à nota → coluna "Status roteirização"
+# do plano de ação (sem-entrega.html). GWN_SIT do romaneio, pelo SX3.
+SIT_ROMANEIO = {"1": "Digitado", "2": "Emitido", "3": "Liberado", "4": "Encerrado"}
+
+
+def romaneio_de(reg):
+    """Campos do romaneio de uma linha extraída (01_nf_saida ou 04_vo_remessa)."""
+    rom = (reg.get("ROMANEIO") or "").strip() or None
+    dsai, hsai = d(reg.get("ROMANEIO_DTSAI")), (reg.get("ROMANEIO_HRSAI") or "").strip()
+    return dict(
+        romaneio=rom,
+        romaneio_situacao=SIT_ROMANEIO.get((reg.get("ROMANEIO_SIT") or "").strip()) if rom else None,
+        romaneio_saida=(f"{dsai}T{hsai}:00" if re.fullmatch(r"\d\d:\d\d", hsai) else dsai) if rom and dsai else None,
+        romaneio_prevista=d(reg.get("DT_PREVISTA")) if rom else None,
+        romaneio_origem=None,
+    )
 
 
 # Desde 23/09/2026 o cache guarda o FATURAMENTO desde JAN/2025 (pedido do Silvio: "Incluir dados
@@ -319,6 +337,7 @@ def monta_nf(reg):
         venda_ordem=bool(reg.get("VENDA_ORDEM")),
         regra_especial=reg.get("REGRA_ESPECIAL") or None,   # SINISTRO | FUNCIONARIO — só marca
         valor_devolvido=None, devolucao_em_aberto=None,     # preenchidos no pós-processo
+        **romaneio_de(reg),                                 # roteirização (14/10/2026)
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
     )
 
@@ -442,6 +461,7 @@ def monta_vo(reg, idx):
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
         # auxiliares da auditoria (prefixo "_" = não vão para o banco; ver upsert)
         _ped_ref=ped, _pedido=(reg.get("PEDIDO") or None), _cnpj_destino=re.sub(r"\D", "", reg.get("CNPJ_DESTINO") or "") or None,
+        _rom=romaneio_de(reg),                              # roteirização da remessa → NF-mãe (14/10/2026)
     )
 
 
@@ -512,6 +532,26 @@ def aplica_entrega_venda_ordem(nfs, vos, hoje=None):
             n["status"], n["dias_sem_entrega"], n["faixa_entrega"] = "EM_TRANSITO", dias, faixa_de(dias)
             cont["pendente"] += 1
     return cont
+
+
+def aplica_romaneio_venda_ordem(nfs, vos):
+    """NF-mãe de venda à ordem não embarca — quem embarca é a REMESSA (Silvio 14/10/2026: "pesquisar o
+    romaneio atrelado à respectiva nota"). Mãe sem romaneio próprio e ainda sem entrega herda o
+    romaneio da remessa: a mais recente entre as que ainda não foram entregues; se todas foram,
+    a mais recente de todas. `romaneio_origem` diz de qual remessa veio."""
+    rem = remessas_por_mae(nfs, vos)
+    herdou = 0
+    for n in nfs:
+        if not n["venda_ordem"] or n["romaneio"] or n["status"] != "EM_TRANSITO":
+            continue
+        rs = [r for r in rem.get((n["filial"], n["nf"], n["serie"]), []) if r["_rom"]["romaneio"]]
+        if not rs:
+            continue
+        abertas = [r for r in rs if not r["dt_entrega"]] or rs
+        r = max(abertas, key=lambda x: (x["_rom"]["romaneio_saida"] or "", x["emissao"] or "", x["nf"]))
+        n.update(r["_rom"], romaneio_origem=f"remessa {r['nf']}")
+        herdou += 1
+    return herdou
 
 
 def confere_coerencia(nfs):
@@ -1039,8 +1079,10 @@ def main():
 
     # 3. Pós-processo — venda à ordem ANTES da devolução (DEVOLVIDA depende de haver entrega)
     cvo = aplica_entrega_venda_ordem(nfs, vos)
+    cvo["romaneio"] = aplica_romaneio_venda_ordem(nfs, vos)
     log(f"venda à ordem — data da NF-mãe: {cvo['remessa']} pela última remessa, "
-        f"{cvo['fin_gfe_baixa']} pelo Financeiro/GFE/título quitado, {cvo['pendente']} pendentes")
+        f"{cvo['fin_gfe_baixa']} pelo Financeiro/GFE/título quitado, {cvo['pendente']} pendentes; "
+        f"{cvo['romaneio']} mãe(s) com o romaneio da remessa")
     marcadas = aplica_devolucao_e_atraso(nfs, devs)
     log(f"status por devolução: {marcadas['DEVOLVIDA_TOTAL']} totais, "
         f"{marcadas['DEVOLVIDA_PARCIAL']} parciais")

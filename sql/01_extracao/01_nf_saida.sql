@@ -61,6 +61,26 @@ GFE AS (
                       AND W.F2_EMISSAO BETWEEN @DATADE AND @DATAATE)
     GROUP BY GW.GWU_FILIAL, LTRIM(RTRIM(GW.GWU_NRDC))
 ),
+-- ROTEIRIZAÇÃO (Silvio 14/10/2026 — coluna "Status roteirização" do plano de ação): o romaneio do
+-- GFE atrelado à NF. GW1 = documento de carga (tipo NFS = nota de saída; 1 por NF — conferido 14/10,
+-- 0 duplicadas desde jun/26), GW1_NRROM = romaneio; GWN = cabeçalho do romaneio (GWN_SIT
+-- 1=Digitado 2=Emitido 3=Liberado 4=Encerrado; GWN_DTSAI/HRSAI = saída). É a mesma leitura do SFA
+-- (NF 000280444: romaneio 00088932, saída 13/10 14:28, previsão 14/10).
+ROM AS (
+    SELECT  G1.GW1_FILIAL                  FIL,
+            G1.GW1_NRDC                    NRDC,
+            G1.GW1_SERDC                   SER,
+            MAX(RTRIM(G1.GW1_NRROM))       ROMANEIO,
+            MAX(GN.GWN_SIT)                ROM_SIT,
+            MAX(NULLIF(GN.GWN_DTSAI,''))   ROM_DTSAI,
+            MAX(NULLIF(GN.GWN_HRSAI,''))   ROM_HRSAI
+    FROM    GW1010 G1
+    LEFT JOIN GWN010 GN ON GN.D_E_L_E_T_ = '' AND GN.GWN_FILIAL = G1.GW1_FILIAL AND GN.GWN_NRROM = G1.GW1_NRROM
+    WHERE   G1.D_E_L_E_T_ = '' AND G1.GW1_CDTPDC = 'NFS' AND G1.GW1_NRROM <> ''
+      AND   EXISTS (SELECT 1 FROM SF2010 W WHERE W.D_E_L_E_T_ = '' AND W.F2_FILIAL = G1.GW1_FILIAL AND W.F2_DOC = G1.GW1_NRDC
+                      AND W.F2_SERIE = G1.GW1_SERDC AND W.F2_EMISSAO BETWEEN @DATADE AND @DATAATE)
+    GROUP BY G1.GW1_FILIAL, G1.GW1_NRDC, G1.GW1_SERDC
+),
 -- Cancelamento. ⚠️ EXCEÇÃO CONSCIENTE à regra do D_E_L_E_T_: o evento de cancelamento
 -- precisa ser visto mesmo quando a linha foi excluída (SPEC 3.3). Só notas de SAÍDA:
 -- discriminador = CFOP 5xxx/6xxx (F3_ENTRADA é data contábil, sempre preenchida).
@@ -126,6 +146,11 @@ SELECT
         RG.REGRA                                                   REGRA_ESPECIAL,   -- SINISTRO | FUNCIONARIO | NULL
         G.DT_PREVISTA                                              DT_PREVISTA,
         G.DT_PREVISTA_ORIG                                         DT_PREVISTA_ORIG,
+        -- ---------- roteirização (romaneio do GFE) ----------
+        R.ROMANEIO                                                 ROMANEIO,
+        R.ROM_SIT                                                  ROMANEIO_SIT,
+        R.ROM_DTSAI                                                ROMANEIO_DTSAI,
+        R.ROM_HRSAI                                                ROMANEIO_HRSAI,
         -- ---------- cobrança ----------
         CAST(ISNULL(FIN.VLR_TITULOS,0)  AS DECIMAL(18,2))          VLR_TITULOS,
         CAST(ISNULL(FIN.SALDO_ABERTO,0) AS DECIMAL(18,2))          SALDO_ABERTO,
@@ -160,6 +185,7 @@ LEFT JOIN   SA1010 A1   ON A1.D_E_L_E_T_=''  AND A1.A1_COD = F2.F2_CLIENTE AND A
 LEFT JOIN   SA4010 A4   ON A4.D_E_L_E_T_=''  AND A4.A4_COD = F2.F2_TRANSP
 LEFT JOIN   FIN         ON FIN.FIL = F2.F2_FILIAL AND FIN.NUM = F2.F2_DOC AND FIN.PRE = F2.F2_SERIE
 LEFT JOIN   GFE G       ON G.FIL   = F2.F2_FILIAL AND G.NRDC = LTRIM(RTRIM(F2.F2_DOC))
+LEFT JOIN   ROM R       ON R.FIL   = F2.F2_FILIAL AND R.NRDC = F2.F2_DOC AND R.SER = F2.F2_SERIE
 LEFT JOIN   CANC        ON CANC.FIL = F2.F2_FILIAL AND CANC.NF = F2.F2_DOC AND CANC.SER = F2.F2_SERIE
 LEFT JOIN   CFOP C      ON C.FIL   = F2.F2_FILIAL AND C.DOC = F2.F2_DOC AND C.SER = F2.F2_SERIE
 -- ---------- grupo especial: só MARCA, não mexe na data (Silvio 23/09/2026, 2ª versão) ----------

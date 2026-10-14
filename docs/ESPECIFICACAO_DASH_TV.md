@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.15** · 07/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.16** · 14/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -126,6 +126,15 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
     a tela mostra o nome com a marca *padrão*; delegar = trocar o nome. No banco (migração 009) o campo nasce com o padrão e, se for
     gravado vazio, volta para o padrão. O Excel leva RESPONSÁVEL e RESPONSÁVEL DEFINIDO? (informado × padrão).
   - **Prazo** — data até a qual o responsável deve realizar a ação. A tela marca *vencido há N dias*, *vence
+- **Status roteirização** (pedido da Logística, Silvio 14/10/2026) — **primeira coluna do plano de ação**. Vem da
+  carga automática (não é digitado): o **romaneio do GFE** atrelado à nota — documento de carga `GW1010` (tipo NFS,
+  `GW1_NRROM`) → romaneio `GWN010` — e a previsão de entrega `GWU_DTPENT`. Três textos:
+  **Roteirizado com previsão de entrega dd/mm/aaaa** · **Roteirizado SEM previsão de entrega** (há romaneio, previsão em
+  branco) · **Não roteirizado** (nenhum romaneio). Qualquer romaneio conta, mesmo ainda *Digitado* (sem saída). Ao passar
+  o mouse: número do romaneio, situação (Digitado/Emitido/Liberado/Encerrado) e data/hora de saída. **NF-mãe de venda à
+  ordem** não embarca: mostra o romaneio da **remessa** (a mais recente ainda não entregue). A coluna ordena pela
+  previsão. O Excel leva **STATUS ROTEIRIZAÇÃO** e **ROMANEIO**. Mesma leitura do SFA (NF 000280444: romaneio 00088932,
+  saída 13/10 14:28, previsão 14/10). Migração 011.
 - **Status da linha** (Silvio 02/10/2026) — cada nota da fila mostra o status do plano em função do prazo: **Vencido há N d** · **Vence hoje** · **Vence em N d** (até 7 dias) · **No prazo** (mais de 7 dias) · **Sem prazo** (há plano, falta a data) · **Sem plano** (nada informado). A coluna ordena do mais urgente para o menos urgente e muda na hora em que o prazo é gravado. Acima da grade, 6 cards de status (card = filtro). O Excel leva **STATUS DO PLANO** (todas as linhas) e **DIAS P/ O PRAZO** (negativo = vencido).
     hoje*, *vence em N dias* ou *em N dias*.
   - **Observações** — texto livre: o que está sendo feito, com quem, próximo passo. Pode ser registrada
@@ -382,3 +391,4 @@ Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não defin
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.16 | 14/10/2026 | Coluna **Status roteirização** no início do plano de ação: romaneio do GFE (GW1 → GWN) + previsão (GWU_DTPENT); NF-mãe de venda à ordem pelo romaneio da remessa; Excel com STATUS ROTEIRIZAÇÃO e ROMANEIO (seção 7.1, migração 011) | Silvio Amaral |

@@ -95,6 +95,10 @@
   .stl.venc{background:#FBE4E4;color:var(--vermelho)} .stl.hoje{background:#FFE2B8;color:#7A4A00}
   .stl.prox{background:#FFF4DB;color:#8A5B00} .stl.ok{background:#E3F4EA;color:#14603F}
   .stl.semprazo{background:#EEF1F6;color:var(--cinza)} .stl.semplano{background:#fff;color:var(--cinza);border:1px dashed #C9CFDC}
+  /* status da roteirização — romaneio do GFE (Logística via Silvio 14/10/2026, migração 011) */
+  .rot{display:inline-block;padding:3px 9px;border-radius:99px;font:600 11px var(--texto);white-space:nowrap}
+  .rot.prev{background:#E3F4EA;color:#14603F} .rot.semprev{background:#FFF4DB;color:#8A5B00}
+  .rot.nao{background:#fff;color:var(--cinza);border:1px dashed #C9CFDC}
   .cards6{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
   .cards6 .kpi{padding:10px 12px} .cards6 .kpi .v{font-size:24px} .cards6 .kpi .t{font-size:9.5px;letter-spacing:.06em}
   .cards6 .kpi .n{font-size:10.5px}
@@ -351,6 +355,25 @@ function txtStatus(x){
   const s = statusLinha(x), pz = (JUST.porNF[chNF(x)] || {}).prazo, d = pz ? diasAte(pz) : null;
   return s === 'Prazo vencido' ? `Vencido há ${-d} d` : s === 'Vence hoje' ? 'Vence hoje'
        : s === 'Vence em até 7 dias' ? `Vence em ${d} d` : s === 'No prazo' ? `No prazo · ${d} d` : s;
+}
+/* STATUS ROTEIRIZAÇÃO (Logística via Silvio 14/10/2026): o romaneio do GFE atrelado à nota (GW1 → GWN),
+   com a previsão de entrega (GWU_DTPENT). NF-mãe de venda à ordem mostra o romaneio da remessa. */
+function txtRot(r){
+  if(!r.romaneio) return 'Não roteirizado';
+  return r.romaneio_prevista ? `Roteirizado com previsão de entrega ${dataBrIso(r.romaneio_prevista)}` : 'Roteirizado SEM previsão de entrega';
+}
+/* chave de ordenação: com previsão (pela data) › sem previsão › não roteirizado — sempre TEXTO (a grade compara número
+   com número e texto com texto; '0'/'1' virariam número e embaralhariam a ordem) */
+const ordRot = r => !r.romaneio ? 'a' : r.romaneio_prevista ? 'c' + r.romaneio_prevista : 'b';
+function dicaRot(r){
+  if(!r.romaneio) return 'Nenhum romaneio no GFE para esta nota';
+  const sai = r.romaneio_saida ? ` · saída ${dataBrIso(r.romaneio_saida.slice(0,10))}${r.romaneio_saida.length > 10 ? ' ' + r.romaneio_saida.slice(11,16) : ''}` : '';
+  return `Romaneio ${r.romaneio}${r.romaneio_situacao ? ' · ' + r.romaneio_situacao : ''}${sai}${r.romaneio_origem ? ' · pela ' + r.romaneio_origem : ''}`;
+}
+function celRot(r){
+  if(!('romaneio' in r)) return indisp('011_roteirizacao.sql');
+  const cls = !r.romaneio ? 'nao' : r.romaneio_prevista ? 'prev' : 'semprev';
+  return `<span class="rot ${cls}" title="${escA(dicaRot(r))}">${txtRot(r)}</span>`;
 }
 function celStatus(r){
   if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
@@ -613,6 +636,7 @@ const COLS = [
   {k:'devolucao_em_aberto', t:'Devolução em aberto', html:celDev},
   {k:'vencimento_real', t:'Vencimento', fmt:F.data},
   {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${clsFx(r)}">${r.dias_sem_entrega} d</span>`},
+  {k:'_rot',  t:'Status roteirização', esq:true, html:celRot, grupo:'Plano de ação'},
   {k:'_stord', t:'Status',       esq:true, html:celStatus, grupo:'Plano de ação'},
   {k:'_just', t:'Justificativa', esq:true, html:celJust, grupo:'Plano de ação'},
   {k:'_resp', t:'Responsável',   esq:true, html:celResp, grupo:'Plano de ação'},
@@ -672,7 +696,7 @@ function pintar(){
   $('tSub').textContent = `${F.int(l.length)} notas · ${F.curto(totSaldo)} em aberto`;
   _nFila = l.length; _vFila = totSaldo; pintarDica();
   l.forEach(x => { const j = JUST.porNF[chNF(x)] || {};      // permite ordenar pelas colunas do plano
-    x._just = rotJust(x); x._resp = respEf(x); x._prazo = j.prazo || ''; x._stord = ordStatus(x); });
+    x._just = rotJust(x); x._resp = respEf(x); x._prazo = j.prazo || ''; x._stord = ordStatus(x); x._rot = ordRot(x); });
   TAB ? TAB.dados(l) : (TAB = new Tabela({alvo:'tabela', colunas:COLS, linhas:l, ordem:'dias_sem_entrega', porPagina:40,
     aoClicar:r => selAlterna('cliente', r.cliente_nome||'—'), aoPintar:ligarJust}));
   const cli = {}; filtraSel(base,'cliente').forEach(x => cli[x.cliente_nome||'—'] = (cli[x.cliente_nome||'—']||0)+1);
@@ -1083,6 +1107,8 @@ iniciarPagina(async () => {
      {t:'DEVOLVIDO',k:'valor_devolvido',w:14,tipo:'n'},{t:'DEVOLUÇÃO EM ABERTO (NCC)',k:'devolucao_em_aberto',w:22,tipo:'n'},
      {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS SEM ENTREGA',k:'dias_sem_entrega',w:17},
      {t:'FAIXA',w:16,val:r => (FX_POR_K[fxDe(r)] || {}).rot || ''},
+     {t:'STATUS ROTEIRIZAÇÃO',w:40,val:r => 'romaneio' in r ? txtRot(r) : ''},
+     {t:'ROMANEIO',w:12,val:r => r.romaneio ? r.romaneio + (r.romaneio_origem ? ' (' + r.romaneio_origem + ')' : '') : ''},
      {t:'PLANO DE AÇÃO · JUSTIFICATIVA',w:44,val:r => temJust(r) ? rotJust(r) : ''},
      {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
      {t:'RESPONSÁVEL',w:28,val:r => JUST.ok && JUST.v008 ? respEf(r) : ''},
