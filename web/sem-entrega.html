@@ -98,7 +98,7 @@
   /* status da roteirização — romaneio do GFE (Logística via Silvio 14/10/2026, migração 011) */
   .rot{display:inline-block;padding:3px 9px;border-radius:99px;font:600 11px var(--texto);white-space:nowrap}
   .rot.ok{background:#E3F4EA;color:#14603F} .rot.aten{background:#FFE9D1;color:#A14A00} .rot.anom{background:#FBE4E4;color:var(--vermelho)}
-  /* ANOMALIA GRAVE (Silvio 14/10/2026): sem romaneio há mais de 7 dias úteis — vermelho cheio + símbolo + moldura dupla */
+  /* ANOMALIA GRAVE (Silvio 14/10/2026): sem romaneio além do prazo (ROT_DU_SEM_ROMANEIO dias úteis) — vermelho cheio + símbolo + moldura dupla */
   .rot.grave{background:#B3261E;color:#fff;font-weight:700;box-shadow:0 0 0 2px #fff,0 0 0 4px #B3261E;margin:4px}
   .cards6 .kpi.k-grave{box-shadow:inset 0 0 0 3px #B3261E} .cards6 .kpi.k-grave .t{color:#B3261E}
   .cards6 .kpi.k-anom .t{color:var(--vermelho)} .cards6 .kpi.k-aten .t{color:#A14A00} .cards6 .kpi.k-ok .t{color:#14603F}
@@ -193,6 +193,7 @@
       <div class="rot-cards">Previsão de entrega — fila de hoje · card = filtro</div>
       <div class="resumo-rot" id="rotResumo"></div>
       <div class="cards6" id="cardsRot"></div>
+      <div id="notaPrazoRom" style="margin-top:6px;font-size:12px;color:var(--cinza)"></div>
     </div>
     <div class="rot-cards" id="rotStDash">Status do plano de ação — pelo prazo</div>
     <div class="cards6" id="cardsStDash"></div>
@@ -426,20 +427,24 @@ const difDias = (a, b) => Math.round((new Date(a.slice(0,10) + 'T00:00:00') - ne
 
 /* ALERTA DA ROTEIRIZAÇÃO (Silvio 14/10/2026): verde = OK · laranja = atenção · vermelho = anomalia.
    "Pior que ter uma entrega demorada é não ter qualquer previsão de entrega, ou ter uma previsão já frustrada":
-     ANOMALIA GRAVE  sem romaneio, emitida há mais de 7 DIAS ÚTEIS — vermelho cheio + ⚠ + moldura
+     ANOMALIA GRAVE  sem romaneio, emitida há mais de 9 DIAS ÚTEIS — vermelho cheio + ⚠ + moldura
      ANOMALIA        previsão superada · roteirizado sem previsão (vermelho)
      ATENÇÃO         previsão longa: mais de 45 dias depois da emissão (laranja; na fila de 14/10 a mediana era 30 d, 90% até 38 d)
      OK              previsão dentro da régua (verde)
-     (neutro)        sem romaneio até 7 dias úteis — fluxo normal */
-const ROT_DU_SEM_ROMANEIO = 7, ROT_PREV_LONGA = 45;
+     (neutro)        sem romaneio até 9 dias úteis — fluxo normal
+   PRAZO DO ROMANEIO (Silvio 14/10/2026: "meça o tempo entre emissão e romaneio no GFE"): era 7; medido emissão (F2_EMISSAO) →
+   criação do romaneio (GWN_DTIMPL) nas notas de jul–set/2026 (1.226): mediana 4 d.u., p75 6, p90 9, p95 13 → 9 = p90
+   (9 em cada 10 notas têm romaneio até lá). A Logística monta o romaneio só depois da cotação de frete aprovada. */
+const ROT_DU_SEM_ROMANEIO = 9, ROT_PREV_LONGA = 45;   // mesmas réguas em .claude/scripts/informe_uso_dash_log.py
 const ROT_CL = [
-  {k:'GRAVE',   rot:'⚠ Sem romaneio > 7 dias úteis', nivel:'ANOMALIA GRAVE', cls:'grave', cor:'#B3261E', prob:true},
+  {k:'GRAVE',   rot:`⚠ Sem romaneio > ${ROT_DU_SEM_ROMANEIO} dias úteis`, nivel:'ANOMALIA GRAVE', cls:'grave', cor:'#B3261E', prob:true},
   {k:'VENCIDA', rot:'Previsão superada',             nivel:'ANOMALIA',       cls:'anom',  cor:'#D64545', prob:true},
   {k:'SEMPREV', rot:'Roteirizado sem previsão',      nivel:'ANOMALIA',       cls:'anom',  cor:'#E07070', prob:true},
   {k:'LONGA',   rot:'Previsão longa (> 45 dias)',    nivel:'ATENÇÃO',        cls:'aten',  cor:'#E8862A'},
   {k:'OK',      rot:'Previsão em dia',               nivel:'OK',             cls:'ok',    cor:'#2E9E6B'},
-  {k:'AGUARDA', rot:'Sem romaneio até 7 dias úteis', nivel:'',               cls:'nao',   cor:'#C9CFDC'}];
+  {k:'AGUARDA', rot:`Sem romaneio até ${ROT_DU_SEM_ROMANEIO} dias úteis`, nivel:'',               cls:'nao',   cor:'#C9CFDC'}];
 const ROT_POR_K = Object.fromEntries(ROT_CL.map(c => [c.k, c]));
+const NOTA_PRAZO_ROMANEIO = 'Prazo de 9 dias úteis entre a emissão e o romaneio: é o tempo em que 9 de cada 10 notas receberam romaneio no GFE (notas emitidas de jul a set/2026 — 1.226 notas, mediana de 4 dias úteis). Como o romaneio só é montado depois da cotação de frete aprovada, perto do carregamento, a nota não é cobrada antes disso; acima de 9 dias úteis ela está fora do padrão do próprio processo. Dias úteis desconsideram sábado, domingo e feriados nacionais e de Camaçari. O prazo é revisto com a mesma medição.';
 function alertaRot(r){
   const cl = (k, motivo) => ({...ROT_POR_K[k], motivo});
   if(!r.romaneio){
@@ -866,8 +871,9 @@ function pintarRot(){
   $('rotResumo').innerHTML = b.length
     ? `<b>${F.int(prob.length)} de ${F.int(b.length)} notas da fila (${pctTxt(prob.length, b.length)})</b> estão sem previsão de entrega ou com a previsão já superada — ` +
       `<b>${F.curto(somaSaldo(prob))}</b> em aberto (${pctTxt(somaSaldo(prob), totV)} do saldo). Destas, <b>⚠ ${F.int(gr.length)}</b> estão sem romaneio há mais de ` +
-      `${ROT_DU_SEM_ROMANEIO} dias úteis da emissão — <b>anomalia grave</b>.`
+      `${ROT_DU_SEM_ROMANEIO} dias úteis da emissão* — <b>anomalia grave</b>.`
     : 'Sem notas na fila com estes filtros.';
+  $('notaPrazoRom').textContent = '* ' + NOTA_PRAZO_ROMANEIO;
   pintarPrevReal();
 }
 /* realizado: notas ENTREGUES com data de entrega REAL — Financeiro (E1_DTSAIDA), GFE ou última remessa. Fica fora a origem
@@ -928,13 +934,14 @@ function pintarPrevReal(){
     .sort((a, c) => c.prob - a.prob || c.r.n - a.r.n).slice(0, 15);
   const cel = (v, cls) => `<td class="${v ? cls || '' : 'z'}">${v ? F.int(v) : '—'}</td>`;
   $('tPrevTr').innerHTML = rows.length ? `<table class="prtab"><thead><tr><th>Transportadora</th><th>Entregas 90 d</th><th>No prazo</th><th>Atrasadas</th>` +
-      `<th>Atraso médio</th><th>Sem previsão</th><th>Na fila hoje</th><th>Previsão superada</th><th>Roteirizado s/ previsão</th><th>⚠ Sem romaneio &gt; 7 d. úteis</th></tr></thead><tbody>` +
+      `<th>Atraso médio</th><th>Sem previsão</th><th>Na fila hoje</th><th>Previsão superada</th><th>Roteirizado s/ previsão</th><th>⚠ Sem romaneio &gt; ${ROT_DU_SEM_ROMANEIO} d. úteis*</th></tr></thead><tbody>` +
       rows.map(x => `<tr class="${SEL.transportadora === x.nome ? 'sel' : ''}"><td class="nm" data-t="${escA(x.nome)}" title="Filtrar a fila por ${escA(x.nome)}">${escA(x.nome)}</td>` +
         `<td>${F.int(x.r.n)}</td><td>${x.r.comPrev ? pctTxt(x.r.noPrazo, x.r.comPrev) : '—'}</td>${cel(x.r.atr.length)}` +
         `<td>${x.r.atr.length ? x.r.atrMed.toFixed(1).replace('.',',') + ' d' : '—'}</td>${cel(x.r.c.SEM || 0)}` +
         `${cel(x.fila)}${cel(x.venc, 'r')}${cel(x.sem, 'r')}${cel(x.grave, 'g')}</tr>`).join('') + `</tbody></table>` +
       `<div style="margin-top:8px;font-size:12px;color:var(--cinza)">15 transportadoras com mais notas problemáticas na fila (sem previsão, previsão superada ou sem romaneio) e, depois, mais entregas.</div>`
     : '<div class="vazio">Sem dados com estes filtros.</div>';
+  if(rows.length) $('tPrevTr').insertAdjacentHTML('beforeend', `<div style="margin-top:4px;font-size:12px;color:var(--cinza)">* ${NOTA_PRAZO_ROMANEIO}</div>`);
   $('tPrevTr').querySelectorAll('td.nm').forEach(td => td.onclick = () => selAlterna('transportadora', td.dataset.t, td.dataset.t));
 }
 function selDefine(pares){                      // vários filtros de uma vez (responsável + status)
