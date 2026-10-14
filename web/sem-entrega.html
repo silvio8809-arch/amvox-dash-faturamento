@@ -97,7 +97,7 @@
   .stl.semprazo{background:#EEF1F6;color:var(--cinza)} .stl.semplano{background:#fff;color:var(--cinza);border:1px dashed #C9CFDC}
   /* status da roteirização — romaneio do GFE (Logística via Silvio 14/10/2026, migração 011) */
   .rot{display:inline-block;padding:3px 9px;border-radius:99px;font:600 11px var(--texto);white-space:nowrap}
-  .rot.prev{background:#E3F4EA;color:#14603F} .rot.semprev{background:#FFF4DB;color:#8A5B00}
+  .rot.ok{background:#E3F4EA;color:#14603F} .rot.aten{background:#FFE9D1;color:#A14A00} .rot.anom{background:#FBE4E4;color:var(--vermelho)}
   .rot.nao{background:#fff;color:var(--cinza);border:1px dashed #C9CFDC}
   .cards6{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
   .cards6 .kpi{padding:10px 12px} .cards6 .kpi .v{font-size:24px} .cards6 .kpi .t{font-size:9.5px;letter-spacing:.06em}
@@ -357,23 +357,47 @@ function txtStatus(x){
        : s === 'Vence em até 7 dias' ? `Vence em ${d} d` : s === 'No prazo' ? `No prazo · ${d} d` : s;
 }
 /* STATUS ROTEIRIZAÇÃO (Logística via Silvio 14/10/2026): o romaneio do GFE atrelado à nota (GW1 → GWN),
-   com a previsão de entrega (GWU_DTPENT). NF-mãe de venda à ordem mostra o romaneio da remessa. */
+   com a previsão de entrega (GWU_DTPENT). NF-mãe de venda à ordem mostra o romaneio da remessa.
+   Texto completo (Excel) × abreviado (tela, Silvio 14/10/2026). */
 function txtRot(r){
   if(!r.romaneio) return 'Não roteirizado';
   return r.romaneio_prevista ? `Roteirizado com previsão de entrega ${dataBrIso(r.romaneio_prevista)}` : 'Roteirizado SEM previsão de entrega';
+}
+function txtRotCurto(r){
+  if(!r.romaneio) return 'Não roteirizado';
+  return r.romaneio_prevista ? `Roteirizado c/ Prev. Entrg. ${dataBrIso(r.romaneio_prevista)}` : 'Roteirizado S/ Prev. Entrg. ??/??/??';
+}
+/* ALERTA DA ROTEIRIZAÇÃO (Silvio 14/10/2026): verde = OK · laranja = atenção · vermelho = anomalia.
+   Réguas medidas na fila de 14/10 (previsão − emissão: mediana 30 d, 90% até 38 d):
+     vermelho  previsão vencida · não roteirizado há mais de 7 dias (faixa "cobrar transportadora" em diante)
+     laranja   previsão longa (mais de 45 dias depois da emissão) · roteirizado sem previsão
+     verde     roteirizado com previsão dentro da régua
+     neutro    não roteirizado até 7 dias (fluxo normal) */
+const ROT_DIAS_SEM_ROMANEIO = 7, ROT_PREV_LONGA = 45;
+function alertaRot(r){
+  if(!r.romaneio)
+    return (r.dias_sem_entrega || 0) > ROT_DIAS_SEM_ROMANEIO
+      ? {cls:'anom', nivel:'ANOMALIA', motivo:`sem romaneio há ${r.dias_sem_entrega} dias da emissão (régua: até ${ROT_DIAS_SEM_ROMANEIO})`}
+      : {cls:'nao', nivel:'', motivo:''};
+  if(!r.romaneio_prevista) return {cls:'aten', nivel:'ATENÇÃO', motivo:'roteirizado sem previsão de entrega no GFE'};
+  const d = diasAte(r.romaneio_prevista);
+  if(d < 0) return {cls:'anom', nivel:'ANOMALIA', motivo:`previsão vencida há ${-d} ${-d === 1 ? 'dia' : 'dias'}`};
+  const lead = Math.round((new Date(r.romaneio_prevista + 'T00:00:00') - new Date(r.emissao + 'T00:00:00')) / 864e5);
+  if(lead > ROT_PREV_LONGA) return {cls:'aten', nivel:'ATENÇÃO', motivo:`previsão longa: ${lead} dias depois da emissão (régua: até ${ROT_PREV_LONGA})`};
+  return {cls:'ok', nivel:'OK', motivo:''};
 }
 /* chave de ordenação: com previsão (pela data) › sem previsão › não roteirizado — sempre TEXTO (a grade compara número
    com número e texto com texto; '0'/'1' virariam número e embaralhariam a ordem) */
 const ordRot = r => !r.romaneio ? 'a' : r.romaneio_prevista ? 'c' + r.romaneio_prevista : 'b';
 function dicaRot(r){
-  if(!r.romaneio) return 'Nenhum romaneio no GFE para esta nota';
+  const a = alertaRot(r), al = a.motivo ? `${a.nivel}: ${a.motivo}\n` : '';
+  if(!r.romaneio) return al + 'Nenhum romaneio no GFE para esta nota';
   const sai = r.romaneio_saida ? ` · saída ${dataBrIso(r.romaneio_saida.slice(0,10))}${r.romaneio_saida.length > 10 ? ' ' + r.romaneio_saida.slice(11,16) : ''}` : '';
-  return `Romaneio ${r.romaneio}${r.romaneio_situacao ? ' · ' + r.romaneio_situacao : ''}${sai}${r.romaneio_origem ? ' · pela ' + r.romaneio_origem : ''}`;
+  return al + `Romaneio ${r.romaneio}${r.romaneio_situacao ? ' · ' + r.romaneio_situacao : ''}${sai}${r.romaneio_origem ? ' · pela ' + r.romaneio_origem : ''}`;
 }
 function celRot(r){
   if(!('romaneio' in r)) return indisp('011_roteirizacao.sql');
-  const cls = !r.romaneio ? 'nao' : r.romaneio_prevista ? 'prev' : 'semprev';
-  return `<span class="rot ${cls}" title="${escA(dicaRot(r))}">${txtRot(r)}</span>`;
+  return `<span class="rot ${alertaRot(r).cls}" title="${escA(dicaRot(r))}">${txtRotCurto(r)}</span>`;
 }
 function celStatus(r){
   if(!JUST.ok || !JUST.v008) return indisp('008_plano_responsavel_prazo.sql');
@@ -1108,6 +1132,8 @@ iniciarPagina(async () => {
      {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS SEM ENTREGA',k:'dias_sem_entrega',w:17},
      {t:'FAIXA',w:16,val:r => (FX_POR_K[fxDe(r)] || {}).rot || ''},
      {t:'STATUS ROTEIRIZAÇÃO',w:40,val:r => 'romaneio' in r ? txtRot(r) : ''},
+     {t:'ALERTA ROTEIRIZAÇÃO',w:16,val:r => 'romaneio' in r ? alertaRot(r).nivel : ''},
+     {t:'MOTIVO DO ALERTA',w:44,val:r => 'romaneio' in r ? alertaRot(r).motivo : ''},
      {t:'ROMANEIO',w:12,val:r => r.romaneio ? r.romaneio + (r.romaneio_origem ? ' (' + r.romaneio_origem + ')' : '') : ''},
      {t:'PLANO DE AÇÃO · JUSTIFICATIVA',w:44,val:r => temJust(r) ? rotJust(r) : ''},
      {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
