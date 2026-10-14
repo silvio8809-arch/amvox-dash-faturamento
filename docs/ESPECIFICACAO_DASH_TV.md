@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.17** · 14/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.18** · 14/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -137,11 +137,16 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   **ROMANEIO**. Mesma leitura do SFA (NF 000280444: romaneio 00088932, saída 13/10 14:28, previsão 14/10). Migração 011.
   - **Na tela, texto abreviado** (Silvio 14/10/2026): *Roteirizado c/ Prev. Entrg. dd/mm/aaaa* · *Roteirizado S/ Prev.
     Entrg. ??/??/??* · *Não roteirizado*.
-  - **Cor = alerta** (Silvio 14/10/2026): **verde = OK** · **laranja = atenção** · **vermelho = anomalia**. Vermelho:
-    previsão vencida, ou nota sem romaneio há mais de 7 dias da emissão. Laranja: previsão longa (mais de 45 dias
-    depois da emissão — na fila de 14/10 a mediana era 30 dias e 90% ficavam até 38) ou roteirizada sem previsão.
-    Verde: previsão dentro da régua. Sem cor (contorno tracejado): sem romaneio até 7 dias — fluxo normal. O motivo do
-    alerta aparece ao passar o mouse.
+  - **Cor = alerta** (Silvio 14/10/2026): **verde = OK** · **laranja = atenção** · **vermelho = anomalia**. *"Pior que ter
+    uma entrega demorada é não ter qualquer previsão de entrega, ou ter uma previsão já frustrada."*
+    - **⚠ Anomalia grave** — nota **sem romaneio emitida há mais de 7 dias úteis** (dias úteis = sem sábado, domingo e
+      feriado nacional ou de Camaçari, o mesmo calendário das rotinas): fundo vermelho cheio, símbolo ⚠ e moldura dupla.
+    - **Anomalia (vermelho)** — **previsão superada** (a data já passou) ou **roteirizado sem previsão**. Previsão
+      anterior à emissão é erro de digitação no GFE e vale como *sem previsão*.
+    - **Atenção (laranja)** — **previsão longa**: mais de 45 dias depois da emissão (na fila de 14/10 a mediana era 30
+      dias e 90% ficavam até 38).
+    - **OK (verde)** — previsão dentro da régua. **Sem cor** (contorno tracejado) — sem romaneio até 7 dias úteis.
+    - O motivo aparece ao passar o mouse.
 - **Status da linha** (Silvio 02/10/2026) — cada nota da fila mostra o status do plano em função do prazo: **Vencido há N d** · **Vence hoje** · **Vence em N d** (até 7 dias) · **No prazo** (mais de 7 dias) · **Sem prazo** (há plano, falta a data) · **Sem plano** (nada informado). A coluna ordena do mais urgente para o menos urgente e muda na hora em que o prazo é gravado. Acima da grade, 6 cards de status (card = filtro). O Excel leva **STATUS DO PLANO** (todas as linhas) e **DIAS P/ O PRAZO** (negativo = vencido).
     hoje*, *vence em N dias* ou *em N dias*.
   - **Observações** — texto livre: o que está sendo feito, com quem, próximo passo. Pode ser registrada
@@ -190,6 +195,20 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
   Devoluções (cards de total e o de origem da devolução), Top clientes (top 10 · maior cliente · top 3), Região × linha
   (linha e região dominantes viram seleção cruzada; os cards de total limpam) e Auditoria (o card de ocorrências limpa o
   filtro de teste). Card que já é o total da tela não filtra — limpa.
+- **Previsão de entrega no Dash** (Silvio 14/10/2026), logo abaixo dos cards de faixa:
+  - **Resumo em destaque**: quantas notas da fila (e quanto saldo) estão **sem previsão ou com previsão superada** — o
+    problema real da fila —, e quantas delas são anomalia grave.
+  - **6 cards** (card = filtro da fila): ⚠ sem romaneio > 7 dias úteis · previsão superada · roteirizado sem previsão ·
+    previsão longa · previsão em dia · sem romaneio até 7 dias úteis. Cada um com notas, % das notas, saldo e % do saldo.
+  - **Previsto × realizado — entregas por mês** (últimos 6 meses, pelo mês da entrega): barra com a composição do mês —
+    no prazo (entregue até a previsão) · atraso 1–3 · 4–10 · mais de 10 dias · entregue sem previsão · previsão inválida —,
+    com total de entregas, **% no prazo** (sobre as entregas que tinham previsão), atraso médio das atrasadas e % sem
+    previsão. **Só entra data de entrega real** (Financeiro, GFE ou remessa): a nota quitada sem data de entrega fica fora,
+    porque a data é a do pagamento (chegava a 400 dias de "atraso"). Previsão anterior à emissão (erro do GFE, ex.: 1973)
+    fica fora do % e do atraso. Segue os filtros de UF, transportadora, cliente e NF.
+  - **Previsto × realizado por transportadora**: entregas dos últimos 90 dias (no prazo, atrasadas, atraso médio, sem
+    previsão) lado a lado com a fila de hoje (previsão superada, roteirizado sem previsão, ⚠ sem romaneio > 7 dias
+    úteis). As 15 com mais notas problemáticas; clique no nome filtra a fila.
 - **Painel de pendências do plano de ação no Dash** (Silvio 02 e 05/10/2026): cards de status; quadro **Pendências por responsável** (notas, saldo e % do saldo, quantidade por status, maior atraso, próximo prazo — clique no nome filtra o responsável; num número, responsável + status); gráficos **Status do plano por faixa de dias** e **por responsável** (barras empilhadas por status; "sem responsável" em linha de resumo), **Agenda de prazos** (vencidos + cada dia dos próximos 14) e **Atividade no plano de ação** (notas com plano incluído/alterado/anexado por dia, últimos 30 dias, a partir do histórico imutável). Cores = estado do prazo (vermelho vencido · laranja hoje · amarelo até 7 dias · verde no prazo · cinza sem prazo · cinza-claro sem plano), sempre com legenda e rótulo.
 
 ## 8. Venda à ordem
@@ -398,5 +417,6 @@ Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não defin
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.18 | 14/10/2026 | Previsão de entrega no Dash: resumo "sem previsão ou previsão superada", 6 cards-filtro, previsto × realizado por mês e por transportadora (só entrega real; previsão anterior à emissão = inválida); anomalia grave = sem romaneio > 7 dias úteis (⚠ + moldura); roteirizado sem previsão passa a vermelho (seções 7.1 e 7.3) | Silvio Amaral |
 | 1.17 | 14/10/2026 | Status roteirização: texto abreviado na tela e cor por alerta (verde OK · laranja atenção: previsão > 45 dias da emissão ou sem previsão · vermelho anomalia: previsão vencida ou sem romaneio > 7 dias); Excel com alerta e motivo (seção 7.1) | Silvio Amaral |
 | 1.16 | 14/10/2026 | Coluna **Status roteirização** no início do plano de ação: romaneio do GFE (GW1 → GWN) + previsão (GWU_DTPENT); NF-mãe de venda à ordem pelo romaneio da remessa; Excel com STATUS ROTEIRIZAÇÃO e ROMANEIO (seção 7.1, migração 011) | Silvio Amaral |
