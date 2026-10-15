@@ -83,6 +83,13 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 .rod{margin-top:auto;padding-top:14px;display:flex;align-items:center;justify-content:space-between;
   border-top:1px solid var(--linha);color:var(--cinza);font-size:12.5px}
 .rod a{color:var(--navy);font-weight:600;text-decoration:none}
+/* "Ver detalhes" no TOPO do card (Silvio 14/10/2026): o link sai do rodapé e fica no canto superior direito */
+.bloco{position:relative}
+.rod a{position:absolute;top:20px;right:26px;padding:6px 12px;border:1px solid var(--borda);border-radius:99px;
+  background:var(--card);font-size:12.5px;white-space:nowrap}
+.rod a:hover{border-color:var(--laranja)}
+.rod span:only-child,.rod span{flex:1}
+.bloco .corpo > :first-child{padding-right:170px}
 .corpo{display:flex;flex-direction:column;min-height:0}
 /* barras diárias */
 .barras{display:flex;align-items:flex-end;gap:5px;height:104px;margin-top:16px;position:relative}
