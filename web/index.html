@@ -164,6 +164,7 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
   <div style="margin-left:26px"><div class="rotmes">Competência</div><select id="mesSel"></select></div>
   <a class="atalho" href="regiao-linha.html">Região × linha →</a>
   <a class="atalho" href="auditoria.html" style="margin-left:10px" title="Auditoria LOG e FAT — ocorrências da última carga">Auditoria <span class="qt" id="audQt"></span> →</a>
+  <a class="atalho" href="protocolos.html" id="atProt" style="margin-left:10px;display:none" title="Central de protocolos de notas LIBERADAS PARA EXPEDIÇÃO">Protocolos →</a>
   <div class="dir">
     Última atualização: <b id="atualizado">—</b><br>
     <span id="proxima"></span>
@@ -520,5 +521,10 @@ SB.auth.onAuthStateChange((evento, sessao) => {
 iniciar();
 setInterval(iniciar, 5*60*1000);          // refaz a leitura a cada 5 min
 setInterval(()=>location.reload(), 60*60*1000);  // recarrega a página de hora em hora
+</script>
+<script>
+/* aba Protocolos (Silvio 20/10/2026): o atalho só aparece para quem o banco libera (na homologação, Controladoria e Faturamento) */
+const _atProt = () => SB.rpc('prot_pode_ver').then(r => { document.getElementById('atProt').style.display = r && r.data ? '' : 'none'; }, () => {});
+SB.auth.onAuthStateChange((ev, ses) => { if(ses) setTimeout(_atProt, 0); });
 </script>
 </body></html>

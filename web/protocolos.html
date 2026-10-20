@@ -1,0 +1,139 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX — Protocolos de expedição</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="painel.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .homolog{margin:0 0 12px;padding:9px 14px;border-radius:8px;background:#FFF4DB;color:#7A5200;font-size:13.5px;border:1px solid #F1D58F}
+  .cie-ok{color:#14603F;font-weight:600}
+  .cie-atraso{color:#B42318;font-weight:700}
+  .btpdf{border:1px solid #d9dbe3;background:#fff;border-radius:6px;cursor:pointer;font-size:15px;padding:3px 7px}
+  .btpdf:hover{border-color:#d03b3b}
+  #detalhe h4{margin:0 0 8px}
+  .hist{font-size:12.5px;color:#5B6478;margin-top:8px}
+</style>
+</head><body>
+<header>
+  <a class="voltar" href="index.html">← Painel</a>
+  <div class="ic">PR</div><h1>Protocolos de expedição</h1>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Notas LIBERADAS PARA EXPEDIÇÃO pelo Faturamento</span></div>
+</header>
+<div class="filtros">
+  <div class="campo"><label>Período</label><select id="fPer">
+    <option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="">Todos</option></select></div>
+  <div class="campo"><label>NF</label><input id="fNF" inputmode="numeric" placeholder="nº da nota…" style="width:130px" title="Mostra em que protocolo a NF foi liberada"></div>
+  <div class="campo" style="min-width:210px"><label>Cliente</label><input id="fCli" placeholder="parte do nome…"></div>
+  <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button></div>
+</div>
+<main>
+  <div class="homolog" id="homolog" style="display:none"></div>
+  <div class="cards" id="cards"></div>
+  <div class="painel"><h2>Protocolos enviados <span id="tSub">clique no protocolo para ver as notas</span></h2><div id="tabela"></div></div>
+  <div class="painel" id="detalhe" style="display:none"><h2 id="dTit"></h2><div class="corpo"><div id="dTab"></div><div class="hist" id="dHist"></div></div></div>
+</main>
+<div id="erro"></div>
+<script src="painel.js"></script>
+<script>
+/* PROTOCOLO ON-LINE (Silvio 20/10/2026, etapa 1): central dos protocolos de notas LIBERADAS PARA EXPEDIÇÃO + ciência.
+   Regras (garantidas no banco — funções prot_*): só aparece o que o Faturamento JÁ liberou (protocolo enviado); nota
+   cancelada ou devolvida depois NÃO aparece; na homologação a aba só abre para Controladoria e Faturamento. */
+let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, PARAM_H = 2, PROT_SEL = null;
+const fHora = v => v ? new Date(v).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+const quem = e => String(e || '').split('@')[0];
+/* ciência começa a valer com a central no ar (21/10/2026): protocolo anterior não tinha onde dar ciência — não alarma */
+const CIENCIA_DESDE = '2026-10-21';
+const exigeCiencia = p => p.data >= CIENCIA_DESDE;
+const semCiencia = p => exigeCiencia(p) && !p.ciencia_em && p.horas_sem_ciencia !== null && +p.horas_sem_ciencia > PARAM_H;
+const ROT_ST = {ENTREGUE:'Entregue', EM_TRANSITO:'Em trânsito / a expedir'};
+function celCiencia(p){
+  if(!p.ciencia_em && !exigeCiencia(p)) return '<span class="nota" title="Enviado antes da central on-line existir">— anterior à central</span>';
+  if(p.ciencia_em) return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">${fHora(p.ciencia_em)}</div>`;
+  const h = +p.horas_sem_ciencia || 0;
+  return `<button class="bt" data-cie="${esc(p.numero)}" title="Registra que você recebeu e leu este protocolo">Dar ciência</button>` +
+    `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>`;
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COLS = [
+  {k:'numero', t:'Protocolo', esq:true, cls:'forte'},
+  {k:'enviado_em', t:'Enviado em', fmt:fHora},
+  {k:'tipo', t:'Tipo', html:p => `<span class="et ${p.tipo === 'MANUAL' ? 'et-tra' : 'et-ent'}">${p.tipo === 'MANUAL' ? 'Complementar' : 'Automático'}</span>`},
+  {k:'gerado_por', t:'Gerado por', esq:true, fmt:v => esc(String(v || '—').includes('@') ? quem(v) : v || '—')},
+  {k:'nfs', t:'Notas', html:p => F.int(p.nfs) + (EMISSOR && +p.ocultas ? `<div class="nota" title="Canceladas ou devolvidas depois da liberação — não aparecem na aba">${p.ocultas} oculta(s)</div>` : '')},
+  {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
+  {k:'ciencia_em', t:'Ciência', html:celCiencia},
+  {k:'pdf_path', t:'PDF', html:p => p.pdf_path ? `<button class="btpdf" data-pdf="${esc(p.pdf_path)}" title="Baixar o PDF do protocolo (como foi enviado)">📄</button>` : '—'},
+];
+async function notasDe(numero){
+  if(!NOTAS[numero]){ const r = await SB.rpc('prot_notas', {p_numero: numero}); if(r.error) throw r.error; NOTAS[numero] = r.data || []; }
+  return NOTAS[numero];
+}
+async function todasNotas(lista){
+  for(let i = 0; i < lista.length; i += 10) await Promise.all(lista.slice(i, i + 10).map(p => notasDe(p.numero)));
+}
+function filtrar(){
+  const dias = $('fPer').value, nf = termoNF(), cli = $('fCli').value.trim().toLowerCase();
+  const corte = dias ? new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10) : '';
+  return PROTS.filter(p => (!corte || nf || p.data >= corte) &&
+    (!nf || (NOTAS[p.numero] || []).some(n => casaNF(nf, n.doc))) &&
+    (!cli || (NOTAS[p.numero] || []).some(n => (n.cliente || '').toLowerCase().includes(cli))));
+}
+async function pintar(){
+  if((termoNF() || $('fCli').value.trim())) await todasNotas(PROTS);
+  const l = filtrar(), tot = l.reduce((s, p) => s + +p.valor, 0), nfs = l.reduce((s, p) => s + +p.nfs, 0);
+  const sem = l.filter(p => exigeCiencia(p) && !p.ciencia_em), atraso = l.filter(semCiencia);
+  kpis('cards', [
+    {titulo:'Protocolos enviados', valor:F.int(l.length), nota:`${F.int(l.filter(p => p.tipo === 'MANUAL').length)} complementar(es)`},
+    {titulo:'Notas liberadas', valor:F.int(nfs), nota:F.curto(tot) + ' com IPI'},
+    {titulo:'Aguardando ciência', valor:F.int(sem.length), nota:F.curto(sem.reduce((s, p) => s + +p.valor, 0)) + ` · ${l.filter(exigeCiencia).length ? Math.round(100 * sem.length / l.filter(exigeCiencia).length) : 0}% dos protocolos desde 21/10`},
+    {titulo:`Sem ciência há mais de ${PARAM_H} h`, valor:F.int(atraso.length), alerta:atraso.length > 0, nota:F.curto(atraso.reduce((s, p) => s + +p.valor, 0))},
+  ]);
+  cardsClicaveis('cards', ['', '', 'SEM', 'ATRASO'], CARD, (k, sel) => { CARD = (k === '' || sel) ? '' : k; pintar(); });
+  const lv = CARD === 'SEM' ? l.filter(p => exigeCiencia(p) && !p.ciencia_em) : CARD === 'ATRASO' ? l.filter(semCiencia) : l;
+  $('tSub').textContent = `${F.int(lv.length)} protocolo(s) · ${F.int(lv.reduce((s, p) => s + +p.nfs, 0))} notas · clique no protocolo para ver as notas`;
+  const cfg = {alvo:'tabela', colunas:COLS, linhas:lv, ordem:'numero', porPagina:25, aoClicar:p => abreDetalhe(p.numero), aoPintar:liga};
+  TAB ? TAB.dados(lv) : (TAB = new Tabela(cfg));
+}
+function liga(raiz){
+  raiz.querySelectorAll('[data-cie]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); b.disabled = true;
+    const r = await SB.rpc('prot_dar_ciencia', {p_numero: b.dataset.cie});
+    if(r.error){ alert('Não foi possível registrar a ciência: ' + r.error.message); b.disabled = false; return; }
+    await carrega(); pintar(); if(PROT_SEL === b.dataset.cie) abreDetalhe(PROT_SEL); });
+  raiz.querySelectorAll('[data-pdf]').forEach(b => b.onclick = async ev => { ev.stopPropagation();
+    const r = await SB.storage.from('prot-pdf').createSignedUrl(b.dataset.pdf, 120, {download: true});
+    if(r.error) return alert('Não foi possível abrir o PDF: ' + r.error.message);
+    location.href = r.data.signedUrl; });
+}
+async function abreDetalhe(numero){
+  PROT_SEL = numero; const p = PROTS.find(x => x.numero === numero); if(!p) return;
+  const [l, h] = await Promise.all([notasDe(numero), SB.rpc('prot_historico', {p_numero: numero})]);
+  $('detalhe').style.display = '';
+  $('dTit').innerHTML = `${esc(numero)} <span>enviado em ${fHora(p.enviado_em)} · ${F.int(l.length)} nota(s) · ${F.moeda(l.reduce((s, n) => s + +n.valor, 0))}</span>`;
+  new Tabela({alvo:'dTab', linhas:l, ordem:'emissao', desc:false, porPagina:100, colunas:[
+    {k:'doc', t:'NF', esq:true, cls:'forte', fmt:v => esc(String(v).replace(/^0+/, ''))},
+    {k:'emissao', t:'Emissão', fmt:F.data},
+    {k:'cliente', t:'Cliente', esq:true, fmt:esc}, {k:'uf', t:'UF', fmt:v => esc(v || '—')},
+    {k:'depositos', t:'Dep.', fmt:v => esc(v || '—')}, {k:'tipo', t:'Tipo'},
+    {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
+    {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
+        : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
+    {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
+  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência' : e.acao === 'ENVIO' ? 'envio' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
+  $('dHist').innerHTML = ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '';
+  $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function carrega(){
+  const r = await SB.rpc('prot_lista', {p_desde: null}); if(r.error) throw r.error;
+  PROTS = (r.data || []).map(p => ({...p, nfs:+p.nfs, valor:+p.valor}));
+}
+iniciarPagina(async () => {
+  const [e] = await Promise.all([SB.rpc('prot_e_emissor'), carrega()]);
+  EMISSOR = !!e.data;
+  if(!PROTS.length && !EMISSOR){ $('tabela').innerHTML = '<div class="vazio">A central de protocolos ainda não foi liberada para o seu acesso.</div>'; return; }
+  if(EMISSOR){ $('homolog').style.display = '';
+    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística (após 03/11/2026): as notificações vão só ao time <b>Fiscal</b> e esta aba só abre para Controladoria e Faturamento. Notas canceladas ou devolvidas depois da liberação não aparecem aqui.'; }
+  $('bAplicar').onclick = pintar; $('fPer').onchange = pintar;
+  ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') pintar(); }));
+  await pintar();
+});
+</script></body></html>
