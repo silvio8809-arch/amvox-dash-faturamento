@@ -34,6 +34,8 @@
     <div class="cards" id="cardsAp"></div>
     <div class="painel"><h2>Notas aptas a liberar <span id="apSub">autorizadas e ainda sem protocolo · só Controladoria e Faturamento veem</span></h2>
       <div class="corpo" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:0">
+        <button class="bt" id="bAtuAp" title="Relê as notas autorizadas no TOTVS agora, sem esperar a próxima carga do dash (que é de hora em hora)">↻ Atualizar aptas agora</button>
+        <span class="nota" id="atuMsg"></span>
         <button class="bt" id="bTodas">Marcar / desmarcar todas as aptas</button>
         <button class="bt pri" id="bGerar" disabled>Gerar protocolo complementar</button>
         <label class="nota">Enviar: <select id="fQuando"><option value="">na próxima rodada (até 30 min)</option><option value="H">agendar para…</option></select></label>
@@ -163,7 +165,7 @@ function pintaEmissor(){
   cardsClicaveis('cardsAp', ['', 'RET', 'FILA', 'SEL'], CARD_AP, (k, sel) => { CARD_AP = (k === '' || sel) ? '' : k; pintaEmissor(); });
   const lv = CARD_AP === 'RET' ? ret : CARD_AP === 'FILA' ? fila : CARD_AP === 'SEL' ? APTAS.filter(x => MARC.has(chN(x))) : APTAS;
   const at = APTAS[0] && APTAS[0].atualizado_em;
-  $('apSub').innerHTML = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))}${nSuf(lv) ? ` · <b class="cli-suf">${F.int(nSuf(lv))} SUFRAMA</b>` : ''} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash) · só Controladoria e Faturamento veem`;
+  $('apSub').innerHTML = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))}${nSuf(lv) ? ` · <b class="cli-suf">${F.int(nSuf(lv))} SUFRAMA</b>` : ''} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash ou pelo botão ↻) · só Controladoria e Faturamento veem`;
   const cols = [
     {k:'_sel', t:'✓', html:x => x.situacao === 'APTA' && !x.pedido
        ? `<input type="checkbox" data-k="${esc(chN(x))}" ${MARC.has(chN(x)) ? 'checked' : ''}>` : ''},
@@ -210,6 +212,31 @@ async function gerar(){
   $('apMsg').textContent = `✅ Pedido nº ${r.data.id} na fila (${r.data.notas} nota(s)). O protocolo sai ${ag ? 'no horário agendado' : 'na próxima rodada'}; acompanhe abaixo.`;
   MARC.clear(); await carregaEmissor(); pintaEmissor();
 }
+/* botão "Atualizar aptas agora" (Silvio 20/10/2026, migração 016): grava o pedido; a rotina do Mac atende na próxima rodada
+   da fila (a cada 30 min, dias úteis 09h–17h) e relê as aptas no TOTVS. A tela confere a cada minuto e, quando o pedido
+   termina, recarrega o quadro sozinha (mantém as notas marcadas). Antes da 016 o botão fica escondido. */
+let _apPend = false;
+async function pintaAtuAptas(){
+  const r = await SB.rpc('prot_aptas_situacao');
+  if(r.error){ $('bAtuAp').style.display = 'none'; $('atuMsg').textContent = ''; return; }
+  const s = r.data, pend = !!s && ['PENDENTE', 'RODANDO'].includes(s.status);
+  $('bAtuAp').disabled = pend;
+  $('atuMsg').innerHTML = !s ? '' : pend
+    ? (s.status === 'RODANDO' ? '⏳ atualizando as aptas agora…'
+       : `⏳ pedido de ${esc(quem(s.pedido_por))} às ${fHora(s.pedido_em).slice(-5)} — sai na próxima rodada (até 30 min, dias úteis 09h–17h)`)
+      + (s.mensagem ? ` · <b>${esc(s.mensagem)}</b>` : '')
+    : s.status === 'OK' ? `✓ atualizado a pedido em ${fHora(s.concluido_em)}` : '';
+  if(_apPend && !pend){ await carregaEmissor(); pintaEmissor(); }
+  _apPend = pend;
+  clearTimeout(window._tAp);
+  if(pend) window._tAp = setTimeout(pintaAtuAptas, 60000);
+}
+async function pedirAptas(){
+  $('bAtuAp').disabled = true;
+  const r = await SB.rpc('prot_pedir_aptas');
+  if(r.error){ alert('Não foi possível pedir a atualização: ' + r.error.message); $('bAtuAp').disabled = false; return; }
+  await pintaAtuAptas();
+}
 async function carrega(){
   const r = await SB.rpc('prot_lista', {p_desde: null}); if(r.error) throw r.error;
   PROTS = (r.data || []).map(p => ({...p, nfs:+p.nfs, valor:+p.valor}));
@@ -218,7 +245,8 @@ iniciarPagina(async () => {
   const [e] = await Promise.all([SB.rpc('prot_e_emissor'), carrega()]);
   EMISSOR = !!e.data;
   if(!PROTS.length && !EMISSOR){ $('tabela').innerHTML = '<div class="vazio">A central de protocolos ainda não foi liberada para o seu acesso.</div>'; return; }
-  if(EMISSOR){ $('blocoEmissor').style.display = ''; await carregaEmissor(); pintaEmissor();
+  if(EMISSOR){ $('blocoEmissor').style.display = ''; $('bAtuAp').onclick = pedirAptas;   // ligado já: o botão aparece antes do quadro carregar
+    await carregaEmissor(); pintaEmissor(); pintaAtuAptas();
     $('bGerar').onclick = gerar; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
     window.telaOcupada = () => MARC.size > 0; }
   if(EMISSOR){ $('homolog').style.display = '';
