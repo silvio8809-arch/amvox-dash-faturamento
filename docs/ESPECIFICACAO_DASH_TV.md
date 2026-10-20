@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.22** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.23** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -406,6 +406,7 @@ complementar sob demanda).
 | Quem vê a aba | **Homologação:** só Controladoria (papel ADM) e Faturamento (lista PROT_EMISSORES). A partir de **03/11/2026** (ABA_LIBERA_EM) a aba abre sozinha para todo usuário do Dash — e a LOG continua vendo só os protocolos enviados |
 | Ciência | Botão "Dar ciência" grava usuário e hora (vale a 1ª; todas ficam no histórico imutável). Alerta: sem ciência há mais de 2 h (CIENCIA_HORAS). Protocolos anteriores a 21/10/2026 = "anterior à central" (sem alerta) |
 | PDF | O mesmo PDF enviado, em pasta privada (prot-pdf) |
+| Venda para área de SUFRAMA | Nota de cliente com **inscrição SUFRAMA no cadastro** (SA1.A1_SUFRAMA) sai **em vermelho** com a etiqueta SUFRAMA — no quadro de aptas, no detalhe do protocolo e no PDF enviado (linha vermelha + legenda com a quantidade). Critério escolhido por cobrir 100% das notas com tabela 227/228/229 e das com desconto ZF na nota (teste de 120 dias: 41 notas; a tabela do pedido sozinha perderia 10). Sugestão do Faturamento, 20/10/2026 |
 | Situação logística | A de cada nota no próprio dash (entregue com data · em trânsito/a expedir) e a transportadora |
 | Envio | Protocolo automático: 1 por dia útil às 09h. Complementares só sob demanda (abaixo). Até 02/11/2026: e-mails só para fiscal@ + fiscal4@; a partir de **03/11/2026** (DESTINO_LIBERA_EM) também para o time LOG. O alerta de canceladas/devolvidas fica só no Fiscal |
 | Notas aptas a liberar | Só Controladoria e Faturamento veem: notas autorizadas e ainda sem protocolo, atualizadas a cada carga do dash (prot_apta). Cards Aptas · Retidas · Em pedido na fila · Selecionadas (todos filtram a grade) |
@@ -445,6 +446,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.23 | 20/10/2026 | Aba **Protocolos**: venda para **área de SUFRAMA em vermelho** (cliente com inscrição SUFRAMA no cadastro) nas aptas, no detalhe e no PDF do protocolo — sugestão do Faturamento (seção 15-A) | Silvio Amaral |
 | 1.22 | 20/10/2026 | Aba **Protocolos**, etapas 2 e 3: quadro de notas aptas (só Controladoria e Faturamento), retenção automática de bonificação sem faturamento do grupo, protocolo complementar sob demanda pela fila (agendável, cancelável), cliente pela razão social; aba e envio ao time LOG liberados automaticamente em 03/11/2026 (seção 15-A) | Silvio Amaral |
 | 1.21 | 20/10/2026 | Aba **Protocolos** (central on-line dos protocolos de expedição, etapa 1): só notas já liberadas; cancelada/devolvida não aparece; ciência da LOG com histórico; homologação = aba só para Controladoria e Faturamento e e-mails só ao Fiscal; protocolo automático às 09h (seção 15-A) | Silvio Amaral |
 | 1.20 | 20/10/2026 | Venda à ordem: mãe com **100% remetido** fica com a data da última remessa (entrega no GFE ou, sem ela, a emissão da remessa — fonte "Emissão da última remessa"), na frente do Financeiro; situação Concluída e Entregue = Σ remessas; fora do realizado do previsto × realizado (caso QCOMPRA 280558: FIN 02/10 × remessa 280674 de 05/10) (seção 8) | Silvio Amaral |

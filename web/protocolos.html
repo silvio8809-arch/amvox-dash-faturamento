@@ -12,6 +12,8 @@
   .btpdf:hover{border-color:#d03b3b}
   #detalhe h4{margin:0 0 8px}
   .hist{font-size:12.5px;color:#5B6478;margin-top:8px}
+  .cli-suf{color:#B42318;font-weight:700}
+  .suf{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:4px;background:#B42318;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.3px;vertical-align:1px}
 </style>
 </head><body>
 <header>
@@ -67,6 +69,10 @@ function celCiencia(p){
     `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>`;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* VENDA PARA ÁREA DE SUFRAMA em vermelho (sugestão do Faturamento, Silvio 20/10/2026): cliente com inscrição SUFRAMA no
+   cadastro (SA1.A1_SUFRAMA → cli_cadastro.suframa, migração 014) — cobre as tabelas 227/228/229 e as notas com desconto ZF */
+const cliSuf = x => x.suframa ? `<span class="cli-suf">${esc(x.cliente)}</span><span class="suf" title="Cliente com inscrição SUFRAMA nº ${esc(x.suframa)} — venda para área de SUFRAMA (Zona Franca de Manaus / Área de Livre Comércio)">SUFRAMA</span>` : esc(x.cliente);
+const nSuf = l => l.filter(x => x.suframa).length;
 const COLS = [
   {k:'numero', t:'Protocolo', esq:true, cls:'forte'},
   {k:'enviado_em', t:'Enviado em', fmt:fHora},
@@ -121,11 +127,11 @@ async function abreDetalhe(numero){
   PROT_SEL = numero; const p = PROTS.find(x => x.numero === numero); if(!p) return;
   const [l, h] = await Promise.all([notasDe(numero), SB.rpc('prot_historico', {p_numero: numero})]);
   $('detalhe').style.display = '';
-  $('dTit').innerHTML = `${esc(numero)} <span>enviado em ${fHora(p.enviado_em)} · ${F.int(l.length)} nota(s) · ${F.moeda(l.reduce((s, n) => s + +n.valor, 0))}</span>`;
+  $('dTit').innerHTML = `${esc(numero)} <span>enviado em ${fHora(p.enviado_em)} · ${F.int(l.length)} nota(s) · ${F.moeda(l.reduce((s, n) => s + +n.valor, 0))}${nSuf(l) ? ` · <b class="cli-suf">${F.int(nSuf(l))} SUFRAMA</b>` : ''}</span>`;
   new Tabela({alvo:'dTab', linhas:l, ordem:'emissao', desc:false, porPagina:100, colunas:[
     {k:'doc', t:'NF', esq:true, cls:'forte', fmt:v => esc(String(v).replace(/^0+/, ''))},
     {k:'emissao', t:'Emissão', fmt:F.data},
-    {k:'cliente', t:'Cliente', esq:true, fmt:esc}, {k:'uf', t:'UF', fmt:v => esc(v || '—')},
+    {k:'cliente', t:'Cliente', esq:true, html:cliSuf}, {k:'uf', t:'UF', fmt:v => esc(v || '—')},
     {k:'depositos', t:'Dep.', fmt:v => esc(v || '—')}, {k:'tipo', t:'Tipo'},
     {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
     {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
@@ -157,12 +163,12 @@ function pintaEmissor(){
   cardsClicaveis('cardsAp', ['', 'RET', 'FILA', 'SEL'], CARD_AP, (k, sel) => { CARD_AP = (k === '' || sel) ? '' : k; pintaEmissor(); });
   const lv = CARD_AP === 'RET' ? ret : CARD_AP === 'FILA' ? fila : CARD_AP === 'SEL' ? APTAS.filter(x => MARC.has(chN(x))) : APTAS;
   const at = APTAS[0] && APTAS[0].atualizado_em;
-  $('apSub').textContent = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash) · só Controladoria e Faturamento veem`;
+  $('apSub').innerHTML = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))}${nSuf(lv) ? ` · <b class="cli-suf">${F.int(nSuf(lv))} SUFRAMA</b>` : ''} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash) · só Controladoria e Faturamento veem`;
   const cols = [
     {k:'_sel', t:'✓', html:x => x.situacao === 'APTA' && !x.pedido
        ? `<input type="checkbox" data-k="${esc(chN(x))}" ${MARC.has(chN(x)) ? 'checked' : ''}>` : ''},
     {k:'doc', t:'NF', esq:true, cls:'forte', fmt:v => esc(String(v).replace(/^0+/, ''))},
-    {k:'emissao', t:'Emissão', fmt:F.data}, {k:'cliente', t:'Cliente', esq:true, fmt:esc},
+    {k:'emissao', t:'Emissão', fmt:F.data}, {k:'cliente', t:'Cliente', esq:true, html:cliSuf},
     {k:'uf', t:'UF', html:x => esc((x.municipio ? x.municipio + '/' : '') + (x.uf || ''))}, {k:'depositos', t:'Dep.', fmt:v => esc(v || '—')},
     {k:'tipo', t:'Tipo'}, {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
     {k:'situacao', t:'Situação', html:x => x.pedido ? `<span class="et et-tra">No pedido nº ${x.pedido}</span>`
