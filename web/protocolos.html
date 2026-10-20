@@ -28,6 +28,19 @@
 </div>
 <main>
   <div class="homolog" id="homolog" style="display:none"></div>
+  <div id="blocoEmissor" style="display:none">
+    <div class="cards" id="cardsAp"></div>
+    <div class="painel"><h2>Notas aptas a liberar <span id="apSub">autorizadas e ainda sem protocolo · só Controladoria e Faturamento veem</span></h2>
+      <div class="corpo" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:0">
+        <button class="bt" id="bTodas">Marcar / desmarcar todas as aptas</button>
+        <button class="bt pri" id="bGerar" disabled>Gerar protocolo complementar</button>
+        <label class="nota">Enviar: <select id="fQuando"><option value="">na próxima rodada (até 30 min)</option><option value="H">agendar para…</option></select></label>
+        <input type="datetime-local" id="fHora" style="display:none">
+        <span class="nota" id="apMsg"></span>
+      </div>
+      <div id="tabAp"></div></div>
+    <div class="painel" id="filaP" style="display:none"><h2>Protocolos complementares pedidos <span>últimos 30 dias · a rotina processa a fila a cada 30 min nos dias úteis (09h–17h)</span></h2><div id="tabFila"></div></div>
+  </div>
   <div class="cards" id="cards"></div>
   <div class="painel"><h2>Protocolos enviados <span id="tSub">clique no protocolo para ver as notas</span></h2><div id="tabela"></div></div>
   <div class="painel" id="detalhe" style="display:none"><h2 id="dTit"></h2><div class="corpo"><div id="dTab"></div><div class="hist" id="dHist"></div></div></div>
@@ -122,6 +135,75 @@ async function abreDetalhe(numero){
   $('dHist').innerHTML = ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '';
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
 }
+/* ---------------- etapa 2/3 (Silvio 20/10/2026): aptas, retidas e fila de complementares — só emissores */
+let APTAS = [], PEDIDOS = [], CARD_AP = '', TAB_AP, MARC = new Set();
+const chN = n => `${n.filial}|${n.serie}|${n.doc}`;
+const ROT_PED = {PENDENTE:['Na fila','et-tra'], RODANDO:['Gerando…','et-tra'], ENVIADO:['Enviado','et-ent'], ERRO:['Erro','et-dev'], CANCELADO:['Cancelado','et-can']};
+async function carregaEmissor(){
+  const [a, p] = await Promise.all([SB.rpc('prot_aptas'), SB.rpc('prot_pedidos')]);
+  if(a.error) throw a.error; if(p.error) throw p.error;
+  APTAS = (a.data || []).map(x => ({...x, valor:+x.valor})); PEDIDOS = p.data || [];
+  MARC = new Set([...MARC].filter(k => APTAS.some(x => chN(x) === k && x.situacao === 'APTA' && !x.pedido)));
+}
+function pintaEmissor(){
+  const ap = APTAS.filter(x => x.situacao === 'APTA' && !x.pedido), ret = APTAS.filter(x => x.situacao === 'RETIDA'), fila = APTAS.filter(x => x.pedido);
+  const tot = APTAS.reduce((s, x) => s + x.valor, 0) || 1, sm = l => l.reduce((s, x) => s + x.valor, 0);
+  kpis('cardsAp', [
+    {titulo:'Aptas a liberar', valor:F.int(ap.length), nota:`${F.curto(sm(ap))} · ${F.pct(100 * sm(ap) / tot)}`},
+    {titulo:'Retidas (bonif. sem faturamento)', valor:F.int(ret.length), alerta:ret.length > 0, nota:`${F.curto(sm(ret))} · ${F.pct(100 * sm(ret) / tot)}`},
+    {titulo:'Em pedido na fila', valor:F.int(fila.length), nota:`${F.curto(sm(fila))} · ${F.pct(100 * sm(fila) / tot)}`},
+    {titulo:'Selecionadas', valor:F.int(MARC.size), nota:F.curto(sm(APTAS.filter(x => MARC.has(chN(x)))))},
+  ]);
+  cardsClicaveis('cardsAp', ['', 'RET', 'FILA', 'SEL'], CARD_AP, (k, sel) => { CARD_AP = (k === '' || sel) ? '' : k; pintaEmissor(); });
+  const lv = CARD_AP === 'RET' ? ret : CARD_AP === 'FILA' ? fila : CARD_AP === 'SEL' ? APTAS.filter(x => MARC.has(chN(x))) : APTAS;
+  const at = APTAS[0] && APTAS[0].atualizado_em;
+  $('apSub').textContent = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash) · só Controladoria e Faturamento veem`;
+  const cols = [
+    {k:'_sel', t:'✓', html:x => x.situacao === 'APTA' && !x.pedido
+       ? `<input type="checkbox" data-k="${esc(chN(x))}" ${MARC.has(chN(x)) ? 'checked' : ''}>` : ''},
+    {k:'doc', t:'NF', esq:true, cls:'forte', fmt:v => esc(String(v).replace(/^0+/, ''))},
+    {k:'emissao', t:'Emissão', fmt:F.data}, {k:'cliente', t:'Cliente', esq:true, fmt:esc},
+    {k:'uf', t:'UF', html:x => esc((x.municipio ? x.municipio + '/' : '') + (x.uf || ''))}, {k:'depositos', t:'Dep.', fmt:v => esc(v || '—')},
+    {k:'tipo', t:'Tipo'}, {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
+    {k:'situacao', t:'Situação', html:x => x.pedido ? `<span class="et et-tra">No pedido nº ${x.pedido}</span>`
+       : x.situacao === 'RETIDA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Retida</span><div class="nota">${esc(x.motivo || '')}</div>` : '<span class="et et-ent">Apta</span>'}];
+  const liga = raiz => {
+    raiz.querySelectorAll('input[data-k]').forEach(cb => cb.onchange = () => { cb.checked ? MARC.add(cb.dataset.k) : MARC.delete(cb.dataset.k); atualizaBotao(); pintaCardsSel(); });
+  };
+  TAB_AP ? TAB_AP.dados(lv) : (TAB_AP = new Tabela({alvo:'tabAp', colunas:cols, linhas:lv, ordem:'emissao', desc:false, porPagina:50, aoPintar:liga}));
+  $('bTodas').onclick = () => { const l = lv.filter(x => x.situacao === 'APTA' && !x.pedido), todas = l.every(x => MARC.has(chN(x)));
+    l.forEach(x => todas ? MARC.delete(chN(x)) : MARC.add(chN(x))); pintaEmissor(); };
+  atualizaBotao();
+  $('filaP').style.display = PEDIDOS.length ? '' : 'none';
+  new Tabela({alvo:'tabFila', linhas:PEDIDOS, ordem:'id', porPagina:10, aoPintar:r => r.querySelectorAll('[data-canc]').forEach(b => b.onclick = async () => {
+      if(!confirm(`Cancelar o pedido nº ${b.dataset.canc}?`)) return;
+      const c = await SB.rpc('prot_cancelar_pedido', {p_id: +b.dataset.canc}); if(c.error) return alert(c.error.message);
+      await carregaEmissor(); pintaEmissor(); }), colunas:[
+    {k:'id', t:'Nº', cls:'forte'}, {k:'criado_em', t:'Pedido em', fmt:fHora}, {k:'criado_por', t:'Por', esq:true, fmt:v => esc(quem(v))},
+    {k:'notas', t:'Notas', fmt:v => F.int((v || []).length)},
+    {k:'agendado_para', t:'Envio', fmt:v => v ? 'agendado ' + fHora(v) : 'próxima rodada'},
+    {k:'status', t:'Situação', html:x => { const r = ROT_PED[x.status] || [x.status, '']; return `<span class="et ${r[1]}">${r[0]}</span>`; }},
+    {k:'protocolo', t:'Protocolo', html:x => esc(x.protocolo || '—') + (x.mensagem ? `<div class="nota">${esc(x.mensagem)}</div>` : '')},
+    {k:'_c', t:'', html:x => x.status === 'PENDENTE' ? `<button class="bt" data-canc="${x.id}">Cancelar</button>` : ''}]});
+}
+function pintaCardsSel(){ const el = $('cardsAp').querySelectorAll('.kpi')[3]; if(!el) return;
+  el.querySelector('.v').textContent = F.int(MARC.size); el.querySelector('.n').textContent = F.curto(APTAS.filter(x => MARC.has(chN(x))).reduce((s, x) => s + x.valor, 0)); }
+function atualizaBotao(){
+  const n = MARC.size, v = APTAS.filter(x => MARC.has(chN(x))).reduce((s, x) => s + x.valor, 0);
+  $('bGerar').disabled = !n; $('bGerar').textContent = n ? `Gerar protocolo complementar — ${n} nota(s) · ${F.moeda(v)}` : 'Gerar protocolo complementar (marque as notas)';
+}
+async function gerar(){
+  const sel = APTAS.filter(x => MARC.has(chN(x)));
+  let ag = null;
+  if($('fQuando').value === 'H'){ if(!$('fHora').value) return alert('Informe o horário do envio.'); ag = new Date($('fHora').value).toISOString(); }
+  const v = sel.reduce((s, x) => s + x.valor, 0);
+  if(!confirm(`Pedir protocolo COMPLEMENTAR com ${sel.length} nota(s) — ${F.moeda(v)}?\n\nEnvio: ${ag ? 'agendado para ' + fHora(ag) : 'na próxima rodada (até 30 min)'}.\nDestinatários: time Fiscal (homologação).`)) return;
+  $('bGerar').disabled = true;
+  const r = await SB.rpc('prot_solicitar', {p_notas: sel.map(x => ({filial:x.filial, serie:x.serie, doc:x.doc})), p_agendar: ag});
+  if(r.error){ alert('Não foi possível pedir o protocolo: ' + r.error.message); atualizaBotao(); return; }
+  $('apMsg').textContent = `✅ Pedido nº ${r.data.id} na fila (${r.data.notas} nota(s)). O protocolo sai ${ag ? 'no horário agendado' : 'na próxima rodada'}; acompanhe abaixo.`;
+  MARC.clear(); await carregaEmissor(); pintaEmissor();
+}
 async function carrega(){
   const r = await SB.rpc('prot_lista', {p_desde: null}); if(r.error) throw r.error;
   PROTS = (r.data || []).map(p => ({...p, nfs:+p.nfs, valor:+p.valor}));
@@ -130,8 +212,11 @@ iniciarPagina(async () => {
   const [e] = await Promise.all([SB.rpc('prot_e_emissor'), carrega()]);
   EMISSOR = !!e.data;
   if(!PROTS.length && !EMISSOR){ $('tabela').innerHTML = '<div class="vazio">A central de protocolos ainda não foi liberada para o seu acesso.</div>'; return; }
+  if(EMISSOR){ $('blocoEmissor').style.display = ''; await carregaEmissor(); pintaEmissor();
+    $('bGerar').onclick = gerar; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
+    window.telaOcupada = () => MARC.size > 0; }
   if(EMISSOR){ $('homolog').style.display = '';
-    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística (após 03/11/2026): as notificações vão só ao time <b>Fiscal</b> e esta aba só abre para Controladoria e Faturamento. Notas canceladas ou devolvidas depois da liberação não aparecem aqui.'; }
+    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística (após 03/11/2026): as notificações vão só ao time <b>Fiscal</b>; a partir de <b>03/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.'; }
   $('bAplicar').onclick = pintar; $('fPer').onchange = pintar;
   ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') pintar(); }));
   await pintar();

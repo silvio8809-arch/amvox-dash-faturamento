@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.21"
+ESPEC_VERSAO = "1.22"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -1262,7 +1262,21 @@ def main():
         + (f" (tentativa {n}; {(time.time() - inicio_rodada) / 60:.0f} min desde o início "
            f"da rodada)" if n > 1 else ""))
     resumo(gravados)
+    aptas_protocolo()
     return 0
+
+
+def aptas_protocolo():
+    """Aba Protocolos (Silvio 20/10/2026): a cada carga, atualiza o quadro de notas APTAS / RETIDAS para Controladoria e
+    Faturamento — usa a mesma consulta do protocolo de expedição (scripts locais do projeto). Falha aqui não desfaz a carga."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude" / "scripts"))
+        import rotina_protocolo_expedicao as rp
+        rp.atualiza_aptas()
+    except SystemExit as e:
+        log(f"aptas do protocolo: {e}")
+    except Exception as e:
+        log(f"aptas do protocolo: não atualizei ({e})")
 
 
 if __name__ == "__main__":

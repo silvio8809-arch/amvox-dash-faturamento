@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.21** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.22** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -396,20 +396,25 @@ Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não defin
 ## 15-A. Protocolos de expedição (aba "Protocolos" — central on-line)
 
 Central dos protocolos de notas **LIBERADAS PARA EXPEDIÇÃO** pelo Faturamento, com a **ciência** da Logística
-(aprovada pelo Silvio em 20/10/2026; etapa 1 = consulta + ciência).
+(aprovada pelo Silvio em 20/10/2026; etapa 1 = consulta + ciência; etapas 2 e 3 = notas aptas, retenção e protocolo
+complementar sob demanda).
 
 | Regra | Como funciona |
 |---|---|
 | O que aparece | Só protocolos **já enviados** e só as notas deles — nada do que o Faturamento ainda não liberou |
 | Cancelada / devolvida | Nota cancelada ou devolvida (total ou parcial) depois da liberação **não aparece**; Controladoria e Faturamento veem só "N oculta(s)" |
-| Quem vê a aba | **Homologação:** só Controladoria (papel ADM) e Faturamento (lista PROT_EMISSORES). Depois da apresentação à LOG (após 03/11/2026), o parâmetro ABA_ACESSO passa a TODOS |
+| Quem vê a aba | **Homologação:** só Controladoria (papel ADM) e Faturamento (lista PROT_EMISSORES). A partir de **03/11/2026** (ABA_LIBERA_EM) a aba abre sozinha para todo usuário do Dash — e a LOG continua vendo só os protocolos enviados |
 | Ciência | Botão "Dar ciência" grava usuário e hora (vale a 1ª; todas ficam no histórico imutável). Alerta: sem ciência há mais de 2 h (CIENCIA_HORAS). Protocolos anteriores a 21/10/2026 = "anterior à central" (sem alerta) |
 | PDF | O mesmo PDF enviado, em pasta privada (prot-pdf) |
 | Situação logística | A de cada nota no próprio dash (entregue com data · em trânsito/a expedir) e a transportadora |
-| Envio | Protocolo automático: 1 por dia útil às 09h. Complementares só sob demanda (etapa 2). Homologação: e-mails só para fiscal@ + fiscal4@; a lista do time LOG fica cadastrada e desligada (DESTINO_MODO) |
+| Envio | Protocolo automático: 1 por dia útil às 09h. Complementares só sob demanda (abaixo). Até 02/11/2026: e-mails só para fiscal@ + fiscal4@; a partir de **03/11/2026** (DESTINO_LIBERA_EM) também para o time LOG. O alerta de canceladas/devolvidas fica só no Fiscal |
+| Notas aptas a liberar | Só Controladoria e Faturamento veem: notas autorizadas e ainda sem protocolo, atualizadas a cada carga do dash (prot_apta). Cards Aptas · Retidas · Em pedido na fila · Selecionadas (todos filtram a grade) |
+| Retida | Bonificação **sem faturamento do grupo** (mesma regra do app Redes: nenhuma venda do grupo/raiz de CNPJ no prazo ± BONIF_PRAZO_DIAS) não entra em protocolo nenhum até haver venda, justificativa ou "PODE LIBERAR" enviado. Bonificação devolvida (anulada) não conta |
+| Protocolo complementar | O emissor marca as notas aptas e pede o protocolo — na próxima rodada ou agendado. Travas no banco: só notas APTAS, sem protocolo, fora de outro pedido em andamento; horário no passado é recusado. Pedido pendente pode ser cancelado. A rotina do Mac processa a fila a cada 30 min nos dias úteis (09h–17h) e envia no mesmo padrão de e-mail + PDF |
 
-A leitura é só por funções do banco (`prot_lista`, `prot_notas`, `prot_historico`, `prot_dar_ciencia`), que aplicam as
-regras acima — as tabelas não têm leitura direta. Quem grava os protocolos é a rotina do protocolo (migração 012).
+A leitura é só por funções do banco (`prot_lista`, `prot_notas`, `prot_historico`, `prot_dar_ciencia`; emissores: `prot_aptas`,
+`prot_pedidos`, `prot_solicitar`, `prot_cancelar_pedido`), que aplicam as regras acima — as tabelas não têm leitura direta.
+Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Cliente = **razão social** do cadastro (A1_NOME).
 
 ## 16. Em aberto — aguardando definição
 
@@ -440,6 +445,7 @@ regras acima — as tabelas não têm leitura direta. Quem grava os protocolos �
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.22 | 20/10/2026 | Aba **Protocolos**, etapas 2 e 3: quadro de notas aptas (só Controladoria e Faturamento), retenção automática de bonificação sem faturamento do grupo, protocolo complementar sob demanda pela fila (agendável, cancelável), cliente pela razão social; aba e envio ao time LOG liberados automaticamente em 03/11/2026 (seção 15-A) | Silvio Amaral |
 | 1.21 | 20/10/2026 | Aba **Protocolos** (central on-line dos protocolos de expedição, etapa 1): só notas já liberadas; cancelada/devolvida não aparece; ciência da LOG com histórico; homologação = aba só para Controladoria e Faturamento e e-mails só ao Fiscal; protocolo automático às 09h (seção 15-A) | Silvio Amaral |
 | 1.20 | 20/10/2026 | Venda à ordem: mãe com **100% remetido** fica com a data da última remessa (entrega no GFE ou, sem ela, a emissão da remessa — fonte "Emissão da última remessa"), na frente do Financeiro; situação Concluída e Entregue = Σ remessas; fora do realizado do previsto × realizado (caso QCOMPRA 280558: FIN 02/10 × remessa 280674 de 05/10) (seção 8) | Silvio Amaral |
 | 1.19 | 14/10/2026 | Prazo do romaneio de 7 para **9 dias úteis**, medido no GFE (emissão → romaneio, jul–set/2026: mediana 4, 90% até 9); nota de rodapé explicando o prazo na tela e no informe; informe semanal ganha a seção 2 (previsão de entrega), sem a expressão "anomalia grave" (seções 7.1 e 7.3) | Silvio Amaral |
