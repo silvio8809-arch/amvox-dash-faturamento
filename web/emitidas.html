@@ -50,7 +50,7 @@ const COLS = [
   {k:'dt_entrega', t:'Entrega', fmt:F.data},
   {k:'dt_entrega_origem', t:'Fonte da entrega', esq:true,
    fmt:v => ({FIN:'Financeiro', GFE:'GFE (logística)', BAIXA:'Baixa — título quitado', SEM:'—',
-              REMESSA:'Última remessa (venda à ordem)', REMESSA_PENDENTE:'Aguardando remessa (venda à ordem)'})[v] || v},
+              REMESSA:'Última remessa (venda à ordem)', REMESSA_EMISSAO:'Emissão da última remessa (venda à ordem, 100% remetido)', REMESSA_PENDENTE:'Aguardando remessa (venda à ordem)'})[v] || v},
   {k:'status', t:'Status', html:r => `<span class="et ${ETIQ[r.status]||''}">${rotulo(r.status)}</span>`},
 ];
 function filtrar(){

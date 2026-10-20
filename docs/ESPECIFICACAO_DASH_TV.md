@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.19** · 14/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.20** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -250,6 +250,7 @@ Tolerância de arredondamento: R$ 1 ou 0,5% do valor da mãe, o que for maior.
 | Ordem | Regra |
 |---|---|
 | 1º | **Data da última remessa entregue**, quando as remessas cobrem o valor da mãe e **todas** têm data de entrega |
+| 1º-B | **Remessas cobrem 100% da mãe, mas alguma ainda sem data no GFE** → vale a data da **última remessa**: a de entrega no GFE, ou a **emissão** dela quando não tem (fonte "Emissão da última remessa"). Não há mais nada a remeter, então a mãe não fica sem data de entrega — e passa na frente da data do Financeiro. Não conta como entrega comprovada no previsto × realizado |
 | 2º | Na falta disso, a data da própria mãe: **Financeiro → GFE → título quitado**. Mãe paga está OK: o cliente não quita sem ter recebido |
 | 3º | Sem nenhuma das duas: **pendente** (entra na fila) |
 
@@ -262,9 +263,9 @@ receber no título; *"Todas"* mostra o quadro inteiro. Mãe sem saldo não é pe
 
 | Situação | Significado |
 |---|---|
-| Concluída | Remessas cobrem a mãe e todas entregues |
+| Concluída | Remessas cobrem 100% da mãe (com ou sem data no GFE — regra 1º-B); "Entregue" = Σ remessas |
 | A remeter | Falta remessar parte do valor |
-| Remessa sem entrega | Há remessa sem data de entrega no GFE |
+| Remessa sem entrega | Há remessa sem data de entrega no GFE **e** as remessas ainda não cobrem a mãe |
 | Sem remessa | Nenhuma remessa encontrada para a mãe |
 | Remessado a maior | Remessas acima do valor da mãe (ver Auditoria) |
 
@@ -421,6 +422,7 @@ Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não defin
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.20 | 20/10/2026 | Venda à ordem: mãe com **100% remetido** fica com a data da última remessa (entrega no GFE ou, sem ela, a emissão da remessa — fonte "Emissão da última remessa"), na frente do Financeiro; situação Concluída e Entregue = Σ remessas; fora do realizado do previsto × realizado (caso QCOMPRA 280558: FIN 02/10 × remessa 280674 de 05/10) (seção 8) | Silvio Amaral |
 | 1.19 | 14/10/2026 | Prazo do romaneio de 7 para **9 dias úteis**, medido no GFE (emissão → romaneio, jul–set/2026: mediana 4, 90% até 9); nota de rodapé explicando o prazo na tela e no informe; informe semanal ganha a seção 2 (previsão de entrega), sem a expressão "anomalia grave" (seções 7.1 e 7.3) | Silvio Amaral |
 | 1.18 | 14/10/2026 | Previsão de entrega no Dash: resumo "sem previsão ou previsão superada", 6 cards-filtro, previsto × realizado por mês e por transportadora (só entrega real; previsão anterior à emissão = inválida); anomalia grave = sem romaneio > 7 dias úteis (⚠ + moldura); roteirizado sem previsão passa a vermelho (seções 7.1 e 7.3) | Silvio Amaral |
 | 1.17 | 14/10/2026 | Status roteirização: texto abreviado na tela e cor por alerta (verde OK · laranja atenção: previsão > 45 dias da emissão ou sem previsão · vermelho anomalia: previsão vencida ou sem romaneio > 7 dias); Excel com alerta e motivo (seção 7.1) | Silvio Amaral |

@@ -1102,7 +1102,7 @@ function pintarGraficosPlano(){
 }
 
 /* ------------------------------------------------------------ sinistro / funcionários */
-const FONTE = {FIN:'Financeiro', GFE:'GFE', BAIXA:'Baixa do título'};
+const FONTE = {FIN:'Financeiro', GFE:'GFE', BAIXA:'Baixa do título', REMESSA:'Última remessa', REMESSA_EMISSAO:'Emissão da última remessa'};
 /* Regra Silvio 24/09/2026: o que se controla é a entrega que ainda tem saldo a receber.
    Sem saldo, a falta de data de entrega não é pendência — vale para sinistro, funcionários e venda à ordem. */
 const temSaldo = x => (+x.saldo_aberto || 0) > 0.005;
@@ -1173,10 +1173,14 @@ function montaVo(){
     // 559 mães; contra a mercadoria sem IPI a mediana era 1,150. O IPI só é destacado na mãe.
     const merc = +m.valor_faturado || 0;
     const rem = rs.reduce((s,r)=>s+r._valor,0);
-    const ent = rs.filter(r => r.dt_entrega).reduce((s,r)=>s+r._valor,0);
-    const semEnt = rs.filter(r => !r.dt_entrega);
+    const entR = rs.filter(r => r.dt_entrega).reduce((s,r)=>s+r._valor,0);
     const aRem = merc - rem;
     const tol = Math.max(1, merc * 0.005);          // arredondamento de rateio entre remessas
+    // 100% REMETIDO (Silvio 20/10/2026): nada mais a remeter = mãe entregue pela última remessa, mesmo sem data
+    // no GFE (o ETL grava a data da emissão da última remessa, origem REMESSA_EMISSAO) — não fica "sem entrega"
+    const completa = rs.length && rem >= merc - tol && rem <= merc + tol;
+    const semEnt = completa ? [] : rs.filter(r => !r.dt_entrega);
+    const ent = completa ? rem : entR;
     const sit = !rs.length ? 'SEM REMESSA'
               : rem > merc + tol ? 'REMESSADO A MAIOR'
               : semEnt.length ? 'REMESSA SEM ENTREGA'
@@ -1191,8 +1195,9 @@ function montaVo(){
   return {maes, orf};
 }
 /* de onde veio a data da mãe: 1º última remessa; na falta, a da própria mãe (regra Silvio 23/09/2026) */
-const FONTE_MAE = {REMESSA:'última remessa', FIN:'Financeiro', GFE:'GFE', BAIXA:'título quitado'};
+const FONTE_MAE = {REMESSA:'última remessa', REMESSA_EMISSAO:'emissão da última remessa', FIN:'Financeiro', GFE:'GFE', BAIXA:'título quitado'};
 const fonteMae = r => r.dt_entrega_origem === 'REMESSA' ? ''
+  : r.dt_entrega_origem === 'REMESSA_EMISSAO' ? '<span class="tag tag-comp" title="100% remetido e a remessa ainda sem data no GFE — vale a emissão da última remessa (regra de 20/10/2026)">emissão da remessa</span>'
   : `<span class="tag tag-comp" title="as remessas não fecham — vale a data da própria NF-mãe">${FONTE_MAE[r.dt_entrega_origem] || r.dt_entrega_origem}</span>`;
 const ETQ_SIT = {'CONCLUÍDA':'et-ent','A REMETER':'et-tra','REMESSA SEM ENTREGA':'et-8-15',
                  'SEM REMESSA':'et-3-7','REMESSADO A MAIOR':'et-dev'};

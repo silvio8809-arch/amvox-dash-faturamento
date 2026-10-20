@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.19"
+ESPEC_VERSAO = "1.20"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -502,6 +502,12 @@ def aplica_entrega_venda_ordem(nfs, vos, hoje=None):
       1º REMESSAS: Σ das remessas (não canceladas, vinculadas a ela; rateadas quando a remessa
          cita várias mães) cobre o valor TOTAL da mãe (com IPI), tolerância max(R$ 1; 0,5%), e
          TODAS têm data no GFE → a mãe fica com a data da ÚLTIMA remessa (origem 'REMESSA').
+      1º-B REMESSA 100% SEM DATA NO GFE (Silvio 20/10/2026 — caso QCOMPRA 280558 × remessa 280674): se as
+         remessas já cobrem 100% da mãe, não há mais nada a remeter e a mãe NÃO pode ficar sem data —
+         vale a data da ÚLTIMA remessa: a de entrega no GFE de cada uma, ou a EMISSÃO dela quando não
+         tem (origem 'REMESSA_EMISSAO'). Passa na frente do Financeiro (o FIN marcava 02/10 numa mãe
+         cuja remessa só saiu em 05/10). Não entra no "realizado" do previsto × realizado (não é
+         entrega comprovada).
       2º na falta disso, a data que a query já trouxe para a própria mãe, na ordem de sempre:
          Financeiro (E1_DTSAIDA) → GFE → título QUITADO (1ª baixa). "Se o FIN marcou data, usamos
          como última opção" e "se a mãe já foi paga, está OK — não faz sentido o cliente pagar
@@ -511,7 +517,7 @@ def aplica_entrega_venda_ordem(nfs, vos, hoje=None):
     O boleto não entra aqui: o Financeiro tem controle próprio."""
     hoje = hoje or dt.date.today()
     rem = remessas_por_mae(nfs, vos)
-    cont = {"remessa": 0, "fin_gfe_baixa": 0, "pendente": 0}
+    cont = {"remessa": 0, "remessa_emissao": 0, "fin_gfe_baixa": 0, "pendente": 0}
     for n in nfs:
         if not n["venda_ordem"] or n["status"] == "CANCELADA":
             continue
@@ -524,6 +530,11 @@ def aplica_entrega_venda_ordem(nfs, vos, hoje=None):
             n["dt_entrega_origem"] = "REMESSA"
             n["status"], n["dias_sem_entrega"], n["faixa_entrega"] = "ENTREGUE", None, None
             cont["remessa"] += 1
+        elif completa:
+            n["dt_entrega"] = max(r["dt_entrega"] or r["emissao"] for r in rs)
+            n["dt_entrega_origem"] = "REMESSA_EMISSAO"
+            n["status"], n["dias_sem_entrega"], n["faixa_entrega"] = "ENTREGUE", None, None
+            cont["remessa_emissao"] += 1
         elif n["dt_entrega"]:
             cont["fin_gfe_baixa"] += 1              # mantém a data e a origem da query
         else:
@@ -956,6 +967,28 @@ def aguarda_supabase(max_seg=300, passo=15):
         time.sleep(passo)
 
 
+def grava_tabela(tabela, linhas, chave, m):
+    """GRAVAÇÃO INCREMENTAL (Silvio 16/10/2026 — "gravar apenas o que mudou"): a 1ª rodada do dia grava tudo, como
+    antes; as demais gravam só as linhas novas/alteradas (fotografia local em ~/.amvox_espelho, ver
+    .claude/scripts/gravacao_incremental.py). O que SUMIU da origem continua saindo pela varredura de órfãs, que compara
+    com o próprio banco. dash_auditoria (varredura "rodada") é retrato inteiro: sempre grava tudo.
+    Devolve o total de linhas da tabela nesta rodada (não só as regravadas) — é o que o log e a conferência mostram."""
+    if m["varredura"] == "rodada":
+        return upsert(tabela, linhas, chave, m["conflito"])
+    try:
+        sys.path.insert(0, str(RAIZ / ".claude" / "scripts"))
+        from gravacao_incremental import Espelho
+    except ImportError:                      # máquina sem o módulo: grava tudo, como sempre
+        return upsert(tabela, linhas, chave, m["conflito"])
+    esp = Espelho(tabela, m["conflito"].split(","))
+    p = esp.plano(linhas)
+    if p["gravar"]:
+        upsert(tabela, p["gravar"], chave, m["conflito"])
+    esp.confirma()
+    log("  " + Espelho.resumo(tabela, p))
+    return len(linhas)
+
+
 def upsert(tabela, linhas, chave, conflito, lote=500):
     import urllib.request, urllib.error
     if not linhas:
@@ -1080,7 +1113,7 @@ def main():
     # 3. Pós-processo — venda à ordem ANTES da devolução (DEVOLVIDA depende de haver entrega)
     cvo = aplica_entrega_venda_ordem(nfs, vos)
     cvo["romaneio"] = aplica_romaneio_venda_ordem(nfs, vos)
-    log(f"venda à ordem — data da NF-mãe: {cvo['remessa']} pela última remessa, "
+    log(f"venda à ordem — data da NF-mãe: {cvo['remessa']} pela última remessa, {cvo['remessa_emissao']} pela emissão da última remessa (100% remetido, sem GFE), "
         f"{cvo['fin_gfe_baixa']} pelo Financeiro/GFE/título quitado, {cvo['pendente']} pendentes; "
         f"{cvo['romaneio']} mãe(s) com o romaneio da remessa")
     marcadas = aplica_devolucao_e_atraso(nfs, devs)
@@ -1194,7 +1227,7 @@ def main():
             if t in pular:
                 log(f"  {t}: PULADA — migração pendente (ver ATENÇÃO acima)")
                 continue
-            gravados[t] = upsert(t, dados[t], chave, m["conflito"])
+            gravados[t] = grava_tabela(t, dados[t], chave, m)
         # varredura: o que sumiu da origem tem de sair do cache
         for m in MANIFESTO:
             t = m["tabela"]
