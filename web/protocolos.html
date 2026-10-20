@@ -81,7 +81,7 @@ const COLS = [
   {k:'nfs', t:'Notas', html:p => F.int(p.nfs) + (EMISSOR && +p.ocultas ? `<div class="nota" title="Canceladas ou devolvidas depois da liberação — não aparecem na aba">${p.ocultas} oculta(s)</div>` : '')},
   {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
   {k:'ciencia_em', t:'Ciência', html:celCiencia},
-  {k:'pdf_path', t:'PDF', html:p => p.pdf_path ? `<button class="btpdf" data-pdf="${esc(p.pdf_path)}" title="Baixar o PDF do protocolo (como foi enviado)">📄</button>` : '—'},
+  {k:'pdf_path', t:'PDF', html:p => p.pdf_path ? `<button class="btpdf" data-pdf="${esc(p.pdf_path)}" title="${/_2via\.pdf$/.test(p.pdf_path) ? 'Baixar a 2ª via do PDF no padrão atual (SUFRAMA em vermelho, razão social) — mesmas notas e valores; o original enviado fica preservado' : 'Baixar o PDF do protocolo (como foi enviado)'}">📄</button>` : '—'},
 ];
 async function notasDe(numero){
   if(!NOTAS[numero]){ const r = await SB.rpc('prot_notas', {p_numero: numero}); if(r.error) throw r.error; NOTAS[numero] = r.data || []; }
@@ -137,7 +137,7 @@ async function abreDetalhe(numero){
     {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
         : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
     {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
-  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência' : e.acao === 'ENVIO' ? 'envio' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
+  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
   $('dHist').innerHTML = ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '';
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
 }
