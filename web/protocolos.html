@@ -177,9 +177,12 @@ function pintaEmissor(){
     {titulo:'Selecionadas', valor:F.int(MARC.size), nota:F.curto(sm(APTAS.filter(x => MARC.has(chN(x)))))},
   ]);
   cardsClicaveis('cardsAp', ['', 'RET', 'FILA', 'SEL'], CARD_AP, (k, sel) => { CARD_AP = (k === '' || sel) ? '' : k; pintaEmissor(); });
-  const lv = CARD_AP === 'RET' ? ret : CARD_AP === 'FILA' ? fila : CARD_AP === 'SEL' ? APTAS.filter(x => MARC.has(chN(x))) : APTAS;
+  // filtros do topo (NF / parte do nome do cliente) valem também para as aptas (Silvio 22/10/2026)
+  const nfF = termoNF(), cliF = $('fCli').value.trim().toLowerCase();
+  const fil = l => l.filter(x => (!nfF || casaNF(nfF, x.doc)) && (!cliF || (x.cliente || '').toLowerCase().includes(cliF)));
+  const lv = fil(CARD_AP === 'RET' ? ret : CARD_AP === 'FILA' ? fila : CARD_AP === 'SEL' ? APTAS.filter(x => MARC.has(chN(x))) : APTAS);
   const at = APTAS[0] && APTAS[0].atualizado_em;
-  $('apSub').innerHTML = `${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))}${nSuf(lv) ? ` · <b class="cli-suf">${F.int(nSuf(lv))} SUFRAMA</b>` : ''} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash ou pelo botão ↻) · só Controladoria e Faturamento veem`;
+  $('apSub').innerHTML = `${(nfF || cliF) ? `<b>filtro: ${esc([nfF && 'NF ' + nfF, cliF && '“' + cliF + '”'].filter(Boolean).join(' · '))}</b> · ` : ''}${F.int(lv.length)} nota(s) · ${F.moeda(sm(lv))}${nSuf(lv) ? ` · <b class="cli-suf">${F.int(nSuf(lv))} SUFRAMA</b>` : ''} · atualizado ${at ? fHora(at) : '—'} (a cada carga do dash ou pelo botão ↻) · só Controladoria e Faturamento veem`;
   const cols = [
     {k:'_sel', t:'✓', html:x => x.situacao === 'APTA' && !x.pedido
        ? `<input type="checkbox" data-k="${esc(chN(x))}" ${MARC.has(chN(x)) ? 'checked' : ''}>` : ''},
@@ -191,7 +194,7 @@ function pintaEmissor(){
        : x.pedido ? `<span class="et et-tra">${x.pedido_status === 'AGUARDANDO_APROVACAO' ? 'No rascunho do dia (aguardando aprovação)' : 'No pedido nº ' + x.pedido}</span>`
        : x.situacao === 'RETIDA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Retida</span><div class="nota">${esc(x.motivo || '')}</div>`
        : x.situacao === 'SEGURADA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Segurada — erro de emissão</span><div class="nota">${esc(x.motivo || '')}</div>`
-       : '<span class="et et-ent">Apta</span>'},
+       : '<span class="et et-ent">Apta</span>' + (x.reprotocolar ? '<div class="nota">reenvio por exceção — constava em protocolo de teste</div>' : '')},
     {k:'_a', t:'', html:x => x.retencao ? `<button class="bt" data-libera="${esc(chN(x))}" title="Libera a retenção: a nota volta a ficar apta">Liberar</button>`
        : x.situacao === 'APTA' && !x.pedido ? `<button class="bt" data-reter="${esc(chN(x))}" title="Segura a nota fora de qualquer protocolo, com motivo (ex.: Comercial solicitou reter)">Reter</button>` : ''}];
   const liga = raiz => {
@@ -362,8 +365,9 @@ iniciarPagina(async () => {
     window.telaOcupada = () => MARC.size > 0 || RASC_MOD; }
   if(EMISSOR){ $('homolog').style.display = '';
     $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística (após 03/11/2026): as notificações vão só ao time <b>Fiscal</b>; a partir de <b>03/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.<br><b>Aprovação:</b> o protocolo automático das 09h é montado como <b>rascunho</b> e só é enviado depois de aprovado aqui por Controladoria ou Faturamento (dá para tirar notas e reter com motivo); o alerta de canceladas/devolvidas continua saindo na hora.'; }
-  $('bAplicar').onclick = pintar; $('fPer').onchange = pintar;
-  ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') pintar(); }));
+  const aplicar = () => { pintar(); if(EMISSOR) pintaEmissor(); };   // filtro vale para protocolos E aptas
+  $('bAplicar').onclick = aplicar; $('fPer').onchange = pintar;
+  ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') aplicar(); }));
   await pintar();
 });
 </script></body></html>
