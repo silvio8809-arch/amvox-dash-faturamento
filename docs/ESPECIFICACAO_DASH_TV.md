@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.26** · 20/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.27** · 22/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -411,6 +411,7 @@ complementar sob demanda).
 | Envio | Protocolo automático: 1 por dia útil às 09h. Complementares só sob demanda (abaixo). Até 02/11/2026: e-mails só para fiscal@ + fiscal4@; a partir de **03/11/2026** (DESTINO_LIBERA_EM) também para o time LOG. O alerta de canceladas/devolvidas fica só no Fiscal |
 | Notas aptas a liberar | Só Controladoria e Faturamento veem: notas autorizadas e ainda sem protocolo, atualizadas a cada carga do dash (prot_apta). Cards Aptas · Retidas · Em pedido na fila · Selecionadas (todos filtram a grade) |
 | Atualizar aptas agora | Botão ↻ no quadro de aptas (só Controladoria e Faturamento): grava um pedido (um pendente por vez); a rodada da fila de complementares (a cada 15 min, dias úteis 09h–17h) atende antes da fila e relê as aptas no TOTVS; a tela mostra a situação e recarrega o quadro ao terminar. VPN/Protheus fora = pedido volta à fila com o motivo |
+| Segurada | Nota de bonificação marcada **ERRO DE EMISSÃO** no app Redes: nunca vai a protocolo e aparece no quadro de aptas como "Segurada — erro de emissão" (sem caixa de seleção; conta no card "Retidas e seguradas") até ser cancelada no TOTVS. Caso 281598 DOMESTILAR (22/10/2026) |
 | Retida | Bonificação **sem faturamento do grupo** (mesma regra do app Redes: nenhuma venda do grupo/raiz de CNPJ no prazo ± BONIF_PRAZO_DIAS) não entra em protocolo nenhum até haver venda, justificativa ou "PODE LIBERAR" enviado. Bonificação devolvida (anulada) não conta |
 | Protocolo complementar | O emissor marca as notas aptas e pede o protocolo — na próxima rodada ou agendado. Travas no banco: só notas APTAS, sem protocolo, fora de outro pedido em andamento; horário no passado é recusado. Pedido pendente pode ser cancelado. A rotina do Mac processa a fila a cada 15 min nos dias úteis (09h–17h) e envia no mesmo padrão de e-mail + PDF |
 
@@ -447,6 +448,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.27 | 22/10/2026 | Aba **Protocolos**: nota com erro de emissão aparece no quadro de aptas como **SEGURADA** (antes sumia da aba) — migração 017 (seção 15-A) | Silvio Amaral |
 | 1.26 | 20/10/2026 | Aba **Protocolos**: rodada da fila de complementares (e do botão ↻ Atualizar aptas) passa de 30 para **15 min** (dias úteis 09h–17h: minutos 05, 20, 35 e 50) | Silvio Amaral |
 | 1.25 | 20/10/2026 | Aba **Protocolos**: botão **↻ Atualizar aptas agora** (pedido atendido pela rotina do Mac na rodada da fila; tela acompanha e recarrega) — migração 016 (seção 15-A) | Silvio Amaral |
 | 1.24 | 20/10/2026 | Aba **Protocolos**: **2ª via** dos PDFs dos protocolos 001–011 no padrão atual (SUFRAMA em vermelho, razão social), original enviado preservado; botão 📄 abre a 2ª via; evento no histórico (seção 15-A) | Silvio Amaral |
