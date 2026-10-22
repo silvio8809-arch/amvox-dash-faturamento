@@ -75,10 +75,12 @@ const semCiencia = p => exigeCiencia(p) && !p.ciencia_em && p.horas_sem_ciencia 
 const ROT_ST = {ENTREGUE:'Entregue', EM_TRANSITO:'Em trânsito / a expedir'};
 function celCiencia(p){
   if(!p.ciencia_em && !exigeCiencia(p)) return '<span class="nota" title="Enviado antes da central on-line existir">— anterior à central</span>';
-  if(p.ciencia_em) return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">${fHora(p.ciencia_em)}</div>`;
+  /* ciência pela CONFIRMAÇÃO DE LEITURA do e-mail (Silvio 22/10/2026, migração 019): "Ciência pelo e-mail de notificação — dd/mm hh:mm, Fulano" */
+  if(p.ciencia_em) return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">${p.ciencia_via === 'EMAIL' ? 'pelo e-mail de notificação · ' : ''}${fHora(p.ciencia_em)}</div>`;
   const h = +p.horas_sem_ciencia || 0;
   return `<button class="bt" data-cie="${esc(p.numero)}" title="Registra que você recebeu e leu este protocolo">Dar ciência</button>` +
-    `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>`;
+    `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>` +
+    (p.lembrete_em ? `<div class="nota">📧 lembrete enviado ${fHora(p.lembrete_em)} (sem confirmação de leitura)</div>` : '');
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* VENDA PARA ÁREA DE SUFRAMA em vermelho (sugestão do Faturamento, Silvio 20/10/2026): cliente com inscrição SUFRAMA no
@@ -149,7 +151,7 @@ async function abreDetalhe(numero){
     {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
         : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
     {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
-  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
+  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
   $('dHist').innerHTML = ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '';
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
 }
