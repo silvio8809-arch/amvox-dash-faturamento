@@ -53,7 +53,7 @@
         <span class="nota" id="apMsg"></span>
       </div>
       <div id="tabAp"></div></div>
-    <div class="painel" id="filaP" style="display:none"><h2>Fila de protocolos <span>automático aprovado e complementares · últimos 30 dias · a rotina processa a fila a cada 15 min nos dias úteis (09h–17h)</span></h2><div id="tabFila"></div></div>
+    <div class="painel" id="filaP" style="display:none"><h2>Fila de protocolos <span>automático aprovado e complementares · últimos 30 dias · a rotina processa a fila a cada 15 min, a qualquer hora, todos os dias</span></h2><div id="tabFila"></div></div>
   </div>
   <div class="cards" id="cards"></div>
   <div class="painel"><h2>Protocolos enviados <span id="tSub">clique no protocolo para ver as notas</span></h2><div id="tabela"></div></div>
@@ -336,7 +336,7 @@ async function gerar(){
   MARC.clear(); await carregaEmissor(); pintaEmissor();
 }
 /* botão "Atualizar aptas agora" (Silvio 20/10/2026, migração 016): grava o pedido; a rotina do Mac atende na próxima rodada
-   da fila (a cada 15 min, TODOS os dias 07h–21h59 desde 28/10/2026; fora do expediente a rodada só atende este botão) e relê as aptas no TOTVS. A tela confere a cada minuto e, quando o pedido
+   da fila (a cada 15 min, a qualquer hora, todos os dias — Silvio 28/10/2026) e relê as aptas no TOTVS. A tela confere a cada minuto e, quando o pedido
    termina, recarrega o quadro sozinha (mantém as notas marcadas). Antes da 016 o botão fica escondido. */
 let _apPend = false;
 async function pintaAtuAptas(){
@@ -346,7 +346,7 @@ async function pintaAtuAptas(){
   $('bAtuAp').disabled = pend;
   $('atuMsg').innerHTML = !s ? '' : pend
     ? (s.status === 'RODANDO' ? '⏳ atualizando as aptas agora…'
-       : `⏳ pedido de ${esc(quem(s.pedido_por))} às ${fHora(s.pedido_em).slice(-5)} — sai na próxima rodada (até 15 min, todos os dias 07h–22h)`)
+       : `⏳ pedido de ${esc(quem(s.pedido_por))} às ${fHora(s.pedido_em).slice(-5)} — sai na próxima rodada (até 15 min)`)
       + (s.mensagem ? ` · <b>${esc(s.mensagem)}</b>` : '')
     : s.status === 'OK' ? `✓ atualizado a pedido em ${fHora(s.concluido_em)}` : '';
   if(_apPend && !pend){ await carregaEmissor(); pintaEmissor(); }
