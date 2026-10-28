@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.30** · 22/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.31** · 28/10/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -416,7 +416,8 @@ complementar sob demanda).
 | Notas aptas a liberar | Só Controladoria e Faturamento veem: notas autorizadas e ainda sem protocolo, atualizadas a cada carga do dash (prot_apta). Cards Aptas · Retidas · Em pedido na fila · Selecionadas (todos filtram a grade) |
 | Atualizar aptas agora | Botão ↻ no quadro de aptas (só Controladoria e Faturamento): grava um pedido (um pendente por vez); a rodada da fila de complementares (a cada 15 min, dias úteis 09h–17h) atende antes da fila e relê as aptas no TOTVS; a tela mostra a situação e recarrega o quadro ao terminar. VPN/Protheus fora = pedido volta à fila com o motivo |
 | Segurada | Nota de bonificação marcada **ERRO DE EMISSÃO** no app Redes: nunca vai a protocolo e aparece no quadro de aptas como "Segurada — erro de emissão" (sem caixa de seleção; conta no card "Retidas e seguradas") até ser cancelada no TOTVS. Caso 281598 DOMESTILAR (22/10/2026) |
-| Retida | Bonificação **sem faturamento do grupo** (mesma regra do app Redes: nenhuma venda do grupo/raiz de CNPJ no prazo ± BONIF_PRAZO_DIAS) não entra em protocolo nenhum até haver venda, justificativa ou "PODE LIBERAR" enviado. Bonificação devolvida (anulada) não conta |
+| Retida | Bonificação com **RETER indicado pelo gestor** (e-mail RETER EXPEDIÇÃO [AV-n] no app Redes) ou com a **venda do 1º pedido cancelada**: não entra em protocolo até o "PODE LIBERAR" enviado (ou justificativa, na venda cancelada). Retenção manual com motivo (botão Reter da aba) também. Bonificação devolvida (anulada) não conta |
+| Alerta (bonificação sem faturamento) | Desde a v1.31 (Silvio 28/10/2026, caso NF 281268): bonificação **sem venda do grupo/raiz de CNPJ** no prazo ± BONIF_PRAZO_DIAS é **só ALERTA** — fica **Apta**, com "⚠️ ALERTA: bonificação sem faturamento…" no quadro de aptas e no rascunho do dia, **segue no protocolo** e não gera notificação automática. Reter é decisão do gestor do protocolo, nota a nota (Reter na aba ou RETER no app Redes); indicada a retenção, antes ou depois do protocolo, segue o fluxo de comunicação (RETER → PODE LIBERAR) — migração 032 |
 | Protocolo complementar | O emissor marca as notas aptas e pede o protocolo — na próxima rodada ou agendado. Travas no banco: só notas APTAS, sem protocolo, fora de outro pedido em andamento; horário no passado é recusado. Pedido pendente pode ser cancelado. A rotina do Mac processa a fila a cada 15 min nos dias úteis (09h–17h) e envia no mesmo padrão de e-mail + PDF |
 
 A leitura é só por funções do banco (`prot_lista`, `prot_notas`, `prot_historico`, `prot_dar_ciencia`; emissores: `prot_aptas`,
@@ -452,6 +453,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.13 | 05/10/2026 | Status de cada linha pelo prazo do plano (6 situações), cards de status, Excel com status e dias p/ o prazo (7.1); no Dash, pendências por responsável e gráficos do plano: por faixa, por responsável, agenda de prazos e atividade (7.3) | Silvio Amaral |
 | 1.14 | 05/10/2026 | Responsável padrão = Ingride Soares (responsável geral, delega trocando o nome): tela, quadros, gráficos e Excel; banco com default e preenchimento dos vazios (migração 009) (seção 7.1) | Silvio Amaral |
 | 1.15 | 07/10/2026 | Acesso por aplicativo (Preços × Dash) com trava no banco; cartão do Dash no menu do app de preços; aviso para usuário sem o Dash (seção 15) | Silvio Amaral |
+| 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
 | 1.28 | 22/10/2026 | Aba **Protocolos**: **aprovação** do protocolo automático (rascunho às 09h, editar, reter com motivo, aprovar/não enviar) e **retenção manual** com motivo — migração 018 (seção 15-A) | Silvio Amaral |

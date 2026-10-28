@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.30"
+ESPEC_VERSAO = "1.31"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -1048,8 +1048,8 @@ def main():
                     help="máximo de tentativas quando a conexão falha (padrão 3)")
     ap.add_argument("--espera-min", type=float, default=5,
                     help="minutos entre uma tentativa e a próxima (padrão 5)")
-    ap.add_argument("--limite-min", type=float, default=10,
-                    help="teto de cada tentativa de extração, no relógio de parede (padrão 10)")
+    ap.add_argument("--limite-min", type=float, default=5,      # 10 → 5 min (Silvio 26/10/2026: réplica travada 11h–12h40
+                    help="teto de cada tentativa de extração, no relógio de parede (padrão 5)")  # segurava a rodada 40 min)
     ap.add_argument("--ate", metavar="HH:MM",
                     help="insiste até este horário de hoje, sem teto de tentativas (rodada final)")
     args = ap.parse_args()

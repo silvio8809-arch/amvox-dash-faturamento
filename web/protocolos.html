@@ -170,9 +170,10 @@ function pintaEmissor(){
   const nSeg = ret.filter(x => x.situacao === 'SEGURADA').length;   // SEGURADA = erro de emissão marcado no app Redes (migração 017)
   const tot = APTAS.reduce((s, x) => s + x.valor, 0) || 1, sm = l => l.reduce((s, x) => s + x.valor, 0);
   kpis('cardsAp', [
-    {titulo:'Aptas a liberar', valor:F.int(ap.length), nota:`${F.curto(sm(ap))} · ${F.pct(100 * sm(ap) / tot)}`},
+    {titulo:'Aptas a liberar', valor:F.int(ap.length), nota:`${F.curto(sm(ap))} · ${F.pct(100 * sm(ap) / tot)}`
+       + (ap.filter(x => x.motivo && !x.retencao).length ? ` · ⚠️ ${F.int(ap.filter(x => x.motivo && !x.retencao).length)} com alerta (bonif. sem fat.)` : '')},
     {titulo:'Retidas e seguradas', valor:F.int(ret.length), alerta:ret.length > 0, nota:`${F.curto(sm(ret))} · ${F.pct(100 * sm(ret) / tot)}`
-       + (ret.length ? ` · ${F.int(ret.length - nSeg)} bonif. sem fat. · ${F.int(nSeg)} erro de emissão` : '')},
+       + (ret.length ? ` · ${F.int(ret.length - nSeg)} bonif. retida(s) · ${F.int(nSeg)} erro de emissão` : '')},
     {titulo:'Em pedido na fila', valor:F.int(fila.length), nota:`${F.curto(sm(fila))} · ${F.pct(100 * sm(fila) / tot)}`},
     {titulo:'Selecionadas', valor:F.int(MARC.size), nota:F.curto(sm(APTAS.filter(x => MARC.has(chN(x)))))},
   ]);
@@ -194,7 +195,8 @@ function pintaEmissor(){
        : x.pedido ? `<span class="et et-tra">${x.pedido_status === 'AGUARDANDO_APROVACAO' ? 'No rascunho do dia (aguardando aprovação)' : 'No pedido nº ' + x.pedido}</span>`
        : x.situacao === 'RETIDA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Retida</span><div class="nota">${esc(x.motivo || '')}</div>`
        : x.situacao === 'SEGURADA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Segurada — erro de emissão</span><div class="nota">${esc(x.motivo || '')}</div>`
-       : '<span class="et et-ent">Apta</span>' + (x.reprotocolar ? '<div class="nota">reenvio por exceção — constava em protocolo de teste</div>' : '')},
+       : '<span class="et et-ent">Apta</span>' + (x.reprotocolar ? '<div class="nota">reenvio por exceção — constava em protocolo de teste</div>' : '')
+         + (x.motivo ? `<div class="nota" style="color:#B45309" title="Bonificação sem faturamento: só ALERTA (28/10/2026) — a nota segue no protocolo; use Reter se for o caso">⚠️ ${esc(x.motivo)}</div>` : '')},
     {k:'_a', t:'', html:x => x.retencao ? `<button class="bt" data-libera="${esc(chN(x))}" title="Libera a retenção: a nota volta a ficar apta">Liberar</button>`
        : x.situacao === 'APTA' && !x.pedido ? `<button class="bt" data-reter="${esc(chN(x))}" title="Segura a nota fora de qualquer protocolo, com motivo (ex.: Comercial solicitou reter)">Reter</button>` : ''}];
   const liga = raiz => {
@@ -233,7 +235,8 @@ function notasRasc(){
   return (RASC ? RASC.notas || [] : []).map(n => { const a = naApt.get(chN(n));
     const e = String(n.emissao || ''), emissao = /^\d{8}$/.test(e) ? `${e.slice(0, 4)}-${e.slice(4, 6)}-${e.slice(6, 8)}` : e;   // AAAAMMDD → data
     return {...n, emissao, valor:+n.valor, tipo:n.origem === 'BON' ? 'BONIF.' : 'VENDA', _k:chN(n),
-            _ret:a && a.situacao === 'RETIDA' ? (a.motivo || 'retida') : null, _manual:!!(a && a.retencao), _fora:!a && depois}; });
+            _ret:a && a.situacao === 'RETIDA' ? (a.motivo || 'retida') : null, _manual:!!(a && a.retencao), _fora:!a && depois,
+            _alerta:a && a.situacao === 'APTA' && !a.retencao ? a.motivo || null : null}; });   // 032: sem faturamento = só alerta
 }
 function pintaRascunho(){
   RASC = PEDIDOS.find(p => p.status === 'AGUARDANDO_APROVACAO') || null;
@@ -263,7 +266,8 @@ function pintaRascunho(){
     {k:'tipo', t:'Tipo'}, {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
     {k:'_s', t:'Situação', html:x => x._ret ? `<span class="et et-dev">Retida</span><div class="nota">${esc(x._ret)}</div>`
        : x._fora ? '<span class="et et-can">Não está mais apta</span><div class="nota">cancelada ou já protocolada</div>'
-       : MARC_R.has(x._k) ? '<span class="et et-ent">Vai no protocolo</span>' : '<span class="et et-can">Fica de fora — volta às aptas</span>'},
+       : (MARC_R.has(x._k) ? '<span class="et et-ent">Vai no protocolo</span>' : '<span class="et et-can">Fica de fora — volta às aptas</span>')
+         + (x._alerta ? `<div class="nota" style="color:#B45309">⚠️ ${esc(x._alerta)}</div>` : '')},
     {k:'_a', t:'', html:x => x._manual ? `<button class="bt" data-libera="${esc(x._k)}">Liberar</button>`
        : livreR(x) ? `<button class="bt" data-reter="${esc(x._k)}" title="Segura a nota com motivo (ex.: Comercial solicitou reter)">Reter</button>` : ''}]}));
   $('bRascTodas').onclick = () => { const v = l.filter(livreR), todas = v.every(x => MARC_R.has(x._k));
