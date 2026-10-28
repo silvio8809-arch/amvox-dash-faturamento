@@ -1232,7 +1232,7 @@ function pintarVo(){
     {k:'_pct', t:'% entregue', fmt:v => (+v).toFixed(1).replace('.',',') + '%'},
     {k:'_rs', t:'Remessas', fmt:v => F.int(v.length)},
     {k:'saldo_aberto', t:'Saldo a receber', fmt:F.moeda, cls:'forte'},
-    {k:'dt_entrega', t:'Entrega da mãe', html:r => celEntrega(r) || (F.data(r.dt_entrega) + fonteMae(r))},
+    {k:'dt_entrega', t:'Entrega da mãe', esq:true, html:r => celEntrega(r) || (F.data(r.dt_entrega) + fonteMae(r))},
     {k:'_sit', t:'Situação', html:r => `<span class="et ${ETQ_SIT[r._sit]||''}">${r._sit}</span>`},
   ];
   TVO ? TVO.dados(lv) : (TVO = new Tabela({alvo:'tabVo', colunas:cols, linhas:lv, ordem:'emissao', porPagina:15,

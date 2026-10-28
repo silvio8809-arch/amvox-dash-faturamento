@@ -95,6 +95,9 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .painel h2 span{font:400 12px var(--texto);letter-spacing:0;text-transform:none;color:var(--cinza)}
 .painel .corpo{padding:16px 20px}
 .lado{display:flex;flex-direction:column;gap:18px}
+/* tela de notebook/monitor comum (< 1700px): a tabela ocupa a largura toda e os quadros laterais descem para baixo dela, lado a
+   lado; TV (1920) continua com a coluna lateral — Silvio 28/10/2026 */
+@media (max-width:1700px){ .colunas{grid-template-columns:1fr} .lado{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start} }
 
 /* ---------- tabela ---------- */
 .tbl{width:100%;border-collapse:collapse}
@@ -106,6 +109,11 @@ main{padding:22px 30px 40px;max-width:1920px;margin:0 auto}
 .tbl th.ord.asc::after{content:' ▴'}
 .tbl td{padding:9px 14px;border-bottom:1px solid var(--linha);text-align:right;white-space:nowrap;font-size:13.5px}
 .tbl td:first-child,.tbl td.esq{text-align:left}
+/* CABER NA TELA sem perder informação (Silvio 28/10/2026 — varredura): texto quebra linha (número continua numa linha só);
+   cabeçalho quebra em até 2 linhas */
+.tbl td.esq{white-space:normal;min-width:90px;max-width:300px;overflow-wrap:anywhere}
+.tbl th{white-space:normal;min-width:48px}
+.tbl td .et{white-space:normal}
 .tbl tbody tr:hover td{background:#FAFBFD}
 .tbl .forte{font-weight:600}
 .rolar{max-height:560px;overflow:auto}
