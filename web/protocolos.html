@@ -160,9 +160,14 @@ let APTAS = [], PEDIDOS = [], CARD_AP = '', TAB_AP, MARC = new Set();
 const chN = n => `${n.filial}|${n.serie}|${n.doc}`;
 const ROT_PED = {AGUARDANDO_APROVACAO:['Aguardando aprovação','et-dev'], PENDENTE:['Na fila','et-tra'], RODANDO:['Gerando…','et-tra'], ENVIADO:['Enviado','et-ent'], ERRO:['Erro','et-dev'], CANCELADO:['Cancelado','et-can']};
 async function carregaEmissor(){
-  const [a, p] = await Promise.all([SB.rpc('prot_aptas'), SB.rpc('prot_pedidos')]);
+  const [a, p, v] = await Promise.all([SB.rpc('prot_aptas'), SB.rpc('prot_pedidos'), SB.rpc('prot_bonif_alertas')]);
   if(a.error) throw a.error; if(p.error) throw p.error;
   APTAS = (a.data || []).map(x => ({...x, valor:+x.valor})); PEDIDOS = p.data || [];
+  /* alerta AO VIVO (Silvio 28/10/2026 — justificou no Redes e o alerta continuou até a próxima carga): o quadro guarda o alerta
+     da última leitura; aqui ele é conferido com a situação atual (justificativa, RETER, venda nova). Sem resposta = fica o gravado. */
+  if(!v.error){ const viv = new Map((v.data || []).map(x => [chN(x), x.motivo]));
+    APTAS.forEach(x => { if(x.situacao !== 'APTA' || x.retencao) return; const k = chN(x);
+      if(x.motivo && !viv.has(k)) x.motivo = null; else if(!x.motivo && viv.has(k)) x.motivo = viv.get(k); }); }
   MARC = new Set([...MARC].filter(k => APTAS.some(x => chN(x) === k && x.situacao === 'APTA' && !x.pedido)));
 }
 function pintaEmissor(){
@@ -331,7 +336,7 @@ async function gerar(){
   MARC.clear(); await carregaEmissor(); pintaEmissor();
 }
 /* botão "Atualizar aptas agora" (Silvio 20/10/2026, migração 016): grava o pedido; a rotina do Mac atende na próxima rodada
-   da fila (a cada 15 min, dias úteis 09h–17h) e relê as aptas no TOTVS. A tela confere a cada minuto e, quando o pedido
+   da fila (a cada 15 min, TODOS os dias 07h–21h59 desde 28/10/2026; fora do expediente a rodada só atende este botão) e relê as aptas no TOTVS. A tela confere a cada minuto e, quando o pedido
    termina, recarrega o quadro sozinha (mantém as notas marcadas). Antes da 016 o botão fica escondido. */
 let _apPend = false;
 async function pintaAtuAptas(){
@@ -341,7 +346,7 @@ async function pintaAtuAptas(){
   $('bAtuAp').disabled = pend;
   $('atuMsg').innerHTML = !s ? '' : pend
     ? (s.status === 'RODANDO' ? '⏳ atualizando as aptas agora…'
-       : `⏳ pedido de ${esc(quem(s.pedido_por))} às ${fHora(s.pedido_em).slice(-5)} — sai na próxima rodada (até 15 min, dias úteis 09h–17h)`)
+       : `⏳ pedido de ${esc(quem(s.pedido_por))} às ${fHora(s.pedido_em).slice(-5)} — sai na próxima rodada (até 15 min, todos os dias 07h–22h)`)
       + (s.mensagem ? ` · <b>${esc(s.mensagem)}</b>` : '')
     : s.status === 'OK' ? `✓ atualizado a pedido em ${fHora(s.concluido_em)}` : '';
   if(_apPend && !pend){ await carregaEmissor(); pintaEmissor(); }
