@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.35"
+ESPEC_VERSAO = "1.36"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -355,6 +355,9 @@ def monta_dev(reg):
         devolucao_venda=bool(reg["DEVOLUCAO_VENDA"]),
         texto_nf=reg["TEXTO_NF"] or None, motivo_causa=(reg["MOTIVO_CAUSA"] or None),
         ncc_valor=num(reg.get("NCC_VALOR")), ncc_saldo=num(reg.get("NCC_SALDO")),
+        # faturamento LÍQUIDO do card (Silvio 03/11/2026): devolução no mês da DIGITAÇÃO, pelo valor contábil
+        # da conta 3110102 (itens com TES que gera duplicata, sem ICMS-ST) — migração 021
+        dt_digitacao=d(reg["DIGITACAO_DEV"]), valor_contabil=num(reg["VALOR_CONTABIL"]),
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
     )
 

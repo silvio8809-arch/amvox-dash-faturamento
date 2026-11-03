@@ -11,6 +11,11 @@
 --  motivo ........ F1_MENNOTA, DUAS convenções ("MOTIVO DEV:" e "... MOT.:").
 --                  Busca com COLLATE (banco é Latin1_General_BIN, case-sensitive).
 --                  Sem taxonomia fixa: guarda o texto bruto + a causa extraída.
+--  contábil ...... (Silvio 03/11/2026, faturamento LÍQUIDO no card) VALOR_CONTABIL = Σ dos itens com TES que
+--                  gera duplicata de (D1_TOTAL + D1_VALIPI − D1_VALDESC) = o que a conta 3110102 registra;
+--                  mês = DIGITACAO_DEV (F1_DTDIGIT). NÃO é F1_VALBRUT: na devolução com ST (CFOP 1410/2410)
+--                  o VALBRUT traz o ICMS-ST, que o razão não leva (NF 000000052 set/26: 462.654,82 × 373.901,16).
+--                  Conferido jan–out/26 contra o razão 3110102, mês a mês.
 -- =====================================================================================
 DECLARE @DATADE CHAR(8), @DATAATE CHAR(8);
 SET @DATADE  = CONVERT(CHAR(8), DATEADD(DAY,-120,GETDATE()), 112);
@@ -23,8 +28,11 @@ WITH ITENS AS (
             MAX(LTRIM(RTRIM(D1.D1_NFORI)))      NF_ORIGEM,
             MAX(LTRIM(RTRIM(D1.D1_SERIORI)))    SERIE_ORIGEM,
             COUNT(*)                            QTD_ITENS,
-            SUM(D1.D1_TOTAL)                    VALOR_ITENS
+            SUM(D1.D1_TOTAL)                    VALOR_ITENS,
+            SUM(CASE WHEN T.F4_DUPLIC = 'S' THEN D1.D1_TOTAL + D1.D1_VALIPI - D1.D1_VALDESC ELSE 0 END)  VALOR_CONTABIL
     FROM    SD1010 D1
+    LEFT JOIN SF4010 T ON T.F4_CODIGO = D1.D1_TES AND T.D_E_L_E_T_ = ''
+                      AND SUBSTRING(T.F4_FILIAL,1,4) = SUBSTRING(D1.D1_FILIAL,1,4)
     WHERE   D1.D_E_L_E_T_ = ''
       -- PERFORMANCE (23/09/2026): antes agregava a SD1 INTEIRA (todas as entradas da empresa).
       -- D1_EMISSAO = F1_EMISSAO em 12.401/12.401 itens de devolução desde 2025 — não perde nada.
@@ -44,7 +52,7 @@ NCC AS (
 ),
 DEV AS (
     SELECT  F1.F1_FILIAL, F1.F1_DOC, F1.F1_SERIE, F1.F1_FORNECE, F1.F1_LOJA,
-            F1.F1_EMISSAO, F1.F1_VALBRUT, F1.F1_FORMUL, F1.F1_MENNOTA,
+            F1.F1_EMISSAO, F1.F1_DTDIGIT, F1.F1_VALBRUT, F1.F1_FORMUL, F1.F1_MENNOTA,
             -- o texto tem motivo? (padrão validado: 970/970, zero falso positivo)
             CASE WHEN F1.F1_MENNOTA COLLATE Latin1_General_CI_AI LIKE '%MOT%'
                  THEN 1 ELSE 0 END  TEM_MOTIVO,
@@ -68,6 +76,8 @@ SELECT
         RTRIM(D.F1_DOC)                                     NF_DEV,
         RTRIM(D.F1_SERIE)                                   SERIE_DEV,
         D.F1_EMISSAO                                        EMISSAO_DEV,
+        D.F1_DTDIGIT                                        DIGITACAO_DEV,
+        CAST(ISNULL(I.VALOR_CONTABIL,0) AS DECIMAL(18,2))   VALOR_CONTABIL,
         CASE WHEN D.F1_FORMUL = 'S' THEN 'AMVOX' ELSE 'CLIENTE' END  ORIGEM_NF,
         RTRIM(D.F1_FORNECE)                                 CLIENTE_COD,
         RTRIM(D.F1_LOJA)                                    CLIENTE_LOJA,

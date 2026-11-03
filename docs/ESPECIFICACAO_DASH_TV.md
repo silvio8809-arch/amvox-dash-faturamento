@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.35** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.36** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -45,6 +45,14 @@ competência deixa de filtrar: a nota é encontrada em qualquer mês. O que o ca
 - **Bonificação não é faturamento.** Fica fora de todos os totais.
 - **Leitura da AMVOX = faturamento líquido:** bruto − devoluções (e descontos incondicionais) do mesmo
   mês. A visão já vem líquida do desconto incondicional.
+- **Card "Notas emitidas" da TV mostra as duas leituras (03/11/2026):** **Faturamento bruto** = conta 3110101
+  (régua da FAT PLUS: com IPI, já líquido do desconto incondicional) e **Faturamento líquido** = 3110101 − 3110102,
+  com as devoluções e o % sobre o bruto ao lado. A devolução do líquido segue a **contabilidade**: entra no mês da
+  **digitação** da nota de entrada (não da emissão do cliente) e pelo **valor contábil** — itens com TES que gera
+  duplicata (mercadoria + IPI − desconto), sem o ICMS-ST das devoluções 1410/2410 e sem retorno de remessa.
+  Conferido contra o razão 3110102 mês a mês em 2026 (out/26: 16.606.725,94 − 2.127.487,05 = **14.479.238,89**);
+  mar/26 (−641,52) e abr/26 (−23.209,64) são diferenças antigas razão × FAT PLUS, em aberto. O quadro
+  *Devoluções* continua contando pela emissão da nota de devolução.
 - **Valor sempre acompanhado da participação (%).** Todo quadro-resumo mostra o R$ e quanto ele
   representa do total da dimensão inteira (não só dos itens visíveis).
 - **Divergência sem explicação vira pendência.** Nada é ajustado ou arredondado para "fechar".
@@ -462,6 +470,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.33 | 28/10/2026 | Aba **Protocolos**: o alerta de bonificação sem faturamento é **conferido ao vivo** (justificativa, RETER ou venda nova no app Redes tiram o alerta na hora); botão **Atualizar aptas agora** e **protocolo complementar** atendidos **a qualquer hora, todos os dias** (rodada a cada 15 min; a confirmação de leitura → ciência também é lida em todas as rodadas; só o LEMBRETE fica em dia útil 09h–17h59). **Layout**: texto das tabelas quebra linha (números não), cabeçalhos em até 2 linhas e, em telas < 1700 px, os quadros laterais descem para baixo da tabela (TV 1920 igual) — nenhuma informação removida | Silvio Amaral |
 | 1.34 | 03/11/2026 | Aba **Protocolos**: início do envio ao time LOG e da abertura da aba para a Logística adiado de 03/11 para **04/11/2026** (DESTINO_LIBERA_EM e ABA_LIBERA_EM); demais regras iguais | Silvio Amaral |
 | 1.35 | 03/11/2026 | Tela inicial: os quadros seguem **o mês do seletor**; sem faturamento no mês corrente, mostra o último mês com faturamento + aviso "ainda sem notas de faturamento" (antes o seletor dizia Outubro e os quadros calculavam Novembro, zerados) ; seção 15-A: registrado o **lembrete que repete a cada 2 h** até a confirmação (regra de 23/10/2026 que faltava no documento) | Silvio Amaral |
+| 1.36 | 03/11/2026 | Card **Notas emitidas**: linhas **Faturamento bruto** (3110101) e **Faturamento líquido** (3110101 − 3110102), devolução pela data de digitação e valor contábil — migração 021 (seção 2) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

@@ -79,6 +79,9 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 .icw{display:flex;flex-direction:column;align-items:center}
 .num{font:700 86px/0.92 var(--cond);letter-spacing:-.01em}
 .sub{color:var(--cinza);font-size:15px;margin-top:8px}
+.fatlin{display:flex;gap:14px;align-items:baseline;margin-top:6px;font-size:16px;color:var(--cinza)}
+.fatlin b{color:var(--navy);font-size:20px;font-weight:700}
+.fatlin .ob{font-size:13px}
 .frase{font-size:17px;line-height:1.45;margin-top:14px;max-width:62ch}
 .frase b{font-weight:700}
 .frase .up{color:var(--verde)} .frase .down{color:var(--vermelho)}
@@ -182,6 +185,8 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
     <div class="corpo">
       <div class="num" id="e_num">—</div>
       <div class="sub" id="e_sub">carregando…</div>
+      <div class="fatlin"><span>Faturamento bruto</span><b id="e_bruto">—</b></div>
+      <div class="fatlin"><span>Faturamento líquido</span><b id="e_liq">—</b><span class="ob" id="e_liq_ob"></span></div>
       <div class="frase" id="e_frase"></div>
       <div class="barras" id="e_barras"></div>
       <div class="rod"><span>Dias com emissão no mês · última barra = hoje</span><a href="emitidas.html">Ver detalhes →</a></div>
@@ -311,7 +316,7 @@ async function montar(mesEscolhido){
       // ⚠️ ordem = PK COMPLETA: a leitura é paginada e `nf`/`nf_dev` se repetem — com chave não
       // única o Postgres pode repetir/pular linha entre páginas (bug corrigido no painel.js 22/09).
       tudo('dash_nf_saida','filial,nf,serie,emissao,valor_faturado,cliente_nome,cnpj_raiz,status,faixa_entrega,saldo_aberto,dias_sem_entrega','filial,nf,serie'),
-      tudo('dash_devolucao','filial,nf_dev,serie_dev,cliente_cod,cliente_loja,emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda','filial,nf_dev,serie_dev,cliente_cod,cliente_loja'),
+      tudo('dash_devolucao','filial,nf_dev,serie_dev,cliente_cod,cliente_loja,emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda,dt_digitacao,valor_contabil','filial,nf_dev,serie_dev,cliente_cod,cliente_loja'),
       SB.from('dash_refresh_log').select('finished_at,ok').eq('ok', true).order('finished_at',{ascending:false}).limit(1)
     ]);
     // meses disponíveis no cache, do mais recente para o mais antigo
@@ -351,7 +356,17 @@ async function montar(mesEscolhido){
   const antMes = doMes(vivas,'emissao',mesAnt);
   const fatAnt = antMes.reduce((s,x)=> s + (+x.valor_faturado||0), 0);
   $('e_num').textContent = inteiro(mes.length);
-  $('e_sub').textContent = `notas no mês · ${milhoes(fatMes)}`;
+  $('e_sub').textContent = 'notas no mês';
+  // Bruto = 3110101 (régua FAT PLUS, com IPI, líquido do desconto incondicional). Líquido = 3110101 − 3110102:
+  // a devolução entra pelo mês da DIGITAÇÃO e pelo valor contábil (itens com TES que gera duplicata, sem ICMS-ST)
+  // — Silvio 03/11/2026; conferido contra o razão (out/26: 16.606.725,94 − 2.127.487,05 = 14.479.238,89).
+  const devCont = devs.filter(x => (x.dt_digitacao||'').startsWith(mesAtual)).reduce((s,x)=> s + (+x.valor_contabil||0), 0);
+  const temCont = devs.some(x => x.dt_digitacao);
+  $('e_bruto').textContent = milhoes(fatMes);
+  $('e_liq').textContent = temCont ? milhoes(fatMes - devCont) : '—';
+  $('e_liq_ob').textContent = temCont
+    ? `devoluções ${milhoes(devCont)} · ${fatMes ? (devCont/fatMes*100).toFixed(1).replace('.',',') : '0,0'}% do bruto`
+    : 'aguardando a carga das devoluções';
 
   const porDia = {}; mes.forEach(x => porDia[x.emissao] = (porDia[x.emissao]||0) + 1);
   const dias = Object.keys(porDia).sort();
