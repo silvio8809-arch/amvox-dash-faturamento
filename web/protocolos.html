@@ -281,14 +281,14 @@ function pintaRascunho(){
 }
 async function aprovarRascunho(){
   const l = notasRasc(), sel = l.filter(x => MARC_R.has(x._k)); if(!sel.length) return;
-  const homolog = new Date() < new Date('2026-11-03T00:00:00-03:00'), fora = l.length - sel.length;
+  const homolog = new Date() < new Date('2026-11-04T00:00:00-03:00'), fora = l.length - sel.length;
   if(!confirm(`Aprovar e ENVIAR o protocolo do dia com ${sel.length} nota(s) — ${F.moeda(sel.reduce((s, x) => s + x.valor, 0))}?` +
       (fora ? `
 ${fora} nota(s) do rascunho ficam de fora (voltam às aptas ou seguem retidas).` : '') +
       `
 
 Sai na próxima rodada da fila (até 15 min).
-Destinatários: ${homolog ? 'time Fiscal (homologação até 02/11/2026)' : 'time Fiscal e time de Logística'}.`)) return;
+Destinatários: ${homolog ? 'time Fiscal (homologação até 03/11/2026)' : 'time Fiscal e time de Logística'}.`)) return;
   $('bAprovar').disabled = true;
   const r = await SB.rpc('prot_aprovar', {p_id:RASC.id, p_notas:sel.map(x => ({filial:x.filial, serie:x.serie, doc:x.doc}))});
   if(r.error){ alert('Não foi possível aprovar: ' + r.error.message); await carregaEmissor(); pintaEmissor(); return; }
@@ -328,7 +328,7 @@ async function gerar(){
   let ag = null;
   if($('fQuando').value === 'H'){ if(!$('fHora').value) return alert('Informe o horário do envio.'); ag = new Date($('fHora').value).toISOString(); }
   const v = sel.reduce((s, x) => s + x.valor, 0);
-  if(!confirm(`Pedir protocolo COMPLEMENTAR com ${sel.length} nota(s) — ${F.moeda(v)}?\n\nEnvio: ${ag ? 'agendado para ' + fHora(ag) : 'na próxima rodada (até 15 min)'}.\nDestinatários: time Fiscal (homologação).`)) return;
+  if(!confirm(`Pedir protocolo COMPLEMENTAR com ${sel.length} nota(s) — ${F.moeda(v)}?\n\nEnvio: ${ag ? 'agendado para ' + fHora(ag) : 'na próxima rodada (até 15 min)'}.\nDestinatários: ${new Date() < new Date('2026-11-04T00:00:00-03:00') ? 'time Fiscal (homologação até 03/11/2026)' : 'time Fiscal e time de Logística'}.`)) return;
   $('bGerar').disabled = true;
   const r = await SB.rpc('prot_solicitar', {p_notas: sel.map(x => ({filial:x.filial, serie:x.serie, doc:x.doc})), p_agendar: ag});
   if(r.error){ alert('Não foi possível pedir o protocolo: ' + r.error.message); atualizaBotao(); return; }
@@ -373,7 +373,7 @@ iniciarPagina(async () => {
     $('bGerar').onclick = gerar; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
     window.telaOcupada = () => MARC.size > 0 || RASC_MOD; }
   if(EMISSOR){ $('homolog').style.display = '';
-    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística (após 03/11/2026): as notificações vão só ao time <b>Fiscal</b>; a partir de <b>03/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.<br><b>Aprovação:</b> o protocolo automático das 09h é montado como <b>rascunho</b> e só é enviado depois de aprovado aqui por Controladoria ou Faturamento (dá para tirar notas e reter com motivo); o alerta de canceladas/devolvidas continua saindo na hora.'; }
+    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística: as notificações vão só ao time <b>Fiscal</b>; a partir de <b>04/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.<br><b>Aprovação:</b> o protocolo automático das 09h é montado como <b>rascunho</b> e só é enviado depois de aprovado aqui por Controladoria ou Faturamento (dá para tirar notas e reter com motivo); o alerta de canceladas/devolvidas continua saindo na hora.'; }
   const aplicar = () => { pintar(); if(EMISSOR) pintaEmissor(); };   // filtro vale para protocolos E aptas
   $('bAplicar').onclick = aplicar; $('fPer').onchange = pintar;
   ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') aplicar(); }));
