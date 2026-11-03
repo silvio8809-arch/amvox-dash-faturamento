@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.34** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.35** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -49,6 +49,11 @@ competência deixa de filtrar: a nota é encontrada em qualquer mês. O que o ca
   representa do total da dimensão inteira (não só dos itens visíveis).
 - **Divergência sem explicação vira pendência.** Nada é ajustado ou arredondado para "fechar".
 - **Período dos dados:** desde **01/01/2025**, até o momento da última atualização.
+- **Competência da tela inicial = o mês do seletor (03/11/2026).** Todos os quadros por mês (notas, top clientes,
+  devoluções) usam o mês que aparece no seletor. No começo do mês, enquanto não houver nenhuma nota de **faturamento**
+  (remessa, retorno e bonificação não contam), o seletor abre no **último mês com faturamento** e um aviso amarelo
+  logo abaixo diz "<mês atual>: ainda sem notas de faturamento". Na primeira venda do mês, a tela passa sozinha ao
+  mês corrente (na recarga de hora em hora) e o aviso some.
 
 ## 3. O que é uma nota emitida (faturamento)
 
@@ -456,6 +461,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.32 | 28/10/2026 | Aba **Protocolos**: o alerta de bonificação sem faturamento mostra a **natureza sugerida** pela observação do pedido (regra B15 do app Redes) | Silvio Amaral |
 | 1.33 | 28/10/2026 | Aba **Protocolos**: o alerta de bonificação sem faturamento é **conferido ao vivo** (justificativa, RETER ou venda nova no app Redes tiram o alerta na hora); botão **Atualizar aptas agora** e **protocolo complementar** atendidos **a qualquer hora, todos os dias** (rodada a cada 15 min; a confirmação de leitura → ciência também é lida em todas as rodadas; só o LEMBRETE fica em dia útil 09h–17h59). **Layout**: texto das tabelas quebra linha (números não), cabeçalhos em até 2 linhas e, em telas < 1700 px, os quadros laterais descem para baixo da tabela (TV 1920 igual) — nenhuma informação removida | Silvio Amaral |
 | 1.34 | 03/11/2026 | Aba **Protocolos**: início do envio ao time LOG e da abertura da aba para a Logística adiado de 03/11 para **04/11/2026** (DESTINO_LIBERA_EM e ABA_LIBERA_EM); demais regras iguais | Silvio Amaral |
+| 1.35 | 03/11/2026 | Tela inicial: os quadros seguem **o mês do seletor**; sem faturamento no mês corrente, mostra o último mês com faturamento + aviso "ainda sem notas de faturamento" (antes o seletor dizia Outubro e os quadros calculavam Novembro, zerados) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

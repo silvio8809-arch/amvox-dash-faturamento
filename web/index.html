@@ -61,6 +61,8 @@ header .atalho:hover{background:#343C52;border-color:var(--laranja)}
 header .atalho .qt{background:var(--laranja);color:var(--navy);border-radius:99px;padding:1px 8px;
   font:700 11px var(--texto);letter-spacing:0;display:none}
 .rotmes{font:600 10px var(--cond);letter-spacing:.16em;text-transform:uppercase;color:#8A93A8;margin-bottom:3px}
+.avisomes{font:600 10px var(--cond);letter-spacing:.06em;color:#F2B544;margin-top:4px;white-space:nowrap}
+.avisomes:empty{display:none}
 /* ---------- grade ---------- */
 main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
      gap:24px;height:calc(1080px - 78px)}
@@ -161,7 +163,7 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
 <header>
   <div class="logo">AV</div>
   <h1 id="titulo">Faturamento &amp; Entregas</h1>
-  <div style="margin-left:26px"><div class="rotmes">Competência</div><select id="mesSel"></select></div>
+  <div style="margin-left:26px"><div class="rotmes">Competência</div><select id="mesSel"></select><div class="avisomes" id="avisoMes"></div></div>
   <a class="atalho" href="regiao-linha.html">Região × linha →</a>
   <a class="atalho" href="auditoria.html" style="margin-left:10px" title="Auditoria LOG e FAT — ocorrências da última carga">Auditoria <span class="qt" id="audQt"></span> →</a>
   <a class="atalho" href="protocolos.html" id="atProt" style="margin-left:10px;display:none" title="Central de protocolos de notas LIBERADAS PARA EXPEDIÇÃO">Protocolos →</a>
@@ -300,10 +302,8 @@ let CACHE = null;   // dados buscados uma vez; o seletor de mês só re-renderiz
 async function montar(mesEscolhido){
   const hoje = new Date();
   // mês LOCAL — toISOString() é UTC e virava o mês às 21h de Brasília (quadros zerados, 30/09/2026)
-  const mesAtual = mesEscolhido || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-  const [aa,mm] = mesAtual.split('-').map(Number);
-  const ant = new Date(aa, mm-2, 1);
-  const mesAnt = `${ant.getFullYear()}-${String(ant.getMonth()+1).padStart(2,'0')}`;
+  const mesHoje = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  let mesAtual = mesEscolhido || mesHoje;
   $('titulo').textContent = 'Faturamento & Entregas';
 
   if(!CACHE){
@@ -314,9 +314,9 @@ async function montar(mesEscolhido){
       tudo('dash_devolucao','filial,nf_dev,serie_dev,cliente_cod,cliente_loja,emissao_dev,valor,cliente_nome,motivo_causa,devolucao_venda','filial,nf_dev,serie_dev,cliente_cod,cliente_loja'),
       SB.from('dash_refresh_log').select('finished_at,ok').eq('ok', true).order('finished_at',{ascending:false}).limit(1)
     ]);
-    CACHE = {nfs, devs, logs};
     // meses disponíveis no cache, do mais recente para o mais antigo
     const meses = [...new Set(nfs.map(x => (x.emissao||'').slice(0,7)).filter(Boolean))].sort().reverse();
+    CACHE = {nfs, devs, logs, meses};
     $('mesSel').innerHTML = meses.map(m => {
       const [a,me] = m.split('-');
       return `<option value="${m}">${MESES[+me-1]} ${a}</option>`;
@@ -325,7 +325,16 @@ async function montar(mesEscolhido){
     $('mesSel').onchange = () => montar($('mesSel').value).catch(e => {
       $('erro').style.display='block'; $('erro').textContent = 'Falha ao trocar de mês: ' + (e.message||e); });
   }
-  const {nfs, devs, logs} = CACHE;
+  const {nfs, devs, logs, meses} = CACHE;
+  // Os quadros seguem SEMPRE o mês do seletor (Silvio 03/11/2026): no começo do mês, sem nota de
+  // faturamento ainda, o seletor cai no último mês com dados e os quadros calculavam o mês corrente
+  // (zerados, com "Mês anterior" = o mês exibido no seletor). Agora mostram esse mês + aviso.
+  if(!mesEscolhido) mesAtual = $('mesSel').value || mesAtual;
+  const [aa,mm] = mesAtual.split('-').map(Number);
+  const ant = new Date(aa, mm-2, 1);
+  const mesAnt = `${ant.getFullYear()}-${String(ant.getMonth()+1).padStart(2,'0')}`;
+  const [ha,hm] = mesHoje.split('-').map(Number);
+  $('avisoMes').textContent = meses.includes(mesHoje) ? '' : `${MESES[hm-1]} ${ha}: ainda sem notas de faturamento`;
 
   const ultimo = logs.data && logs.data[0] ? new Date(logs.data[0].finished_at) : null;
   $('atualizado').textContent = ultimo
