@@ -51,8 +51,9 @@ function agregar(){
   const mes = $('fMes').value, nf = termoNF();
   const nfs = CACHE.nfs.filter(x => x.status !== 'CANCELADA' && casaNF(nf, x.nf) &&
                                    (nf || !mes || (x.emissao||'').startsWith(mes)));
-  const dev = CACHE.devs.filter(x => x.devolucao_venda && casaNF(nf, x.nf_origem, x.nf_dev) &&
-                                    (nf || !mes || (x.emissao_dev||'').startsWith(mes)));
+  // devolução = CRITÉRIO CONTÁBIL, premissa dura (Silvio 03/11/2026): conta 3110102 — valor contábil, mês da digitação
+  const dev = CACHE.devs.filter(x => (+x.valor_contabil||0) > 0 && casaNF(nf, x.nf_origem, x.nf_dev) &&
+                                    (nf || !mes || (x.dt_digitacao||'').startsWith(mes)));
   const m = {};
   const chave = x => x.cnpj_raiz || x.cliente_nome || '—';
   nfs.forEach(x => { const k = chave(x);
@@ -62,7 +63,7 @@ function agregar(){
   });
   dev.forEach(x => { const k = chave(x);
     m[k] = m[k] || {nome:x.cliente_nome||'—', uf:x.uf||'—', qtd:0, fat:0, devol:0, semEnt:0};
-    m[k].devol += (+x.valor||0);
+    m[k].devol += (+x.valor_contabil||0);
   });
   const tot = Object.values(m).reduce((s,x)=>s+x.fat,0);
   const campo = {liq:'liq', fat:'fat', qtd:'qtd'}[$('fOrd').value];

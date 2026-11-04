@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.37** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.38** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -55,7 +55,12 @@ competência deixa de filtrar: a nota é encontrada em qualquer mês. O que o ca
 - **Quadro Devoluções da TV = critério contábil (03/11/2026):** mesmo universo, mês e valor do líquido acima
   (conta 3110102) — quantidade, R$, % do faturado, causas e quem mais devolve. Inclui as devoluções com motivo
   *conserto* (assistência/OS) que a contabilidade lança como devolução de venda (out/26: 94 notas, R$ 95,4 mil,
-  4,5% do valor). A tela de detalhe *Devoluções* segue pela emissão da nota de devolução.
+  4,5% do valor).
+- 🔴 **PREMISSA DURA (Silvio 03/11/2026): todo número de faturamento e devolução do painel FECHA com o critério
+  contábil** (3110101 e 3110102) — não pode ser desobedecida. Vale para a TV, a tela *Devoluções* (universo padrão
+  "devolução de venda — contábil", competência pela **digitação**, colunas Digitação/Emissão e Valor contábil/Valor
+  da NF; "todas as entradas tipo D" acrescenta os retornos pelo valor da nota) e a tela *Top clientes*
+  (Devolvido e Líquido por cliente). Out/26 nas três: 16.606.725,94 − 2.127.487,05 = 14.479.238,89.
 - **Valor sempre acompanhado da participação (%).** Todo quadro-resumo mostra o R$ e quanto ele
   representa do total da dimensão inteira (não só dos itens visíveis).
 - **Divergência sem explicação vira pendência.** Nada é ajustado ou arredondado para "fechar".
@@ -475,6 +480,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.35 | 03/11/2026 | Tela inicial: os quadros seguem **o mês do seletor**; sem faturamento no mês corrente, mostra o último mês com faturamento + aviso "ainda sem notas de faturamento" (antes o seletor dizia Outubro e os quadros calculavam Novembro, zerados) ; seção 15-A: registrado o **lembrete que repete a cada 2 h** até a confirmação (regra de 23/10/2026 que faltava no documento) | Silvio Amaral |
 | 1.36 | 03/11/2026 | Card **Notas emitidas**: linhas **Faturamento bruto** (3110101) e **Faturamento líquido** (3110101 − 3110102), devolução pela data de digitação e valor contábil — migração 021 (seção 2) | Silvio Amaral |
 | 1.37 | 03/11/2026 | Quadro **Devoluções** da TV passa ao **critério contábil** (conta 3110102: mês da digitação, valor contábil) — mesmo número do líquido do card (seção 2) | Silvio Amaral |
+| 1.38 | 03/11/2026 | **Premissa dura: fechar com o critério contábil** — telas *Devoluções* e *Top clientes* passam à conta 3110102 (digitação, valor contábil); out/26 conferido nas três telas (seção 2) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
