@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.40** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.41** · 04/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -435,7 +435,7 @@ complementar sob demanda).
 | O que aparece | Só protocolos **já enviados** e só as notas deles — nada do que o Faturamento ainda não liberou |
 | Cancelada / devolvida | Nota cancelada ou devolvida (total ou parcial) depois da liberação **não aparece**; Controladoria e Faturamento veem só "N oculta(s)" |
 | Quem vê a aba | **Homologação:** só Controladoria (papel ADM) e Faturamento (lista PROT_EMISSORES). A partir de **04/11/2026** (ABA_LIBERA_EM; adiada de 03/11 — Silvio 03/11/2026) a aba abre sozinha para todo usuário do Dash — e a LOG continua vendo só os protocolos enviados |
-| Ciência | Botão "Dar ciência" grava usuário e hora (vale a 1ª; todas ficam no histórico imutável). Alerta: sem ciência há mais de 2 h (CIENCIA_HORAS). Protocolos anteriores a 21/10/2026 = "anterior à central" (sem alerta) |
+| Ciência | Botão "Dar ciência" grava usuário e hora (vale a 1ª; todas ficam no histórico imutável). **Ciência ACUMULADA** (Silvio 04/11/2026, migração 022): a coluna mostra a 1ª ciência em destaque + "+ N leitura(s): fulano, beltrano" (lista completa com hora e meio — e-mail ou botão — ao passar o mouse) e o detalhe do protocolo traz "Ciência — quem leu (N)" em ordem (1º, 2º…), uma linha por pessoa com a hora da SUA 1ª leitura: prova de quem leu primeiro e de todos que leram. Quem recebe o protocolo e ainda não leu tem o botão "+ minha ciência" (emissores não). Alerta: sem ciência há mais de 2 h (CIENCIA_HORAS). Protocolos anteriores a 21/10/2026 = "anterior à central" (sem alerta) |
 | PDF | Em pasta privada (prot-pdf). O PDF **enviado** é o documento oficial e nunca é apagado nem alterado (OneDrive + caminho original na pasta). Protocolos anteriores ao padrão atual ganharam uma **2ª via** (mesmas notas, valores, ordem e data; SUFRAMA em vermelho; cliente pela razão social; NF cancelada depois do envio com município "—" explicado no rodapé) — é a que o botão 📄 abre; o histórico registra o evento "2ª via do PDF" com o caminho do original. Gerador: `protocolo_2via.py` (confere quantidade e total com o envio; divergência = pendência) |
 | Venda para área de SUFRAMA | Nota de cliente com **inscrição SUFRAMA no cadastro** (SA1.A1_SUFRAMA) sai **em vermelho** com a etiqueta SUFRAMA — no quadro de aptas, no detalhe do protocolo e no PDF enviado (linha vermelha + legenda com a quantidade). Critério escolhido por cobrir 100% das notas com tabela 227/228/229 e das com desconto ZF na nota (teste de 120 dias: 41 notas; a tabela do pedido sozinha perderia 10). Sugestão do Faturamento, 20/10/2026 |
 | Situação logística | A de cada nota no próprio dash (entregue com data · em trânsito/a expedir) e a transportadora |
@@ -493,6 +493,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.38 | 03/11/2026 | **Premissa dura: fechar com o critério contábil** — telas *Devoluções* e *Top clientes* passam à conta 3110102 (digitação, valor contábil); out/26 conferido nas três telas (seção 2) | Silvio Amaral |
 | 1.39 | 03/11/2026 | Conferência de cada carga ganha o **espelho FAT PLUS**: mês corrente e anterior, nota a nota, bruto e devoluções (seção 14) | Silvio Amaral |
 | 1.40 | 03/11/2026 | FAT PLUS = relatório oficial (receita bruta, deduções, bonificações); conserto que a FAT PLUS traz como DEV = devolução; espelho FAT PLUS só na rodada final do dia, por desempenho (seções 2 e 14) | Silvio Amaral |
+| 1.41 | 04/11/2026 | Aba **Protocolos**: **ciência acumulada** (todas as leituras, não só a 1ª — migração 022); botão **Exportar selecionadas (Excel)** nas notas aptas (só as marcadas, com quem exportou); cabeçalho mostra o **usuário conectado** (seção 15-A) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

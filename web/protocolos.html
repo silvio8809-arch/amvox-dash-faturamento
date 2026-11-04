@@ -8,6 +8,8 @@
   .homolog{margin:0 0 12px;padding:9px 14px;border-radius:8px;background:#FFF4DB;color:#7A5200;font-size:13.5px;border:1px solid #F1D58F}
   .cie-ok{color:#14603F;font-weight:600}
   .cie-atraso{color:#B42318;font-weight:700}
+  .cie-mais{color:#14603F;cursor:help}
+  .btmini{font-size:11px;padding:2px 7px;margin-top:3px}
   .btpdf{border:1px solid #d9dbe3;background:#fff;border-radius:6px;cursor:pointer;font-size:15px;padding:3px 7px}
   .btpdf:hover{border-color:#d03b3b}
   #detalhe h4{margin:0 0 8px}
@@ -21,7 +23,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">PR</div><h1>Protocolos de expedição</h1>
-  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Notas LIBERADAS PARA EXPEDIÇÃO pelo Faturamento</span></div>
+  <div class="dir">Última atualização: <b id="atualizado">—</b><br><span>Notas LIBERADAS PARA EXPEDIÇÃO pelo Faturamento</span><br>Conectado: <b id="usuarioLogado" title="Usuário logado nesta tela agora">—</b></div>
 </header>
 <div class="filtros">
   <div class="campo"><label>Período</label><select id="fPer">
@@ -47,6 +49,7 @@
         <button class="bt" id="bAtuAp" title="Relê as notas autorizadas no TOTVS agora, sem esperar a próxima carga do dash (que é de hora em hora)">↻ Atualizar aptas agora</button>
         <span class="nota" id="atuMsg"></span>
         <button class="bt" id="bTodas">Marcar / desmarcar todas as aptas</button>
+        <button class="bt" id="bXlsSel" disabled title="Baixa em Excel as notas marcadas no quadro (✓)">Exportar selecionadas (Excel)</button>
         <button class="bt pri" id="bGerar" disabled>Gerar protocolo complementar</button>
         <label class="nota">Enviar: <select id="fQuando"><option value="">na próxima rodada (até 15 min)</option><option value="H">agendar para…</option></select></label>
         <input type="datetime-local" id="fHora" style="display:none">
@@ -76,12 +79,20 @@ const ROT_ST = {ENTREGUE:'Entregue', EM_TRANSITO:'Em trânsito / a expedir'};
 function celCiencia(p){
   if(!p.ciencia_em && !exigeCiencia(p)) return '<span class="nota" title="Enviado antes da central on-line existir">— anterior à central</span>';
   /* ciência pela CONFIRMAÇÃO DE LEITURA do e-mail (Silvio 22/10/2026, migração 019): "Ciência pelo e-mail de notificação — dd/mm hh:mm, Fulano" */
-  if(p.ciencia_em) return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">${p.ciencia_via === 'EMAIL' ? 'pelo e-mail de notificação · ' : ''}${fHora(p.ciencia_em)}</div>`;
+  /* CIÊNCIA ACUMULADA (Silvio 04/11/2026, migração 022): a 1ª ciência continua em destaque e TODAS as leituras ficam listadas
+     (cada pessoa com a hora da sua 1ª leitura, pelo e-mail ou pelo botão) — prova de quem leu primeiro e de todos que leram */
+  if(p.ciencia_em){ const ls = leituras(p), mais = ls.length - 1;
+    return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">1ª ciência · ${p.ciencia_via === 'EMAIL' ? 'pelo e-mail de notificação · ' : ''}${fHora(p.ciencia_em)}</div>` +
+      (mais > 0 ? `<div class="nota cie-mais" title="${esc(ls.map((l, i) => `${i + 1}º ${quem(l.usuario)} — ${fHora(l.em)} (${l.via === 'EMAIL' ? 'e-mail' : 'botão na aba'})`).join('\n'))}">+ ${mais} leitura(s): ${esc(ls.slice(1).map(l => quem(l.usuario)).join(', '))}</div>` : '') +
+      (USUARIO && !EMISSOR && !ls.some(l => String(l.usuario).toLowerCase() === USUARIO.toLowerCase()) ? `<button class="bt btmini" data-cie="${esc(p.numero)}" title="Registra que você também recebeu e leu este protocolo">+ minha ciência</button>` : ''); }
   const h = +p.horas_sem_ciencia || 0;
   return `<button class="bt" data-cie="${esc(p.numero)}" title="Registra que você recebeu e leu este protocolo">Dar ciência</button>` +
     `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>` +
     (p.lembrete_em ? `<div class="nota">📧 lembrete enviado ${fHora(p.lembrete_em)} (sem confirmação de leitura)</div>` : '');
 }
+/* leituras do protocolo (migração 022); antes dela, só a 1ª ciência */
+const leituras = p => Array.isArray(p.leituras) && p.leituras.length ? p.leituras
+  : (p.ciencia_em ? [{usuario:p.ciencia_por, em:p.ciencia_em, via:p.ciencia_via === 'EMAIL' ? 'EMAIL' : 'APP'}] : []);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* VENDA PARA ÁREA DE SUFRAMA em vermelho (sugestão do Faturamento, Silvio 20/10/2026): cliente com inscrição SUFRAMA no
    cadastro (SA1.A1_SUFRAMA → cli_cadastro.suframa, migração 014) — cobre as tabelas 227/228/229 e as notas com desconto ZF */
@@ -152,7 +163,9 @@ async function abreDetalhe(numero){
         : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
     {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
   const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
-  $('dHist').innerHTML = ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '';
+  const ls = leituras(p);
+  $('dHist').innerHTML = (ls.length ? `<b>Ciência — quem leu (${ls.length}):</b><br>` + ls.map((l, i) => `${i + 1}º · ${esc(quem(l.usuario))} · ${fHora(l.em)} · ${l.via === 'EMAIL' ? 'confirmação de leitura do e-mail' : 'botão Dar ciência na aba'}`).join('<br>') + '<br><br>' : '')
+    + (ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '');
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
 }
 /* ---------------- etapa 2/3 (Silvio 20/10/2026): aptas, retidas e fila de complementares — só emissores */
@@ -321,7 +334,22 @@ function pintaCardsSel(){ const el = $('cardsAp').querySelectorAll('.kpi')[3]; i
   el.querySelector('.v').textContent = F.int(MARC.size); el.querySelector('.n').textContent = F.curto(APTAS.filter(x => MARC.has(chN(x))).reduce((s, x) => s + x.valor, 0)); }
 function atualizaBotao(){
   const n = MARC.size, v = APTAS.filter(x => MARC.has(chN(x))).reduce((s, x) => s + x.valor, 0);
+  $('bXlsSel').disabled = !n; $('bXlsSel').textContent = n ? `Exportar selecionadas (Excel) — ${n}` : 'Exportar selecionadas (Excel)';
   $('bGerar').disabled = !n; $('bGerar').textContent = n ? `Gerar protocolo complementar — ${n} nota(s) · ${F.moeda(v)}` : 'Gerar protocolo complementar (marque as notas)';
+}
+/* EXPORTAR SELECIONADAS (Silvio 04/11/2026: "botão de exportar para o Excel, das notas selecionadas") — as marcadas no quadro
+   de aptas, com as mesmas informações da tela (inclui o alerta de bonificação sem faturamento e a marca SUFRAMA) */
+function exportarSelecionadas(){
+  const sel = APTAS.filter(x => MARC.has(chN(x))).sort((a, b) => String(a.emissao).localeCompare(String(b.emissao)) || String(a.doc).localeCompare(String(b.doc)));
+  if(!sel.length) return;
+  const tot = sel.reduce((s, x) => s + x.valor, 0);
+  exportarXLSX(`AMVOX_PROTOCOLO_NOTAS_SELECIONADAS_${hojeArq()}.xlsx`, 'Protocolos de expedição — notas selecionadas',
+    `${sel.length} nota(s) marcada(s) · ${F.moeda(tot)} com IPI · exportado por ${USUARIO || '—'}`,
+    [{t:'NF', w:12, val:x => String(x.doc).replace(/^0+/, '')}, {t:'SÉRIE', k:'serie', w:7}, {t:'FILIAL', k:'filial', w:9},
+     {t:'EMISSÃO', k:'emissao', w:12}, {t:'CLIENTE', k:'cliente', w:40}, {t:'SUFRAMA', w:12, val:x => x.suframa ? 'SIM · ' + x.suframa : ''},
+     {t:'MUNICÍPIO', k:'municipio', w:20}, {t:'UF', k:'uf', w:5}, {t:'DEP.', k:'depositos', w:8}, {t:'TIPO', k:'tipo', w:9},
+     {t:'VALOR (C/ IPI)', k:'valor', w:15, tipo:'n'}, {t:'SITUAÇÃO', w:14, val:x => x.situacao === 'APTA' ? 'Apta' : x.situacao},
+     {t:'ALERTA', w:50, val:x => x.motivo || ''}], sel);
 }
 async function gerar(){
   const sel = APTAS.filter(x => MARC.has(chN(x)));
@@ -364,13 +392,17 @@ async function carrega(){
   const r = await SB.rpc('prot_lista', {p_desde: null}); if(r.error) throw r.error;
   PROTS = (r.data || []).map(p => ({...p, nfs:+p.nfs, valor:+p.valor}));
 }
+let USUARIO = '';
 iniciarPagina(async () => {
+  try { const {data:{session}} = await SB.auth.getSession(); const u = session && session.user;
+    if(u){ const nome = (u.user_metadata && u.user_metadata.nome) || ''; USUARIO = u.email || '';
+      $('usuarioLogado').textContent = nome ? `${nome} (${u.email})` : u.email; } } catch(_){}
   const [e] = await Promise.all([SB.rpc('prot_e_emissor'), carrega()]);
   EMISSOR = !!e.data;
   if(!PROTS.length && !EMISSOR){ $('tabela').innerHTML = '<div class="vazio">A central de protocolos ainda não foi liberada para o seu acesso.</div>'; return; }
   if(EMISSOR){ $('blocoEmissor').style.display = ''; $('bAtuAp').onclick = pedirAptas;   // ligado já: o botão aparece antes do quadro carregar
     await carregaEmissor(); pintaEmissor(); pintaAtuAptas();
-    $('bGerar').onclick = gerar; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
+    $('bGerar').onclick = gerar; $('bXlsSel').onclick = exportarSelecionadas; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
     window.telaOcupada = () => MARC.size > 0 || RASC_MOD; }
   if(EMISSOR){ $('homolog').style.display = '';
     $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística: as notificações vão só ao time <b>Fiscal</b>; a partir de <b>04/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.<br><b>Aprovação:</b> o protocolo automático das 09h é montado como <b>rascunho</b> e só é enviado depois de aprovado aqui por Controladoria ou Faturamento (dá para tirar notas e reter com motivo); o alerta de canceladas/devolvidas continua saindo na hora.'; }
