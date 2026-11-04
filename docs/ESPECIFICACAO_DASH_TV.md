@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.41** · 04/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.42** · 04/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -494,6 +494,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.39 | 03/11/2026 | Conferência de cada carga ganha o **espelho FAT PLUS**: mês corrente e anterior, nota a nota, bruto e devoluções (seção 14) | Silvio Amaral |
 | 1.40 | 03/11/2026 | FAT PLUS = relatório oficial (receita bruta, deduções, bonificações); conserto que a FAT PLUS traz como DEV = devolução; espelho FAT PLUS só na rodada final do dia, por desempenho (seções 2 e 14) | Silvio Amaral |
 | 1.41 | 04/11/2026 | Aba **Protocolos**: **ciência acumulada** (todas as leituras, não só a 1ª — migração 022); botão **Exportar selecionadas (Excel)** nas notas aptas (só as marcadas, com quem exportou); cabeçalho mostra o **usuário conectado** (seção 15-A) | Silvio Amaral |
+| 1.42 | 04/11/2026 | **Usuário conectado** no cabeçalho de **todas as abas** (inclusive a TV); aba **Protocolos**: retirada a faixa de homologação (envio à Logística ativo desde 04/11/2026) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

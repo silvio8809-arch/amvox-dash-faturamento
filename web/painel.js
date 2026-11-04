@@ -585,12 +585,21 @@ function registraAcesso(origem){
 
 /* ---------------------------------------------------------------- arranque */
 let _pagina = null;
+/* USUÁRIO CONECTADO no cabeçalho de todas as abas (Silvio 04/11/2026: "colocar o conectado em todas as abas") */
+function mostrarUsuario(session){
+  const u = session && session.user, dir = document.querySelector('header .dir'); if(!u || !dir) return;
+  const nome = (u.user_metadata && u.user_metadata.nome) || '', txt = nome ? `${nome} (${u.email})` : (u.email || '');
+  let b = document.getElementById('usuarioLogado');
+  if(!b){ dir.insertAdjacentHTML('beforeend', '<br>Conectado: <b id="usuarioLogado" title="Usuário logado nesta tela agora"></b>'); b = document.getElementById('usuarioLogado'); }
+  b.textContent = txt;
+}
 async function abrir(){
   const { data:{ session } } = await SB.auth.getSession();
   const convite = /type=(invite|recovery|signup)/.test(location.hash);
   if(!session || convite){ $('login').style.display='flex'; return; }
   $('login').style.display='none';
   if(await semAppDash(session)) return;
+  mostrarUsuario(session);
   registraAcesso('painel');
   if(!window._acessoVis){ window._acessoVis = true; document.addEventListener('visibilitychange', () => registraAcesso('painel')); }
   try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }

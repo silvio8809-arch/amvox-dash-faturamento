@@ -33,7 +33,6 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button></div>
 </div>
 <main>
-  <div class="homolog" id="homolog" style="display:none"></div>
   <div id="blocoEmissor" style="display:none">
     <div class="painel rasc" id="rascP" style="display:none"><h2>Protocolo automático do dia — AGUARDANDO APROVAÇÃO <span>Controladoria ou Faturamento aprova · só depois disso o protocolo é enviado</span></h2>
       <div class="corpo"><div class="nota" id="rascInfo"></div>
@@ -404,8 +403,7 @@ iniciarPagina(async () => {
     await carregaEmissor(); pintaEmissor(); pintaAtuAptas();
     $('bGerar').onclick = gerar; $('bXlsSel').onclick = exportarSelecionadas; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
     window.telaOcupada = () => MARC.size > 0 || RASC_MOD; }
-  if(EMISSOR){ $('homolog').style.display = '';
-    $('homolog').innerHTML = '<b>Em homologação</b> até a apresentação à Logística: as notificações vão só ao time <b>Fiscal</b>; a partir de <b>04/11/2026</b> o protocolo passa a ir automaticamente também ao time de Logística (o alerta de canceladas/devolvidas continua só no Fiscal). A aba abre sozinha para a Logística na mesma data — e mesmo então ela vê só os protocolos enviados (aptas, retidas e fila são só de Controladoria e Faturamento). Notas canceladas ou devolvidas depois da liberação não aparecem aqui.<br><b>Aprovação:</b> o protocolo automático das 09h é montado como <b>rascunho</b> e só é enviado depois de aprovado aqui por Controladoria ou Faturamento (dá para tirar notas e reter com motivo); o alerta de canceladas/devolvidas continua saindo na hora.'; }
+  /* faixa de homologação retirada em 04/11/2026 (Silvio): envio à Logística ativo desde 04/11 */
   const aplicar = () => { pintar(); if(EMISSOR) pintaEmissor(); };   // filtro vale para protocolos E aptas
   $('bAplicar').onclick = aplicar; $('fPer').onchange = pintar;
   ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') aplicar(); }));
