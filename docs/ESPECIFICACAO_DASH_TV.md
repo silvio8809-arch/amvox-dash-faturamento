@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.39** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.40** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -38,6 +38,9 @@ competência deixa de filtrar: a nota é encontrada em qualquer mês. O que o ca
 ## 2. Princípios que valem para tudo
 
 - **Base somente leitura.** O painel só lê o Protheus; nunca grava nada no ERP.
+- **FAT PLUS = relatório OFICIAL de receita bruta, deduções e bonificações** (Silvio 03/11/2026): traz os critérios
+  contábeis em tempo real, sem esperar a contabilização do mês. Devolução que a FAT PLUS traz como **DEV** é devolução
+  — inclusive as de **conserto** (assistência/OS).
 - **Faturamento = número oficial da FAT PLUS.** Todo valor de faturamento bate com a consulta
   *Faturamento Analítico Plus* (visão `VW_AZ_FATURAMENTO_ANALITICO_NOVO`, origem FAT). A conferência é
   nota a nota. Única diferença conhecida: a NF 000278810 (R$ 5.249,73), que a visão conta estando
@@ -398,7 +401,8 @@ as mães das remessas daquele pedido.
   4. nota que sumiu do Protheus sai do painel, mas só se a sobra for menor que 5% (proteção contra
      extração incompleta).
 - **Conferência** após cada carga: o painel é comparado nota a nota com o Protheus, cortando pela
-- **Espelho FAT PLUS (03/11/2026):** a mesma conferência compara, **nota a nota**, o **mês corrente e o anterior**
+- **Espelho FAT PLUS (03/11/2026) — 1× por dia, na rodada final (16h30):** a view calcula o faturamento na hora
+  (≈ 80 s só para 2 meses), então não roda nas cargas de hora em hora (conferência = ≈ 13 s). Compara, **nota a nota**, o **mês corrente e o anterior**
   com a FAT PLUS — bruto (origem FAT) e devoluções (origem DEV, valor contábil pela digitação). A FAT PLUS já
   traz os critérios contábeis e existe em tempo real: é o **espelho contábil sem esperar a contabilização do
   mês** (Silvio). Qualquer nota só na view, só no painel ou com valor diferente vira **pendência** no resumo;
@@ -488,6 +492,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.37 | 03/11/2026 | Quadro **Devoluções** da TV passa ao **critério contábil** (conta 3110102: mês da digitação, valor contábil) — mesmo número do líquido do card (seção 2) | Silvio Amaral |
 | 1.38 | 03/11/2026 | **Premissa dura: fechar com o critério contábil** — telas *Devoluções* e *Top clientes* passam à conta 3110102 (digitação, valor contábil); out/26 conferido nas três telas (seção 2) | Silvio Amaral |
 | 1.39 | 03/11/2026 | Conferência de cada carga ganha o **espelho FAT PLUS**: mês corrente e anterior, nota a nota, bruto e devoluções (seção 14) | Silvio Amaral |
+| 1.40 | 03/11/2026 | FAT PLUS = relatório oficial (receita bruta, deduções, bonificações); conserto que a FAT PLUS traz como DEV = devolução; espelho FAT PLUS só na rodada final do dia, por desempenho (seções 2 e 14) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

@@ -29,7 +29,9 @@ ESPELHO FAT PLUS (Silvio 03/11/2026 — "os critérios contábeis estão impregn
 -------------------------------------------------------------------------------------------
 Premissa dura: o painel FECHA com o critério contábil. A FAT PLUS (VW_AZ_FATURAMENTO_ANALITICO_NOVO)
 já aplica essa régua e existe em tempo real — é o espelho contábil sem esperar a contabilização do mês.
-Toda rodada confere, para o MÊS CORRENTE e o ANTERIOR, nota a nota:
+UMA VEZ POR DIA (Silvio 03/11/2026, "me preocupa ficar lento"): a view calcula o faturamento na hora e leva
+~80 s só para 2 meses — roda na rodada FINAL (a partir de 16h25) ou com --espelho; nas rodadas de hora em
+hora fica de fora. Confere, para o MÊS CORRENTE e o ANTERIOR, nota a nota:
   BRUTO ...... dash_nf_saida (vivas, emissão no mês)      × FAT PLUS ORIGEM='FAT' (FATURAMENTO)
   DEVOLUÇÕES . dash_devolucao (valor_contabil, digitação)  × FAT PLUS ORIGEM='DEV' (−DEVOLUCAO)
 Divergência = pendência (nunca ajuste). Nota emitida/digitada depois do corte = só informa.
@@ -53,6 +55,7 @@ TOL     = 0.005          # tolerância de valor: meio centavo (ruído de float)
 TOL_FP  = 0.015          # espelho FAT PLUS: a view arredonda por item — 1 centavo por nota é ruído
 # vazamentos CONHECIDOS da view (o painel está certo): NF 000278810/1 cancelada que a view ainda conta (set/26)
 FP_EXCECOES = {("010102", "000278810", "1")}
+ESPELHO_A_PARTIR = "16:25"   # rodada final do dia (tarefa das 16h30)
 SKEW_MAX = 120           # segundos de diferença tolerada entre Mac e servidor
 
 
@@ -142,6 +145,7 @@ def main():
     ap.add_argument("--dias", type=int, default=None,
                     help="janela manual; sem ela vale a janela GRAVADA no último refresh ok")
     ap.add_argument("--corte", help='corte manual, hora local "AAAA-MM-DD HH:MM"')
+    ap.add_argument("--espelho", action="store_true", help="força o espelho FAT PLUS fora da rodada final")
     args = ap.parse_args()
 
     if not vpn_ok():
@@ -215,16 +219,19 @@ def main():
               AND  F2.F2_EMISSAO BETWEEN '{de}' AND '{ate}'
             GROUP BY F2.F2_FILIAL, F2.F2_DOC, F2.F2_SERIE, F2.F2_EMISSAO, F2.F2_HORA, F2.F2_CLIENTE""")
         origem = {(r["FIL"], r["NF"], r["SER"]): r for r in cur.fetchall()}
-        # ---- espelho FAT PLUS: mês corrente e anterior
+        # ---- espelho FAT PLUS: mês corrente e anterior — só na rodada final do dia (≥ 16h25) ou com --espelho
         m_cor = hoje.strftime("%Y%m")
         m_ant = (hoje.replace(day=1) - dt.timedelta(days=1)).strftime("%Y%m")
-        cur.execute(f"""
+        fazer_espelho = args.espelho or dt.datetime.now().strftime("%H:%M") >= ESPELHO_A_PARTIR
+        fatplus = None
+        if fazer_espelho:
+          cur.execute(f"""
             SELECT ORIGEM, ANOMES, RTRIM(FILIAL) FIL, RTRIM(NF) NF, RTRIM(CODCLI) CLI, [DT NF] DT,
                    SUM(FATURAMENTO) FAT, SUM(DEVOLUCAO) DEV
             FROM   VW_AZ_FATURAMENTO_ANALITICO_NOVO
             WHERE  ANOMES IN ('{m_ant}','{m_cor}') AND ORIGEM IN ('FAT','DEV')
             GROUP BY ORIGEM, ANOMES, FILIAL, NF, CODCLI, [DT NF]""")
-        fatplus = cur.fetchall()
+          fatplus = cur.fetchall()
         cur.close()
     finally:
         conn.close()
@@ -241,7 +248,12 @@ def main():
     def antes_do_corte(r):
         return f"{r['EMIS']}{r['HORA']}" <= chave_corte
 
-    problemas_fp = espelho_fatplus(fatplus, cache, origem, antes_do_corte, m_ant, m_cor, corte)
+    if fatplus is None:
+        problemas_fp = []
+        print(f"  ESPELHO FAT PLUS: roda 1× por dia, na rodada final (a partir de {ESPELHO_A_PARTIR}) — "
+              "ou agora com --espelho.\n")
+    else:
+        problemas_fp = espelho_fatplus(fatplus, cache, origem, antes_do_corte, m_ant, m_cor, corte)
 
     falta_antes, falta_depois, divergentes = [], [], []
     for k, r in origem.items():
