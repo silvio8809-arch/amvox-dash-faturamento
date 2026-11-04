@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.38** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.39** · 03/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -398,6 +398,12 @@ as mães das remessas daquele pedido.
   4. nota que sumiu do Protheus sai do painel, mas só se a sobra for menor que 5% (proteção contra
      extração incompleta).
 - **Conferência** após cada carga: o painel é comparado nota a nota com o Protheus, cortando pela
+- **Espelho FAT PLUS (03/11/2026):** a mesma conferência compara, **nota a nota**, o **mês corrente e o anterior**
+  com a FAT PLUS — bruto (origem FAT) e devoluções (origem DEV, valor contábil pela digitação). A FAT PLUS já
+  traz os critérios contábeis e existe em tempo real: é o **espelho contábil sem esperar a contabilização do
+  mês** (Silvio). Qualquer nota só na view, só no painel ou com valor diferente vira **pendência** no resumo;
+  nota emitida/digitada depois da extração só informa. Exceção conhecida: NF 000278810 (cancelada que a view
+  ainda conta).
   hora da extração. Diferença vira pendência no resumo.
 - **Sempre a última versão do código:** a rotina agendada só executa os programas do projeto; o que
   gravar e como está no próprio código (manifesto das tabelas). Tabela ou regra nova passa a valer na
@@ -481,6 +487,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.36 | 03/11/2026 | Card **Notas emitidas**: linhas **Faturamento bruto** (3110101) e **Faturamento líquido** (3110101 − 3110102), devolução pela data de digitação e valor contábil — migração 021 (seção 2) | Silvio Amaral |
 | 1.37 | 03/11/2026 | Quadro **Devoluções** da TV passa ao **critério contábil** (conta 3110102: mês da digitação, valor contábil) — mesmo número do líquido do card (seção 2) | Silvio Amaral |
 | 1.38 | 03/11/2026 | **Premissa dura: fechar com o critério contábil** — telas *Devoluções* e *Top clientes* passam à conta 3110102 (digitação, valor contábil); out/26 conferido nas três telas (seção 2) | Silvio Amaral |
+| 1.39 | 03/11/2026 | Conferência de cada carga ganha o **espelho FAT PLUS**: mês corrente e anterior, nota a nota, bruto e devoluções (seção 14) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

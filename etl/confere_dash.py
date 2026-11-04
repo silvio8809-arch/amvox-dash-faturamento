@@ -25,6 +25,15 @@ COMO O VEREDITO É FORMADO
 depois da extração) cai em "falta antes do corte" e dispara pendência. É falso
 positivo, mas é o erro seguro: melhor conferir à mão do que deixar passar quebra.
 
+ESPELHO FAT PLUS (Silvio 03/11/2026 — "os critérios contábeis estão impregnados na FAT PLUS")
+-------------------------------------------------------------------------------------------
+Premissa dura: o painel FECHA com o critério contábil. A FAT PLUS (VW_AZ_FATURAMENTO_ANALITICO_NOVO)
+já aplica essa régua e existe em tempo real — é o espelho contábil sem esperar a contabilização do mês.
+Toda rodada confere, para o MÊS CORRENTE e o ANTERIOR, nota a nota:
+  BRUTO ...... dash_nf_saida (vivas, emissão no mês)      × FAT PLUS ORIGEM='FAT' (FATURAMENTO)
+  DEVOLUÇÕES . dash_devolucao (valor_contabil, digitação)  × FAT PLUS ORIGEM='DEV' (−DEVOLUCAO)
+Divergência = pendência (nunca ajuste). Nota emitida/digitada depois do corte = só informa.
+
 Uso:  python3 etl/confere_dash.py            # corte = started_at do último refresh ok
       python3 etl/confere_dash.py --corte "2026-09-21 14:14"   # corte manual (local)
       python3 etl/confere_dash.py --dias 120
@@ -41,6 +50,9 @@ from refresh_dash import falha_de_conexao, segura_mac_acordado
 RAIZ    = Path(__file__).resolve().parent.parent
 ENVFILE = RAIZ / ".env"
 TOL     = 0.005          # tolerância de valor: meio centavo (ruído de float)
+TOL_FP  = 0.015          # espelho FAT PLUS: a view arredonda por item — 1 centavo por nota é ruído
+# vazamentos CONHECIDOS da view (o painel está certo): NF 000278810/1 cancelada que a view ainda conta (set/26)
+FP_EXCECOES = {("010102", "000278810", "1")}
 SKEW_MAX = 120           # segundos de diferença tolerada entre Mac e servidor
 
 
@@ -203,13 +215,23 @@ def main():
               AND  F2.F2_EMISSAO BETWEEN '{de}' AND '{ate}'
             GROUP BY F2.F2_FILIAL, F2.F2_DOC, F2.F2_SERIE, F2.F2_EMISSAO, F2.F2_HORA, F2.F2_CLIENTE""")
         origem = {(r["FIL"], r["NF"], r["SER"]): r for r in cur.fetchall()}
+        # ---- espelho FAT PLUS: mês corrente e anterior
+        m_cor = hoje.strftime("%Y%m")
+        m_ant = (hoje.replace(day=1) - dt.timedelta(days=1)).strftime("%Y%m")
+        cur.execute(f"""
+            SELECT ORIGEM, ANOMES, RTRIM(FILIAL) FIL, RTRIM(NF) NF, RTRIM(CODCLI) CLI, [DT NF] DT,
+                   SUM(FATURAMENTO) FAT, SUM(DEVOLUCAO) DEV
+            FROM   VW_AZ_FATURAMENTO_ANALITICO_NOVO
+            WHERE  ANOMES IN ('{m_ant}','{m_cor}') AND ORIGEM IN ('FAT','DEV')
+            GROUP BY ORIGEM, ANOMES, FILIAL, NF, CODCLI, [DT NF]""")
+        fatplus = cur.fetchall()
         cur.close()
     finally:
         conn.close()
 
     # ---------------------------------------------------------------- cache
     cache, fora_janela = {}, {}
-    for c in sb_tudo("dash_nf_saida?select=filial,nf,serie,valor_faturado,emissao"):
+    for c in sb_tudo("dash_nf_saida?select=filial,nf,serie,valor_faturado,emissao,status"):
         k = (c["filial"].strip(), c["nf"].strip(), c["serie"].strip())
         (cache if (c["emissao"] or "") >= de_iso else fora_janela)[k] = c
 
@@ -218,6 +240,8 @@ def main():
     chave_corte = f"{corte:%Y%m%d}{corte:%H:%M}"
     def antes_do_corte(r):
         return f"{r['EMIS']}{r['HORA']}" <= chave_corte
+
+    problemas_fp = espelho_fatplus(fatplus, cache, origem, antes_do_corte, m_ant, m_cor, corte)
 
     falta_antes, falta_depois, divergentes = [], [], []
     for k, r in origem.items():
@@ -261,7 +285,7 @@ def main():
             print(f"        ... e mais {len(falta_depois)-10}")
         print()
 
-    problemas = []
+    problemas = list(problemas_fp)
     if falta_antes:
         v = sum(float(r["VAL"]) for r in falta_antes)
         problemas.append(f"{len(falta_antes)} NF emitidas ANTES do corte não estão no cache "
@@ -294,6 +318,67 @@ def main():
     print("  CONFERÊNCIA: ✅ BATEU — cache idêntico à origem no instante da extração "
           "(quantidade e valor, NF a NF).")
     return 0
+
+
+def espelho_fatplus(fatplus, cache, origem, antes_do_corte, m_ant, m_cor, corte):
+    """Painel × FAT PLUS no mês corrente e no anterior, nota a nota (bruto e devoluções).
+    Devolve a lista de pendências; imprime o quadro."""
+    meses = (m_ant, m_cor)
+    iso = lambda m: f"{m[:4]}-{m[4:]}"
+    # ---- FAT PLUS
+    fp_fat, fp_dev = {}, {}
+    for r in fatplus:
+        serie, doc = [x.strip() for x in r["NF"].split("-", 1)] if "-" in r["NF"] else ("", r["NF"].strip())
+        if r["ORIGEM"] == "FAT":
+            k = (r["FIL"], doc, serie)
+            if k in FP_EXCECOES:
+                continue
+            a = fp_fat.setdefault(k, {"mes": r["ANOMES"], "v": 0.0}); a["v"] += float(r["FAT"] or 0)
+        else:
+            k = (r["FIL"], doc, serie, r["CLI"])
+            a = fp_dev.setdefault(k, {"mes": r["ANOMES"], "v": 0.0, "dt": r["DT"]}); a["v"] -= float(r["DEV"] or 0)
+    # ---- painel
+    pn_fat = {k: {"mes": c["emissao"][:7].replace("-", ""), "v": float(c["valor_faturado"] or 0)}
+              for k, c in cache.items() if (c["emissao"] or "")[:7] in (iso(m_ant), iso(m_cor))
+              and c.get("status") != "CANCELADA"}
+    pn_dev = {}
+    for d in sb_tudo("dash_devolucao?select=filial,nf_dev,serie_dev,cliente_cod,cliente_loja,dt_digitacao,valor_contabil"
+                     f"&dt_digitacao=gte.{iso(m_ant)}-01&valor_contabil=gt.0"):
+        k = (d["filial"].strip(), d["nf_dev"].strip(), d["serie_dev"].strip(),
+             (d["cliente_cod"] or "").strip() + (d["cliente_loja"] or "").strip())
+        a = pn_dev.setdefault(k, {"mes": d["dt_digitacao"][:7].replace("-", ""), "v": 0.0})
+        a["v"] += float(d["valor_contabil"] or 0)
+
+    pend = []
+    print("  ESPELHO FAT PLUS (critério contábil em tempo real) — painel × view, nota a nota")
+    for nome, fp, pn, eh_fat in (("BRUTO (ORIGEM FAT)", fp_fat, pn_fat, True),
+                                 ("DEVOLUÇÕES (ORIGEM DEV)", fp_dev, pn_dev, False)):
+        for m in meses:
+            a = {k: v for k, v in fp.items() if v["mes"] == m}
+            b = {k: v for k, v in pn.items() if v["mes"] == m}
+            ta, tb = sum(v["v"] for v in a.values()), sum(v["v"] for v in b.values())
+            depois = []
+            if eh_fat:   # nota emitida depois do corte: a view já vê, o retrato ainda não
+                depois = [k for k in a if k not in b and k in origem and not antes_do_corte(origem[k])]
+            else:        # devolução digitada hoje, depois da extração
+                depois = [k for k in a if k not in b and a[k]["dt"] >= f"{corte:%Y%m%d}"]
+            so_fp = [k for k in a if k not in b and k not in depois]
+            so_pn = [k for k in b if k not in a]
+            dif = [(k, a[k]["v"], b[k]["v"]) for k in a if k in b and abs(a[k]["v"] - b[k]["v"]) > TOL_FP]
+            ok = not (so_fp or so_pn or dif)
+            print(f"    {nome:<24} {m[4:]}/{m[:4]}: FAT PLUS {len(a):4d} NF R$ {ta:>15,.2f} · painel "
+                  f"{len(b):4d} NF R$ {tb:>15,.2f} · {'✅ bate' if ok else '❌ diverge'}"
+                  + (f" · {len(depois)} depois do corte (próxima rodada)" if depois else ""))
+            if not ok:
+                det = ([f"só na FAT PLUS {k[1]}/{k[2]} R$ {a[k]['v']:,.2f}" for k in so_fp[:5]]
+                       + [f"só no painel {k[1]}/{k[2]} R$ {b[k]['v']:,.2f}" for k in so_pn[:5]]
+                       + [f"{k[1]}/{k[2]} view {x:,.2f} × painel {y:,.2f}" for k, x, y in dif[:5]])
+                for t in det:
+                    print(f"        {t}")
+                pend.append(f"espelho FAT PLUS {nome.split(' ')[0].lower()} {m[4:]}/{m[:4]}: "
+                            f"{len(so_fp)} só na view · {len(so_pn)} só no painel · {len(dif)} com valor diferente")
+    print()
+    return pend
 
 
 if __name__ == "__main__":
