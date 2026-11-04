@@ -235,7 +235,7 @@ main{padding:24px 34px;display:grid;grid-template-columns:1fr 1fr;grid-template-
           <div class="quem"><h4>Quem mais devolve</h4><div id="d_quem"></div></div>
         </div>
       </div>
-      <div class="rod"><span id="d_rod">Devolução de venda: exclui conserto e origem sem receita</span><a href="devolucoes.html">Ver devoluções →</a></div>
+      <div class="rod"><span id="d_rod">Critério contábil (conta 3110102): mês da digitação · sem ICMS-ST e sem retorno de remessa</span><a href="devolucoes.html">Ver devoluções →</a></div>
     </div>
   </section>
 </main>
@@ -420,12 +420,14 @@ async function montar(mesEscolhido){
     return `<div class="faixa ${f.tv}"><div class="q">${g.length}</div><div class="t">${f.rot}</div><div class="v">${milhoes(v)}</div></div>`;
   }).join('');
 
-  /* ---------------- 4 · devoluções (só devolução de VENDA) ---------------- */
-  const devVenda = devs.filter(x => x.devolucao_venda);
-  const dMes = doMes(devVenda,'emissao_dev',mesAtual);
-  const dAnt = doMes(devVenda,'emissao_dev',mesAnt);
-  const vMes = dMes.reduce((s,x)=>s+(+x.valor||0),0);
-  const vAnt = dAnt.reduce((s,x)=>s+(+x.valor||0),0);
+  /* ---------------- 4 · devoluções — CRITÉRIO CONTÁBIL (Silvio 03/11/2026) ----------------
+     = conta 3110102: nota com valor contábil (itens com TES que gera duplicata, sem ICMS-ST), no mês da
+     DIGITAÇÃO da nota de entrada. Mesmo número que o card de notas desconta do bruto para o líquido. */
+  const devVenda = devs.filter(x => (+x.valor_contabil||0) > 0);
+  const dMes = doMes(devVenda,'dt_digitacao',mesAtual);
+  const dAnt = doMes(devVenda,'dt_digitacao',mesAnt);
+  const vMes = dMes.reduce((s,x)=>s+(+x.valor_contabil||0),0);
+  const vAnt = dAnt.reduce((s,x)=>s+(+x.valor_contabil||0),0);
   const pMes = fatMes ? 100*vMes/fatMes : 0;
   const pAnt = fatAnt ? 100*vAnt/fatAnt : 0;
   $('d_num').textContent = inteiro(dMes.length);
