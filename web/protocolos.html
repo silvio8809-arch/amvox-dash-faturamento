@@ -75,7 +75,7 @@
 /* PROTOCOLO ON-LINE (Silvio 20/10/2026, etapa 1): central dos protocolos de notas LIBERADAS PARA EXPEDIÇÃO + ciência.
    Regras (garantidas no banco — funções prot_*): só aparece o que o Faturamento JÁ liberou (protocolo enviado); nota
    cancelada ou devolvida depois NÃO aparece; na homologação a aba só abre para Controladoria e Faturamento. */
-let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, LOG = false, PARAM_H = 2, PROT_SEL = null;
+let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, LOG = false, PARAM_H = 3, PROT_SEL = null;
 const fHora = v => v ? new Date(v).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
 const quem = e => String(e || '').split('@')[0];
 /* ciência começa a valer com a central no ar (21/10/2026): protocolo anterior não tinha onde dar ciência — não alarma */
