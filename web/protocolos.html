@@ -67,7 +67,7 @@
 /* PROTOCOLO ON-LINE (Silvio 20/10/2026, etapa 1): central dos protocolos de notas LIBERADAS PARA EXPEDIÇÃO + ciência.
    Regras (garantidas no banco — funções prot_*): só aparece o que o Faturamento JÁ liberou (protocolo enviado); nota
    cancelada ou devolvida depois NÃO aparece; na homologação a aba só abre para Controladoria e Faturamento. */
-let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, PARAM_H = 2, PROT_SEL = null;
+let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, LOG = false, PARAM_H = 2, PROT_SEL = null;
 const fHora = v => v ? new Date(v).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
 const quem = e => String(e || '').split('@')[0];
 /* ciência começa a valer com a central no ar (21/10/2026): protocolo anterior não tinha onde dar ciência — não alarma */
@@ -83,11 +83,24 @@ function celCiencia(p){
   if(p.ciencia_em){ const ls = leituras(p), mais = ls.length - 1;
     return `<span class="cie-ok">✓ ${esc(quem(p.ciencia_por))}</span><div class="nota">1ª ciência · ${p.ciencia_via === 'EMAIL' ? 'pelo e-mail de notificação · ' : ''}${fHora(p.ciencia_em)}</div>` +
       (mais > 0 ? `<div class="nota cie-mais" title="${esc(ls.map((l, i) => `${i + 1}º ${quem(l.usuario)} — ${fHora(l.em)} (${l.via === 'EMAIL' ? 'e-mail' : 'botão na aba'})`).join('\n'))}">+ ${mais} leitura(s): ${esc(ls.slice(1).map(l => quem(l.usuario)).join(', '))}</div>` : '') +
-      (USUARIO && !EMISSOR && !ls.some(l => String(l.usuario).toLowerCase() === USUARIO.toLowerCase()) ? `<button class="bt btmini" data-cie="${esc(p.numero)}" title="Registra que você também recebeu e leu este protocolo">+ minha ciência</button>` : ''); }
+      ''; }
+  /* botões "Dar ciência"/"+ minha ciência" saíram em 06/11/2026: o registro no app passou a ser o ACEITE, exclusivo da LOG (coluna ao lado) */
   const h = +p.horas_sem_ciencia || 0;
-  return `<button class="bt" data-cie="${esc(p.numero)}" title="Registra que você recebeu e leu este protocolo">Dar ciência</button>` +
-    `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>` +
+  return `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">${semCiencia(p) ? '⚠️ ' : ''}sem ciência há ${h < 1 ? Math.round(h * 60) + ' min' : h.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' h'}</div>` +
     (p.lembrete_em ? `<div class="nota">📧 lembrete enviado ${fHora(p.lembrete_em)} (sem confirmação de leitura)</div>` : '');
+}
+/* ACEITE DA LOGÍSTICA (Silvio 06/11/2026, migração 023): o e-mail pede à LOG o aceite pela confirmação de leitura OU no app.
+   Botão só para o time LOG (lista DESTINO_LOG — trava também no banco, prot_dar_aceite); os demais veem a situação.
+   Aceite = 1ª manifestação de cada pessoa da LOG (botão no app ou confirmação de leitura do e-mail). */
+function celAceite(p){
+  if(!p.para_log) return '<span class="nota" title="Este protocolo não foi enviado ao time de Logística">— não enviado à LOG</span>';
+  const as = Array.isArray(p.aceites) ? p.aceites : [];
+  const eu = LOG && !as.some(a => String(a.usuario).toLowerCase() === USUARIO.toLowerCase());
+  const bt = mini => `<button class="bt${mini ? ' btmini' : ''} btaceite" data-aceite="${esc(p.numero)}" title="Confirma que você (Logística) recebeu e leu este protocolo">${mini ? '+ meu aceite' : 'Dar aceite'}</button>`;
+  if(as.length) return `<span class="cie-ok">✓ ${esc(quem(as[0].usuario))}</span><div class="nota">${as[0].via === 'EMAIL' ? 'pela leitura do e-mail · ' : 'no app · '}${fHora(as[0].em)}</div>` +
+    (as.length > 1 ? `<div class="nota cie-mais" title="${esc(as.map((a, i) => `${i + 1}º ${quem(a.usuario)} — ${fHora(a.em)} (${a.via === 'EMAIL' ? 'e-mail' : 'app'})`).join('\n'))}">+ ${as.length - 1} aceite(s): ${esc(as.slice(1).map(a => quem(a.usuario)).join(', '))}</div>` : '') +
+    (eu ? bt(true) : '');
+  return (LOG ? bt(false) : '') + `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">aguardando a Logística</div>`;
 }
 /* leituras do protocolo (migração 022); antes dela, só a 1ª ciência */
 const leituras = p => Array.isArray(p.leituras) && p.leituras.length ? p.leituras
@@ -105,6 +118,7 @@ const COLS = [
   {k:'nfs', t:'Notas', html:p => F.int(p.nfs) + (EMISSOR && +p.ocultas ? `<div class="nota" title="Canceladas ou devolvidas depois da liberação — não aparecem na aba">${p.ocultas} oculta(s)</div>` : '')},
   {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
   {k:'ciencia_em', t:'Ciência', html:celCiencia},
+  {k:'aceites', t:'Aceite LOG', html:celAceite},
   {k:'pdf_path', t:'PDF', html:p => p.pdf_path ? `<button class="btpdf" data-pdf="${esc(p.pdf_path)}" title="${/_2via\.pdf$/.test(p.pdf_path) ? 'Baixar a 2ª via do PDF no padrão atual (SUFRAMA em vermelho, razão social) — mesmas notas e valores; o original enviado fica preservado' : 'Baixar o PDF do protocolo (como foi enviado)'}">📄</button>` : '—'},
 ];
 async function notasDe(numero){
@@ -138,6 +152,12 @@ async function pintar(){
   TAB ? TAB.dados(lv) : (TAB = new Tabela(cfg));
 }
 function liga(raiz){
+  raiz.querySelectorAll('[data-aceite]').forEach(b => b.onclick = async ev => { ev.stopPropagation();
+    if(!confirm(`Confirmar o ACEITE do ${b.dataset.aceite}?\n\nRegistra, com seu nome e a hora, que a Logística recebeu e leu este protocolo.`)) return;
+    b.disabled = true;
+    const r = await SB.rpc('prot_dar_aceite', {p_numero: b.dataset.aceite});
+    if(r.error){ alert('Não foi possível registrar o aceite: ' + r.error.message); b.disabled = false; return; }
+    await carrega(); pintar(); if(PROT_SEL === b.dataset.aceite) abreDetalhe(PROT_SEL); });
   raiz.querySelectorAll('[data-cie]').forEach(b => b.onclick = async ev => { ev.stopPropagation(); b.disabled = true;
     const r = await SB.rpc('prot_dar_ciencia', {p_numero: b.dataset.cie});
     if(r.error){ alert('Não foi possível registrar a ciência: ' + r.error.message); b.disabled = false; return; }
@@ -161,9 +181,9 @@ async function abreDetalhe(numero){
     {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
         : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
     {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
-  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
+  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'ACEITE' ? 'aceite da Logística no app' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
   const ls = leituras(p);
-  $('dHist').innerHTML = (ls.length ? `<b>Ciência — quem leu (${ls.length}):</b><br>` + ls.map((l, i) => `${i + 1}º · ${esc(quem(l.usuario))} · ${fHora(l.em)} · ${l.via === 'EMAIL' ? 'confirmação de leitura do e-mail' : 'botão Dar ciência na aba'}`).join('<br>') + '<br><br>' : '')
+  $('dHist').innerHTML = (ls.length ? `<b>Ciência — quem leu (${ls.length}):</b><br>` + ls.map((l, i) => `${i + 1}º · ${esc(quem(l.usuario))} · ${fHora(l.em)} · ${l.via === 'EMAIL' ? 'confirmação de leitura do e-mail' : l.via === 'ACEITE' ? 'aceite da Logística no app' : 'botão Dar ciência na aba'}`).join('<br>') + '<br><br>' : '')
     + (ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '');
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -396,8 +416,8 @@ iniciarPagina(async () => {
   try { const {data:{session}} = await SB.auth.getSession(); const u = session && session.user;
     if(u){ const nome = (u.user_metadata && u.user_metadata.nome) || ''; USUARIO = u.email || '';
       $('usuarioLogado').textContent = nome ? `${nome} (${u.email})` : u.email; } } catch(_){}
-  const [e] = await Promise.all([SB.rpc('prot_e_emissor'), carrega()]);
-  EMISSOR = !!e.data;
+  const [e, lg] = await Promise.all([SB.rpc('prot_e_emissor'), SB.rpc('prot_e_log'), carrega()]);
+  EMISSOR = !!e.data; LOG = !lg.error && !!lg.data;   // antes da migração 023 a função não existe → ninguém vê o botão
   if(!PROTS.length && !EMISSOR){ $('tabela').innerHTML = '<div class="vazio">A central de protocolos ainda não foi liberada para o seu acesso.</div>'; return; }
   if(EMISSOR){ $('blocoEmissor').style.display = ''; $('bAtuAp').onclick = pedirAptas;   // ligado já: o botão aparece antes do quadro carregar
     await carregaEmissor(); pintaEmissor(); pintaAtuAptas();
