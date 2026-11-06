@@ -17,6 +17,13 @@
   .cli-suf{color:#B42318;font-weight:700}
   .rasc{border:2px solid #E0A526}
   .rasc h2{background:#FFF4DB}
+  .cnf{border-left:4px solid #1F2433}
+  .cnf .item{padding:10px 0;border-bottom:1px solid #eceef3}
+  .cnf .item:last-child{border-bottom:0}
+  .cnf .tit{font-weight:700;font-size:14.5px}
+  .cnf .onde{margin-top:4px;font-size:14px}
+  .cnf .ok{color:#14603F;font-weight:700} .cnf .al{color:#B42318;font-weight:700} .cnf .am{color:#8A5B00;font-weight:700}
+  .cnf a{color:#1F2433;font-weight:700;cursor:pointer;text-decoration:underline}
   .suf{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:4px;background:#B42318;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.3px;vertical-align:1px}
 </style>
 </head><body>
@@ -33,6 +40,7 @@
   <div class="acoes"><button class="bt pri" id="bAplicar">Aplicar</button></div>
 </div>
 <main>
+  <div class="painel cnf" id="consNF" style="display:none"><h2>Consulta da nota <span>em que protocolo a nota está — ou por que ainda não está</span></h2><div class="corpo" id="consNFc"></div></div>
   <div id="blocoEmissor" style="display:none">
     <div class="painel rasc" id="rascP" style="display:none"><h2>Protocolo automático do dia — AGUARDANDO APROVAÇÃO <span>Controladoria ou Faturamento aprova · só depois disso o protocolo é enviado</span></h2>
       <div class="corpo"><div class="nota" id="rascInfo"></div>
@@ -101,6 +109,55 @@ function celAceite(p){
     (as.length > 1 ? `<div class="nota cie-mais" title="${esc(as.map((a, i) => `${i + 1}º ${quem(a.usuario)} — ${fHora(a.em)} (${a.via === 'EMAIL' ? 'e-mail' : 'app'})`).join('\n'))}">+ ${as.length - 1} aceite(s): ${esc(as.slice(1).map(a => quem(a.usuario)).join(', '))}</div>` : '') +
     (eu ? bt(true) : '');
   return (LOG ? bt(false) : '') + `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">aguardando a Logística</div>`;
+}
+/* CONSULTA POR NOTA (Silvio 06/11/2026, caso NF 282773; migração 024): com a NF no filtro, mostra em que protocolo a nota
+   está — ou POR QUE não está (venda à ordem, cancelada, apta/retida/segurada, ainda não liberada) — e a situação logística.
+   Os quadros e a lista já ficam filtrados pela NF; achando um único protocolo, o detalhe abre sozinho.
+   Aptas, retenções e pedidos só para Controladoria/Faturamento (a Logística só vê o que foi liberado — regra de 20/10/2026). */
+const SIT_PROT = {LIBERADA:'liberada', CANCELADA:'CANCELADA depois da liberação', DEVOLVIDA:'DEVOLVIDA depois da liberação', RETIDA:'RETIDA depois da liberação'};
+const linkProt = n => `<a data-abre="${esc(n)}">${esc(n)}</a>`;
+function ondeNF(x){
+  const ps = x.protocolos || [], vis = ps.filter(p => p.visivel);
+  if(vis.length) return `<span class="ok">✓ Liberada para expedição no ${vis.map(p => `${linkProt(p.numero)} (${F.data(p.data)})`).join(' e depois no ')}</span>`;
+  if(ps.length) return `<span class="al">⚠️ Esteve no ${ps.map(p => `${linkProt(p.numero)} — ${SIT_PROT[p.situacao] || esc(p.situacao)}`).join('; ')}: não aparece mais na lista</span>`;
+  if(x.tipo === 'VENDA_ORDEM_MAE'){
+    const rs = x.remessas || [];
+    return `<span class="am">NF-mãe de VENDA À ORDEM — não expede, por isso não entra no protocolo.</span> Quem expede é a remessa: ` +
+      (rs.length ? rs.map(r => `NF ${esc(r.doc.replace(/^0+/, ''))} (${(r.protocolos || []).length ? 'no ' + r.protocolos.map(linkProt).join(', ') : 'sem protocolo'})`).join(' · ') : 'nenhuma remessa emitida ainda') + '.';
+  }
+  if(x.tipo === 'REMESSA_ORDEM')
+    return `<span class="al">Remessa de VENDA À ORDEM (NF-mãe ${esc(String(x.nf_mae || '').replace(/^0+/, '') || '—')}): hoje as remessas de venda à ordem NÃO entram no protocolo de liberação.</span>`;
+  if(x.status === 'CANCELADA') return '<span class="al">Nota CANCELADA — não entra no protocolo.</span>';
+  if(EMISSOR){
+    const a = x.apta, t = x.retencao, pd = x.pedido;
+    if(pd) return `<span class="am">No pedido de protocolo nº ${pd.id} (${pd.status === 'AGUARDANDO_APROVACAO' ? 'rascunho do automático, aguardando aprovação' : pd.status === 'RODANDO' ? 'sendo processado' : 'na fila' + (pd.agendado_para ? ' — agendado para ' + fHora(pd.agendado_para) : '')}).</span>`;
+    if(t) return `<span class="al">RETIDA manualmente por ${esc(quem(t.por))} em ${fHora(t.em)} — ${esc(t.motivo || 'sem motivo')}. Use "Liberar" no quadro de aptas.</span>`;
+    if(a && a.situacao === 'APTA') return `<span class="am">APTA a liberar — entra no próximo protocolo${a.motivo ? ' · ' + esc(a.motivo) : ''}.</span>`;
+    if(a) return `<span class="al">${a.situacao === 'SEGURADA' ? 'SEGURADA (erro de emissão)' : 'RETIDA'}: ${esc(a.motivo || 'sem motivo')}.</span>`;
+    return '<span class="am">Fora do quadro de aptas: ainda sem DANFE autorizada, fora do universo do protocolo (devolução, remessa, transferência) ou emitida depois da última atualização do quadro — use "↻ Atualizar aptas agora".</span>';
+  }
+  return '<span class="am">Ainda não liberada para expedição pelo Faturamento.</span>';
+}
+async function consultaNF(){
+  const t = termoNF(), box = $('consNF');
+  if(t.length < 5){ box.style.display = 'none'; return; }
+  const r = await SB.rpc('prot_consulta_nf', {p_nf: t});
+  if(r.error){ box.style.display = 'none'; return; }      // antes da migração 024: só o filtro de sempre
+  const l = r.data || []; box.style.display = '';
+  $('consNFc').innerHTML = !l.length
+    ? `<div class="item"><div class="tit">NF ${esc(t)}</div><div class="onde"><span class="am">Não encontrada no Dash nem nos protocolos.</span> O Dash atualiza de hora em hora; notas fora do faturamento (remessas, transferências) e devoluções não constam.</div></div>`
+    : l.map(x => {
+        const tipo = x.tipo === 'REMESSA_ORDEM' ? 'Remessa de venda à ordem' : x.tipo === 'VENDA_ORDEM_MAE' ? 'Venda à ordem (NF-mãe)' : '';
+        const log = x.tipo === 'VENDA_ORDEM_MAE' ? '' : x.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(x.dt_entrega)}</span>` : x.status === 'CANCELADA' ? '<span class="et">Cancelada</span>'
+          : x.status ? `<span class="et et-tra">${x.status === 'EM_TRANSITO' ? 'Em trânsito / a expedir' : esc(x.status.replace(/_/g, ' ').toLowerCase())}</span>` : '';
+        return `<div class="item"><div class="tit">NF ${esc(x.doc.replace(/^0+/, ''))} · série ${esc(x.serie)} · ${esc(x.cliente || '—')}${x.uf ? ' · ' + esc(x.uf) : ''}</div>` +
+          `<div class="nota">Emissão ${F.data(x.emissao)}${x.valor != null ? ' · ' + F.moeda(+x.valor) : ''}${x.cfop ? ' · CFOP ' + esc(x.cfop) : ''}${tipo ? ' · <b>' + tipo + '</b>' : ''}` +
+          `${x.transportadora ? ' · transportadora ' + esc(x.transportadora) : ''}${x.romaneio ? ' · romaneio ' + esc(x.romaneio) : ''} ${log}</div>` +
+          `<div class="onde">${ondeNF(x)}</div></div>`; }).join('');
+  $('consNFc').querySelectorAll('[data-abre]').forEach(a => a.onclick = () => abreDetalhe(a.dataset.abre));
+  const vis = l.flatMap(x => (x.protocolos || []).filter(p => p.visivel).map(p => p.numero));
+  if(vis.length === 1) abreDetalhe(vis[0]);
+  else { $('detalhe').style.display = 'none'; PROT_SEL = null; }   // não deixa aberto o detalhe de uma consulta anterior
 }
 /* leituras do protocolo (migração 022); antes dela, só a 1ª ciência */
 const leituras = p => Array.isArray(p.leituras) && p.leituras.length ? p.leituras
@@ -424,7 +481,7 @@ iniciarPagina(async () => {
     $('bGerar').onclick = gerar; $('bXlsSel').onclick = exportarSelecionadas; $('fQuando').onchange = () => { $('fHora').style.display = $('fQuando').value === 'H' ? '' : 'none'; };
     window.telaOcupada = () => MARC.size > 0 || RASC_MOD; }
   /* faixa de homologação retirada em 04/11/2026 (Silvio): envio à Logística ativo desde 04/11 */
-  const aplicar = () => { pintar(); if(EMISSOR) pintaEmissor(); };   // filtro vale para protocolos E aptas
+  const aplicar = () => { pintar(); if(EMISSOR) pintaEmissor(); consultaNF(); };   // filtro vale para protocolos E aptas + consulta da nota
   $('bAplicar').onclick = aplicar; $('fPer').onchange = pintar;
   ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') aplicar(); }));
   await pintar();
