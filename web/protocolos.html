@@ -125,8 +125,8 @@ function ondeNF(x){
     return `<span class="am">NF-mãe de VENDA À ORDEM — não expede, por isso não entra no protocolo.</span> Quem expede é a remessa: ` +
       (rs.length ? rs.map(r => `NF ${esc(r.doc.replace(/^0+/, ''))} (${(r.protocolos || []).length ? 'no ' + r.protocolos.map(linkProt).join(', ') : 'sem protocolo'})`).join(' · ') : 'nenhuma remessa emitida ainda') + '.';
   }
-  if(x.tipo === 'REMESSA_ORDEM')
-    return `<span class="al">Remessa de VENDA À ORDEM (NF-mãe ${esc(String(x.nf_mae || '').replace(/^0+/, '') || '—')}): hoje as remessas de venda à ordem NÃO entram no protocolo de liberação.</span>`;
+  /* remessa de venda à ordem: ENTRA no protocolo desde 06/11/2026 (regra geral: toda nota que expede, sem duplicidade) —
+     segue as mesmas situações das demais notas (apta, retida, pedido…) */
   if(x.status === 'CANCELADA') return '<span class="al">Nota CANCELADA — não entra no protocolo.</span>';
   if(EMISSOR){
     const a = x.apta, t = x.retencao, pd = x.pedido;
@@ -147,7 +147,7 @@ async function consultaNF(){
   $('consNFc').innerHTML = !l.length
     ? `<div class="item"><div class="tit">NF ${esc(t)}</div><div class="onde"><span class="am">Não encontrada no Dash nem nos protocolos.</span> O Dash atualiza de hora em hora; notas fora do faturamento (remessas, transferências) e devoluções não constam.</div></div>`
     : l.map(x => {
-        const tipo = x.tipo === 'REMESSA_ORDEM' ? 'Remessa de venda à ordem' : x.tipo === 'VENDA_ORDEM_MAE' ? 'Venda à ordem (NF-mãe)' : '';
+        const tipo = x.tipo === 'REMESSA_ORDEM' ? `Remessa de venda à ordem (NF-mãe ${esc(String(x.nf_mae || '').replace(/^0+/, '') || '—')})` : x.tipo === 'VENDA_ORDEM_MAE' ? 'Venda à ordem (NF-mãe)' : '';
         const log = x.tipo === 'VENDA_ORDEM_MAE' ? '' : x.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(x.dt_entrega)}</span>` : x.status === 'CANCELADA' ? '<span class="et">Cancelada</span>'
           : x.status ? `<span class="et et-tra">${x.status === 'EM_TRANSITO' ? 'Em trânsito / a expedir' : esc(x.status.replace(/_/g, ' ').toLowerCase())}</span>` : '';
         return `<div class="item"><div class="tit">NF ${esc(x.doc.replace(/^0+/, ''))} · série ${esc(x.serie)} · ${esc(x.cliente || '—')}${x.uf ? ' · ' + esc(x.uf) : ''}</div>` +
@@ -328,7 +328,7 @@ function notasRasc(){
   const atual = APTAS[0] && APTAS[0].atualizado_em, depois = !!(RASC && atual && new Date(atual) > new Date(RASC.criado_em));
   return (RASC ? RASC.notas || [] : []).map(n => { const a = naApt.get(chN(n));
     const e = String(n.emissao || ''), emissao = /^\d{8}$/.test(e) ? `${e.slice(0, 4)}-${e.slice(4, 6)}-${e.slice(6, 8)}` : e;   // AAAAMMDD → data
-    return {...n, emissao, valor:+n.valor, tipo:n.origem === 'BON' ? 'BONIF.' : 'VENDA', _k:chN(n),
+    return {...n, emissao, valor:+n.valor, tipo:n.origem === 'BON' ? 'BONIF.' : n.origem === 'REM' ? 'REMESSA V.O.' : 'VENDA', _k:chN(n),
             _ret:a && a.situacao === 'RETIDA' ? (a.motivo || 'retida') : null, _manual:!!(a && a.retencao), _fora:!a && depois,
             _alerta:a && a.situacao === 'APTA' && !a.retencao ? a.motivo || null : null}; });   // 032: sem faturamento = só alerta
 }
