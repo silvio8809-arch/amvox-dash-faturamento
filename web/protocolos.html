@@ -80,6 +80,7 @@ const fHora = v => v ? new Date(v).toLocaleString('pt-BR', {day:'2-digit', month
 const quem = e => String(e || '').split('@')[0];
 /* ciência começa a valer com a central no ar (21/10/2026): protocolo anterior não tinha onde dar ciência — não alarma */
 const CIENCIA_DESDE = '2026-10-21';
+const ACEITE_LOG_DESDE = '2026-11-04T12:00:00-03:00';   // = prot_parametro ACEITE_LOG_DESDE (cobrança de aceite da LOG)
 const exigeCiencia = p => p.data >= CIENCIA_DESDE;
 const semCiencia = p => exigeCiencia(p) && !p.ciencia_em && p.horas_sem_ciencia !== null && +p.horas_sem_ciencia > PARAM_H;
 const ROT_ST = {ENTREGUE:'Entregue', EM_TRANSITO:'Em trânsito / a expedir'};
@@ -102,6 +103,11 @@ function celCiencia(p){
    Aceite = 1ª manifestação de cada pessoa da LOG (botão no app ou confirmação de leitura do e-mail). */
 function celAceite(p){
   if(!p.para_log) return '<span class="nota" title="Este protocolo não foi enviado ao time de Logística">— não enviado à LOG</span>';
+  /* MARCO (Silvio 06/11/2026, prot_parametro ACEITE_LOG_DESDE): protocolo enviado antes de 04/11/2026 12h (PROT-2026-024)
+     é DISPENSADO do aceite da LOG — vale a ciência do Fiscal, que fica registrada aqui para todos */
+  if(p.enviado_em && new Date(p.enviado_em) < new Date(ACEITE_LOG_DESDE))
+    return `<span class="nota" title="Enviado antes de a cobrança de aceite da Logística começar (04/11/2026 12h): vale a ciência do Fiscal">dispensado — vale a ciência do Fiscal</span>` +
+      (p.ciencia_em ? `<div class="cie-ok" style="font-size:12px">✓ ${esc(quem(p.ciencia_por))} · ${fHora(p.ciencia_em)}</div>` : '');
   const as = Array.isArray(p.aceites) ? p.aceites : [];
   const eu = LOG && !as.some(a => String(a.usuario).toLowerCase() === USUARIO.toLowerCase());
   const bt = mini => `<button class="bt${mini ? ' btmini' : ''} btaceite" data-aceite="${esc(p.numero)}" title="Confirma que você (Logística) recebeu e leu este protocolo">${mini ? '+ meu aceite' : 'Dar aceite'}</button>`;
