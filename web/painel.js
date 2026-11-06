@@ -218,16 +218,17 @@ function cardsClicaveis(elId, chaves, ativo, aoClicar){
    61–90, 91–180 e acima de 180. MESMA régua de faixa_de() em etl/refresh_dash.py e do FAIXA_ENTREGA
    de sql/01_extracao/01_nf_saida.sql. A tela recalcula a faixa pelos dias (fxDe) para não depender
    do código gravado na carga — assim nenhuma tela quebra entre a carga e a publicação. */
+/* faixas em DIAS ÚTEIS desde 06/11/2026 (Silvio: a roteirização não é feita aos fins de semana) — ETL dias_uteis_desde() */
 const FAIXAS = [
-  {k:'0-2',    rot:'0–2 dias',          nota:'normal',                cls:'et-0-2',    tv:'f1', ate:2},
-  {k:'3-7',    rot:'3–7 dias',          nota:'acompanhar',            cls:'et-3-7',    tv:'f2', ate:7},
-  {k:'8-15',   rot:'8–15 dias',         nota:'cobrar transportadora', cls:'et-8-15',   tv:'f3', ate:15},
-  {k:'16-30',  rot:'16–30 dias',        nota:'risco',                 cls:'et-16-30',  tv:'f4', ate:30},
-  {k:'31-45',  rot:'31–45 dias',        nota:'risco',                 cls:'et-31-45',  tv:'f5', ate:45},
-  {k:'46-60',  rot:'46–60 dias',        nota:'risco',                 cls:'et-46-60',  tv:'f6', ate:60},
-  {k:'61-90',  rot:'61–90 dias',        nota:'risco alto',            cls:'et-61-90',  tv:'f7', ate:90},
-  {k:'91-180', rot:'91–180 dias',       nota:'risco alto',            cls:'et-91-180', tv:'f8', ate:180},
-  {k:'>180',   rot:'acima de 180 dias', nota:'crítico',               cls:'et-180',    tv:'f9', ate:Infinity},
+  {k:'0-2',    rot:'0–2 dias úteis',          nota:'normal',                cls:'et-0-2',    tv:'f1', ate:2},
+  {k:'3-7',    rot:'3–7 dias úteis',          nota:'acompanhar',            cls:'et-3-7',    tv:'f2', ate:7},
+  {k:'8-15',   rot:'8–15 dias úteis',         nota:'cobrar transportadora', cls:'et-8-15',   tv:'f3', ate:15},
+  {k:'16-30',  rot:'16–30 dias úteis',        nota:'risco',                 cls:'et-16-30',  tv:'f4', ate:30},
+  {k:'31-45',  rot:'31–45 dias úteis',        nota:'risco',                 cls:'et-31-45',  tv:'f5', ate:45},
+  {k:'46-60',  rot:'46–60 dias úteis',        nota:'risco',                 cls:'et-46-60',  tv:'f6', ate:60},
+  {k:'61-90',  rot:'61–90 dias úteis',        nota:'risco alto',            cls:'et-61-90',  tv:'f7', ate:90},
+  {k:'91-180', rot:'91–180 dias úteis',       nota:'risco alto',            cls:'et-91-180', tv:'f8', ate:180},
+  {k:'>180',   rot:'acima de 180 dias úteis', nota:'crítico',               cls:'et-180',    tv:'f9', ate:Infinity},
 ];
 const FX_POR_K = Object.fromEntries(FAIXAS.map(f => [f.k, f]));
 const faixaDe = dias => FAIXAS.find(f => (+dias || 0) <= f.ate).k;

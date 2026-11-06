@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.43** · 06/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.44** · 06/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -127,6 +127,9 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 - **Faixas por dias desde a emissão** (9 faixas, Silvio 01/10/2026 — o antigo "acima de 15 dias" foi
   aberto): 0–2 (normal) · 3–7 (acompanhar) · 8–15 (cobrar transportadora) · 16–30 · 31–45 · 46–60 (risco)
   · 61–90 · 91–180 (risco alto) · acima de 180 (crítico). Mesma régua na carga, na tela, no Excel e na TV.
+  **Desde 06/11/2026 a contagem é em DIAS ÚTEIS** (Silvio: "a roteirização não é feita aos finais de semana"):
+  dias úteis DEPOIS da emissão até hoje (emitida ontem = 1), sem sábado, domingo e feriados nacionais e de
+  Camaçari — calendário único `.claude/scripts/dias_uteis.py`, aplicado no ETL (`dias_uteis_desde`). Coluna "Dias úteis" ("N d.u.").
 - **Valor principal:** saldo em aberto dos títulos, em R$, com a participação de cada faixa.
 - **Devolução em aberto:** para cada nota, o valor devolvido pelo cliente cujo crédito (NCC) o
   Financeiro ainda não compensou, com a marca *total*, *parcial* ou *compensada*. Mostra que a nota
@@ -497,6 +500,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.41 | 04/11/2026 | Aba **Protocolos**: **ciência acumulada** (todas as leituras, não só a 1ª — migração 022); botão **Exportar selecionadas (Excel)** nas notas aptas (só as marcadas, com quem exportou); cabeçalho mostra o **usuário conectado** (seção 15-A) | Silvio Amaral |
 | 1.42 | 04/11/2026 | **Usuário conectado** no cabeçalho de **todas as abas** (inclusive a TV); aba **Protocolos**: retirada a faixa de homologação (envio à Logística ativo desde 04/11/2026) | Silvio Amaral |
 | 1.43 | 06/11/2026 | Aba **Protocolos**: coluna **Aceite LOG** — botão "Dar aceite" exclusivo do time de Logística (migração 023); botão "Dar ciência" retirado da coluna Ciência (seção 15-A) | Silvio Amaral |
+| 1.44 | 06/11/2026 | **Notas sem data de entrega**: DIAS SEM ENTREGA e as 9 faixas passam a ser em **DIAS ÚTEIS** (sábado, domingo e feriados nacionais e de Camaçari não contam — a roteirização não é feita no fim de semana); calculado no ETL (`dias_uteis_desde`, mesmo calendário de `.claude/scripts/dias_uteis.py`) → vale também para a TV, Clientes e Excel; coluna "Dias úteis" ("N d.u.") e rótulos "X–Y dias úteis" | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

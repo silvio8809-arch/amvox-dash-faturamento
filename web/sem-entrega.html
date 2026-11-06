@@ -209,7 +209,7 @@
       <div class="painel"><h2>Plano de ação · justificativa <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porJust"></div></div></div>
       <div class="painel"><h2>Plano de ação · prazo <span>saldo · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porPrazo"></div></div></div>
       <div class="painel"><h2>Top clientes sem entrega <span>clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porCli"></div></div></div>
-      <div class="painel"><h2>Por transportadora <span>&gt;7 dias · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
+      <div class="painel"><h2>Por transportadora <span>&gt;7 dias úteis · clique para filtrar</span></h2><div class="corpo"><div class="linhab" id="porTr"></div></div></div>
     </div>
   </div>
 
@@ -734,7 +734,7 @@ const COLS = [
   {k:'saldo_aberto', t:'Saldo em aberto', fmt:F.moeda, cls:'forte'},
   {k:'devolucao_em_aberto', t:'Devolução em aberto', html:celDev},
   {k:'vencimento_real', t:'Vencimento', fmt:F.data},
-  {k:'dias_sem_entrega', t:'Dias', html:r => `<span class="et ${clsFx(r)}">${r.dias_sem_entrega} d</span>`},
+  {k:'dias_sem_entrega', t:'Dias úteis', html:r => `<span class="et ${clsFx(r)}" title="Dias úteis desde a emissão (sem sábado, domingo e feriados nacionais e de Camaçari)">${r.dias_sem_entrega} d.u.</span>`},
   {k:'_rot',  t:'Status roteirização', esq:true, html:celRot, grupo:'Plano de ação'},
   {k:'_stord', t:'Status',       esq:true, html:celStatus, grupo:'Plano de ação'},
   {k:'_just', t:'Justificativa', esq:true, html:celJust, grupo:'Plano de ação'},
@@ -1108,7 +1108,7 @@ const FONTE = {FIN:'Financeiro', GFE:'GFE', BAIXA:'Baixa do título', REMESSA:'�
 const temSaldo = x => (+x.saldo_aberto || 0) > 0.005;
 const pendente = x => !x.dt_entrega && temSaldo(x);
 const celEntrega = r => r.dt_entrega ? null
-  : temSaldo(r) ? `<span class="et ${clsFx(r)}">pendente · ${r.dias_sem_entrega} d</span>`
+  : temSaldo(r) ? `<span class="et ${clsFx(r)}">pendente · ${r.dias_sem_entrega} d.u.</span>`
   : '<span class="tag tag-comp" style="margin-left:0" title="sem saldo a receber — não é pendência">sem saldo</span>';
 let REG_FILTRO = '';                                  // card ativo do quadro: '' | SINISTRO | FUNCIONARIO | PEND
 function pintarRegra(){
@@ -1301,7 +1301,7 @@ iniciarPagina(async () => {
      {t:'UF',k:'uf',w:6},{t:'TRANSPORTADORA',k:'transportadora',w:24},
      {t:'VALOR',k:'valor_faturado',w:15,tipo:'n'},{t:'SALDO EM ABERTO',k:'saldo_aberto',w:17,tipo:'n'},
      {t:'DEVOLVIDO',k:'valor_devolvido',w:14,tipo:'n'},{t:'DEVOLUÇÃO EM ABERTO (NCC)',k:'devolucao_em_aberto',w:22,tipo:'n'},
-     {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS SEM ENTREGA',k:'dias_sem_entrega',w:17},
+     {t:'VENCIMENTO',k:'vencimento_real',w:13},{t:'DIAS ÚTEIS SEM ENTREGA',k:'dias_sem_entrega',w:20},
      {t:'FAIXA',w:16,val:r => (FX_POR_K[fxDe(r)] || {}).rot || ''},
      {t:'STATUS ROTEIRIZAÇÃO',w:40,val:r => 'romaneio' in r ? txtRot(r) : ''},
      {t:'ALERTA ROTEIRIZAÇÃO',w:16,val:r => 'romaneio' in r ? alertaRot(r).nivel : ''},

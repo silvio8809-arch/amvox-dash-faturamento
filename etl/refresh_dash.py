@@ -43,7 +43,7 @@ MIGRACOES = RAIZ / "db/migrations"
 ESPEC = RAIZ / "docs/ESPECIFICACAO_DASH_TV.md"
 # Versão da especificação que ESTE código implementa. Mudou regra aprovada → sobe aqui E no
 # documento (linha "**Versão X.Y**"). Se divergirem, o resumo da rodada avisa (não bloqueia).
-ESPEC_VERSAO = "1.43"
+ESPEC_VERSAO = "1.44"
 
 # MANIFESTO — tudo o que a carga grava. Tabela nova no cache = uma linha aqui + migração em
 # db/migrations/ + montagem no main(). A rotina agendada só roda este arquivo: ela passa a
@@ -332,8 +332,11 @@ def monta_nf(reg):
         dt_prevista=d(reg["DT_PREVISTA"]), dt_prevista_orig=d(reg["DT_PREVISTA_ORIG"]),
         vlr_titulos=num(reg["VLR_TITULOS"]), saldo_aberto=num(reg["SALDO_ABERTO"]),
         vencimento_real=d(reg["VENCIMENTO_REAL"]), dt_cancelamento=d(reg["DT_CANCELAMENTO"]),
-        status=reg["STATUS_BASE"], dias_sem_entrega=reg["DIAS_SEM_ENTREGA"],
-        faixa_entrega=reg["FAIXA_ENTREGA"], atraso_dias=None,
+        status=reg["STATUS_BASE"],
+        # dias úteis (06/11/2026): só quando a query diz que está sem entrega (DIAS_SEM_ENTREGA preenchido)
+        dias_sem_entrega=(dias_uteis_desde(d(reg["EMISSAO"])) if reg["DIAS_SEM_ENTREGA"] is not None else None),
+        faixa_entrega=(faixa_de(dias_uteis_desde(d(reg["EMISSAO"]))) if reg["FAIXA_ENTREGA"] is not None else None),
+        atraso_dias=None,
         venda_ordem=bool(reg.get("VENDA_ORDEM")),
         regra_especial=reg.get("REGRA_ESPECIAL") or None,   # SINISTRO | FUNCIONARIO — só marca
         valor_devolvido=None, devolucao_em_aberto=None,     # preenchidos no pós-processo
@@ -468,6 +471,28 @@ def monta_vo(reg, idx):
     )
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude" / "scripts"))
+from dias_uteis import motivo_nao_util     # calendário único: sábado, domingo, feriados nacionais e de Camaçari
+_DU = {}
+
+
+def dias_uteis_desde(emissao_iso, hoje=None):
+    """DIAS SEM ENTREGA em DIAS ÚTEIS (Silvio 06/11/2026: "a contagem tem que ser dias úteis, pois a roteirização não é
+    feita aos finais de semana"): dias úteis DEPOIS da emissão até hoje (emitida ontem, dia útil = 1) — mesma conta de
+    diasUteisDesde() da tela Sem data de entrega. As faixas (faixa_de) passam a ser em dias úteis."""
+    if not emissao_iso:
+        return None
+    hoje = hoje or dt.date.today()
+    k = (emissao_iso[:10], hoje)
+    if k not in _DU:
+        d, n = dt.date.fromisoformat(emissao_iso[:10]) + dt.timedelta(days=1), 0
+        while d <= hoje:
+            n += motivo_nao_util(d) is None
+            d += dt.timedelta(days=1)
+        _DU[k] = n
+    return _DU[k]
+
+
 def faixa_de(dias):
     """Mesma régua do 01_nf_saida.sql (FAIXA_ENTREGA)."""
     # 9 faixas (Silvio 01/10/2026) — mesma régua de FAIXAS em web/painel.js e da TV (index.html)
@@ -541,7 +566,7 @@ def aplica_entrega_venda_ordem(nfs, vos, hoje=None):
         elif n["dt_entrega"]:
             cont["fin_gfe_baixa"] += 1              # mantém a data e a origem da query
         else:
-            dias = (hoje - dt.date.fromisoformat(n["emissao"])).days
+            dias = dias_uteis_desde(n["emissao"], hoje)          # dias úteis (06/11/2026)
             n["dt_entrega_origem"] = "REMESSA_PENDENTE"
             n["status"], n["dias_sem_entrega"], n["faixa_entrega"] = "EM_TRANSITO", dias, faixa_de(dias)
             cont["pendente"] += 1
