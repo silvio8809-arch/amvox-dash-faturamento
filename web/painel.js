@@ -584,6 +584,20 @@ function registraAcesso(origem){
     SB.rpc('dash_registra_acesso', {p_origem:origem, p_pagina:(location.pathname.split('/').pop() || 'index.html')}).then(() => {}, () => {}); } catch(_){}
 }
 
+/* BOTÕES DE SESSÃO em todas as telas (Silvio 09/11/2026): "⇄ Mudar de módulo" leva ao PORTAL do app (que só mostra os módulos
+   liberados no perfil — profiles.apps; o banco continua travando) e "Sair" encerra a sessão. Mesmo visual das telas do app de Preços. */
+const PORTAL_MODULOS = 'https://silvio8809-arch.github.io/app.ctrl_amvox/index.html';
+function botoesSessao(){
+  if(document.getElementById('botoesSessao')) return;
+  const est = 'cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;' +
+              'padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px';
+  document.body.insertAdjacentHTML('beforeend', '<div id="botoesSessao" style="position:fixed;right:14px;bottom:14px;z-index:999">' +
+    `<button type="button" id="bMudarModulo" style="${est}" title="Voltar ao início e escolher outro módulo">⇄ Mudar de módulo</button>` +
+    `<button type="button" id="bSairSessao" style="${est}" title="Encerrar a sessão neste navegador">Sair ⎋</button></div>`);
+  document.getElementById('bMudarModulo').onclick = () => { location.href = PORTAL_MODULOS; };
+  document.getElementById('bSairSessao').onclick = async () => { try { await SB.auth.signOut(); } catch(_){} location.reload(); };
+}
+
 /* ---------------------------------------------------------------- arranque */
 let _pagina = null;
 /* USUÁRIO CONECTADO no cabeçalho de todas as abas (Silvio 04/11/2026: "colocar o conectado em todas as abas") */
@@ -601,6 +615,7 @@ async function abrir(){
   $('login').style.display='none';
   if(await semAppDash(session)) return;
   mostrarUsuario(session);
+  botoesSessao();
   registraAcesso('painel');
   if(!window._acessoVis){ window._acessoVis = true; document.addEventListener('visibilitychange', () => registraAcesso('painel')); }
   try { await carregarCache(); marcarAtualizacao(); await _pagina(); ligarFiltros(); }

@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.49** · 06/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.50** · 09/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -427,6 +427,10 @@ operações os dois. A TV usa o login de um usuário da Logística. O menu do ap
 Dash. Dentro do Dash, todos os usuários com acesso veem todas as telas, inclusive os dois subgrupos da
 Auditoria; a segregação por tela (ex.: LOG × FAT) segue prevista e não definida.
 
+**Botões de sessão (09/11/2026):** todas as telas (inclusive a TV) têm, no canto inferior direito, **⇄ Mudar de módulo** —
+leva ao portal do app (`app.ctrl_amvox`), que só mostra os módulos liberados no perfil (`profiles.apps`; o banco continua
+travando) — e **Sair** — encerra a sessão e volta à tela de login. Mesmo visual das telas do app de Preços.
+
 ## 15-A. Protocolos de expedição (aba "Protocolos" — central on-line)
 
 Central dos protocolos de notas **LIBERADAS PARA EXPEDIÇÃO** pelo Faturamento, com a **ciência** da Logística
@@ -508,6 +512,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.47 | 06/11/2026 | **Protocolo**: LEMBRETE de protocolo sem confirmação passa a cada **3 h**, só em dia útil **08h–16h59** (era 2 h, 09h–17h59); card "Sem ciência há mais de 3 h"; texto do lembrete aponta o botão DAR ACEITE (coluna Aceite LOG) | Silvio Amaral |
 | 1.48 | 06/11/2026 | **Protocolo**: o LEMBRETE só para com o **aceite do time de Logística** (1 aceite basta — botão DAR ACEITE ou confirmação de leitura de um e-mail da lista DESTINO_LOG); leitura do Fiscal não encerra; só cobra protocolos enviados à LOG. **Alerta de expedição só com ocorrência** (sem e-mail/PDF "sem ocorrências") | Silvio Amaral |
 | 1.49 | 06/11/2026 | **Protocolo**: marco `ACEITE_LOG_DESDE` = 04/11/2026 12h — protocolo enviado antes (PROT-2026-024) é DISPENSADO do aceite da LOG (vale a ciência do Fiscal); coluna Aceite LOG mostra "dispensado — vale a ciência do Fiscal" + quem deu a ciência | Silvio Amaral |
+| 1.50 | 09/11/2026 | **Botões de sessão** em todas as telas, inclusive a TV: **⇄ Mudar de módulo** (portal do app, que respeita os módulos do perfil) e **Sair** (seção 15) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
