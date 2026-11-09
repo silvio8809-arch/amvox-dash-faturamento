@@ -24,6 +24,10 @@
   .cnf .onde{margin-top:4px;font-size:14px}
   .cnf .ok{color:#14603F;font-weight:700} .cnf .al{color:#B42318;font-weight:700} .cnf .am{color:#8A5B00;font-weight:700}
   .cnf a{color:#1F2433;font-weight:700;cursor:pointer;text-decoration:underline}
+  .reimp-am{color:#8A5B00;font-weight:700}
+  .btpend{background:#FFF4DB;border:1px solid #E0A526;color:#7A5200}
+  .reimp-bar{margin:0 0 10px;padding:10px 14px;border-radius:8px;background:#FFF4DB;border:1px solid #F1D58F;font-size:13.5px;color:#5B3D00}
+  .reimp-bar select,.reimp-bar input{margin:0 6px;padding:4px 6px}
   .suf{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:4px;background:#B42318;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.3px;vertical-align:1px}
 </style>
 </head><body>
@@ -67,7 +71,7 @@
   </div>
   <div class="cards" id="cards"></div>
   <div class="painel"><h2>Protocolos enviados <span id="tSub">clique no protocolo para ver as notas</span></h2><div id="tabela"></div></div>
-  <div class="painel" id="detalhe" style="display:none"><h2 id="dTit"></h2><div class="corpo"><div id="dTab"></div><div class="hist" id="dHist"></div></div></div>
+  <div class="painel" id="detalhe" style="display:none"><h2 id="dTit"></h2><div class="corpo"><div class="reimp-bar" id="dReimp" style="display:none"></div><div id="dTab"></div><div class="hist" id="dHist"></div></div></div>
 </main>
 <div id="erro"></div>
 <script src="painel.js"></script>
@@ -76,6 +80,8 @@
    Regras (garantidas no banco — funções prot_*): só aparece o que o Faturamento JÁ liberou (protocolo enviado); nota
    cancelada ou devolvida depois NÃO aparece; na homologação a aba só abre para Controladoria e Faturamento. */
 let PROTS = [], NOTAS = {}, CARD = '', TAB, EMISSOR = false, LOG = false, PARAM_H = 3, PROT_SEL = null;
+/* ACEITE PARCIAL / REIMPRESSÃO (Silvio 09/11/2026, migração 026): modo de seleção de notas no detalhe do protocolo */
+let REIMP = {modo:null, sel:new Set(), lista:[]};
 const fHora = v => v ? new Date(v).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
 const quem = e => String(e || '').split('@')[0];
 /* ciência começa a valer com a central no ar (21/10/2026): protocolo anterior não tinha onde dar ciência — não alarma */
@@ -109,12 +115,23 @@ function celAceite(p){
     return `<span class="nota" title="Enviado antes de a cobrança de aceite da Logística começar (04/11/2026 12h): vale a ciência do Fiscal">dispensado — vale a ciência do Fiscal</span>` +
       (p.ciencia_em ? `<div class="cie-ok" style="font-size:12px">✓ ${esc(quem(p.ciencia_por))} · ${fHora(p.ciencia_em)}</div>` : '');
   const as = Array.isArray(p.aceites) ? p.aceites : [];
+  /* ACEITE PARCIAL (Silvio 09/11/2026, migração 026): LOG aponta as NF que não chegaram impressas; o ÚLTIMO status sobrepõe o
+     anterior — quando a reimpressão chega, a LOG clica "Aceito s/ pendências" e o protocolo volta a aceite total */
+  const rp = p.reimp && +p.reimp.pendentes ? p.reimp : null;
+  const btPend = `<button class="bt btmini btpend" data-pend="${esc(p.numero)}" title="Alguma nota deste protocolo NÃO chegou impressa? Marque-a para o Fiscal reimprimir">Aceite c/ pendência</button>`;
+  if(p.aceite_status === 'PARCIAL' && rp)
+    return `<span class="reimp-am">⚠ Aceite parcial — ${F.int(rp.pendentes)} NF p/ reimpressão</span>` +
+      `<div class="nota">NF ${esc(rp.docs)}${+rp.enviadas ? ` · ${F.int(rp.enviadas)} reimpressa(s) ✓` : ''}</div>` +
+      `<div class="nota">${esc(quem(rp.pedido_por))} · ${fHora(rp.pedido_em)}</div>` +
+      (LOG ? `<button class="bt btmini btaceite" data-aceite="${esc(p.numero)}" data-final="1" title="A reimpressão chegou: encerra as pendências (o último status sobrepõe o anterior)">Aceito s/ pendências</button>` : '') +
+      (EMISSOR && +rp.enviadas < +rp.pendentes ? `<button class="bt btmini" data-reenvio="${esc(p.numero)}" title="Marque as notas já enviadas à impressora da Logística">Reimpressão enviada</button>` : '');
+  const aposReimp = p.aceite_status === 'TOTAL_APOS_REIMPRESSAO' ? '<div class="nota cie-ok" style="font-weight:600">sem pendências (após reimpressão)</div>' : '';
   const eu = LOG && !as.some(a => String(a.usuario).toLowerCase() === USUARIO.toLowerCase());
   const bt = mini => `<button class="bt${mini ? ' btmini' : ''} btaceite" data-aceite="${esc(p.numero)}" title="Confirma que você (Logística) recebeu e leu este protocolo">${mini ? '+ meu aceite' : 'Dar aceite'}</button>`;
   if(as.length) return `<span class="cie-ok">✓ ${esc(quem(as[0].usuario))}</span><div class="nota">${as[0].via === 'EMAIL' ? 'pela leitura do e-mail · ' : 'no app · '}${fHora(as[0].em)}</div>` +
     (as.length > 1 ? `<div class="nota cie-mais" title="${esc(as.map((a, i) => `${i + 1}º ${quem(a.usuario)} — ${fHora(a.em)} (${a.via === 'EMAIL' ? 'e-mail' : 'app'})`).join('\n'))}">+ ${as.length - 1} aceite(s): ${esc(as.slice(1).map(a => quem(a.usuario)).join(', '))}</div>` : '') +
-    (eu ? bt(true) : '');
-  return (LOG ? bt(false) : '') + `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">aguardando a Logística</div>`;
+    aposReimp + (eu ? bt(true) : '') + (LOG ? btPend : '');
+  return (LOG ? bt(false) + btPend : '') + `<div class="${semCiencia(p) ? 'cie-atraso' : 'nota'}">aguardando a Logística</div>`;
 }
 /* CONSULTA POR NOTA (Silvio 06/11/2026, caso NF 282773; migração 024): com a NF no filtro, mostra em que protocolo a nota
    está — ou POR QUE não está (venda à ordem, cancelada, apta/retida/segurada, ainda não liberada) — e a situação logística.
@@ -202,21 +219,27 @@ async function pintar(){
   if((termoNF() || $('fCli').value.trim())) await todasNotas(PROTS);
   const l = filtrar(), tot = l.reduce((s, p) => s + +p.valor, 0), nfs = l.reduce((s, p) => s + +p.nfs, 0);
   const sem = l.filter(p => exigeCiencia(p) && !p.ciencia_em), atraso = l.filter(semCiencia);
+  const pendR = l.filter(p => p.aceite_status === 'PARCIAL' && p.reimp && +p.reimp.pendentes);
   kpis('cards', [
     {titulo:'Protocolos enviados', valor:F.int(l.length), nota:`${F.int(l.filter(p => p.tipo === 'MANUAL').length)} complementar(es)`},
     {titulo:'Notas liberadas', valor:F.int(nfs), nota:F.curto(tot) + ' com IPI'},
     {titulo:'Aguardando ciência', valor:F.int(sem.length), nota:F.curto(sem.reduce((s, p) => s + +p.valor, 0)) + ` · ${l.filter(exigeCiencia).length ? Math.round(100 * sem.length / l.filter(exigeCiencia).length) : 0}% dos protocolos desde 21/10`},
     {titulo:`Sem ciência há mais de ${PARAM_H} h`, valor:F.int(atraso.length), alerta:atraso.length > 0, nota:F.curto(atraso.reduce((s, p) => s + +p.valor, 0))},
+    {titulo:'Pendências de reimpressão', valor:F.int(pendR.length), alerta:pendR.length > 0,
+     nota:`${F.int(pendR.reduce((s, p) => s + +p.reimp.pendentes, 0))} NF · aceite parcial da Logística`},
   ]);
-  cardsClicaveis('cards', ['', '', 'SEM', 'ATRASO'], CARD, (k, sel) => { CARD = (k === '' || sel) ? '' : k; pintar(); });
-  const lv = CARD === 'SEM' ? l.filter(p => exigeCiencia(p) && !p.ciencia_em) : CARD === 'ATRASO' ? l.filter(semCiencia) : l;
+  cardsClicaveis('cards', ['', '', 'SEM', 'ATRASO', 'REIMP'], CARD, (k, sel) => { CARD = (k === '' || sel) ? '' : k; pintar(); });
+  const lv = CARD === 'SEM' ? l.filter(p => exigeCiencia(p) && !p.ciencia_em) : CARD === 'ATRASO' ? l.filter(semCiencia) : CARD === 'REIMP' ? pendR : l;
   $('tSub').textContent = `${F.int(lv.length)} protocolo(s) · ${F.int(lv.reduce((s, p) => s + +p.nfs, 0))} notas · clique no protocolo para ver as notas`;
   const cfg = {alvo:'tabela', colunas:COLS, linhas:lv, ordem:'numero', porPagina:25, aoClicar:p => abreDetalhe(p.numero), aoPintar:liga};
   TAB ? TAB.dados(lv) : (TAB = new Tabela(cfg));
 }
 function liga(raiz){
+  raiz.querySelectorAll('[data-pend]').forEach(b => b.onclick = ev => { ev.stopPropagation(); abreDetalhe(b.dataset.pend, 'PEDIR'); });
+  raiz.querySelectorAll('[data-reenvio]').forEach(b => b.onclick = ev => { ev.stopPropagation(); abreDetalhe(b.dataset.reenvio, 'ENVIAR'); });
   raiz.querySelectorAll('[data-aceite]').forEach(b => b.onclick = async ev => { ev.stopPropagation();
-    if(!confirm(`Confirmar o ACEITE do ${b.dataset.aceite}?\n\nRegistra, com seu nome e a hora, que a Logística recebeu e leu este protocolo.`)) return;
+    if(!confirm(b.dataset.final ? `Confirmar o ACEITE SEM PENDÊNCIAS do ${b.dataset.aceite}?\n\nRegistra, com seu nome e a hora, que a Logística recebeu a REIMPRESSÃO das notas pendentes. O protocolo passa a aceite total (o último status sobrepõe o anterior).`
+                                : `Confirmar o ACEITE do ${b.dataset.aceite}?\n\nRegistra, com seu nome e a hora, que a Logística recebeu e leu este protocolo.`)) return;
     b.disabled = true;
     const r = await SB.rpc('prot_dar_aceite', {p_numero: b.dataset.aceite});
     if(r.error){ alert('Não foi possível registrar o aceite: ' + r.error.message); b.disabled = false; return; }
@@ -230,12 +253,36 @@ function liga(raiz){
     if(r.error) return alert('Não foi possível abrir o PDF: ' + r.error.message);
     location.href = r.data.signedUrl; });
 }
-async function abreDetalhe(numero){
+const chR = n => `${n.filial}|${n.serie}|${n.doc}`;
+async function abreDetalhe(numero, modo){
   PROT_SEL = numero; const p = PROTS.find(x => x.numero === numero); if(!p) return;
-  const [l, h] = await Promise.all([notasDe(numero), SB.rpc('prot_historico', {p_numero: numero})]);
+  if(modo !== undefined || REIMP.numero !== numero) REIMP = {modo:modo || null, sel:new Set(), lista:[], numero};
+  const [l, h, rr] = await Promise.all([notasDe(numero), SB.rpc('prot_historico', {p_numero: numero}), SB.rpc('prot_reimp_notas', {p_numero: numero})]);
+  REIMP.lista = rr.error ? [] : (rr.data || []);
+  const rDe = n => REIMP.lista.filter(r => chR(r) === chR(n)).slice(-1)[0];
+  const aberta = n => { const r = rDe(n); return r && !r.resolvida_em ? r : null; };
   $('detalhe').style.display = '';
+  const marcavel = n => REIMP.modo === 'PEDIR' ? !aberta(n) : REIMP.modo === 'ENVIAR' ? !!(aberta(n) && !aberta(n).enviada_em) : false;
+  const bar = $('dReimp');
+  if(REIMP.modo === 'PEDIR')
+    bar.innerHTML = `<b>Aceite com pendência — marque as notas que NÃO chegaram impressas</b> e clique em Solicitar reimpressão. ` +
+      `O Fiscal recebe um comunicado THOR (Logística em cópia). As demais notas ficam aceitas.<br>` +
+      `Motivo <select id="rMot"><option>NF não impressa</option><option>DANFE ilegível</option><option>Outro</option></select>` +
+      `<input id="rObs" placeholder="complemento (se Outro)" style="width:220px">` +
+      `<button class="bt btpend" id="rOk">Solicitar reimpressão das NF marcadas</button> <button class="bt" id="rCanc">Cancelar</button> <span id="rCont" class="nota"></span>`;
+  else if(REIMP.modo === 'ENVIAR')
+    bar.innerHTML = `<b>Reimpressão enviada — marque as notas já enviadas à impressora da Logística</b>. A Logística recebe um comunicado THOR ` +
+      `(Fiscal em cópia) e, ao receber, clica em <b>Aceito s/ pendências</b>.<br>` +
+      `<button class="bt btpend" id="rOk">Reimpressão enviada das NF marcadas</button> <button class="bt" id="rCanc">Cancelar</button> <span id="rCont" class="nota"></span>`;
+  else bar.innerHTML = '';
+  bar.style.display = REIMP.modo ? '' : 'none';
   $('dTit').innerHTML = `${esc(numero)} <span>enviado em ${fHora(p.enviado_em)} · ${F.int(l.length)} nota(s) · ${F.moeda(l.reduce((s, n) => s + +n.valor, 0))}${nSuf(l) ? ` · <b class="cli-suf">${F.int(nSuf(l))} SUFRAMA</b>` : ''}</span>`;
-  new Tabela({alvo:'dTab', linhas:l, ordem:'emissao', desc:false, porPagina:100, colunas:[
+  const colSel = REIMP.modo ? [{k:'_sel', t:'✓', html:n => marcavel(n) ? `<input type="checkbox" data-rsel="${esc(chR(n))}"${REIMP.sel.has(chR(n)) ? ' checked' : ''}>` : ''}] : [];
+  const colReimp = REIMP.lista.length ? [{k:'_reimp', t:'Reimpressão', esq:true, html:n => { const r = rDe(n); if(!r) return '—';
+      if(r.resolvida_em) return `<span class="cie-ok">✓ recebida</span><div class="nota">${esc(quem(r.resolvida_por))} · ${fHora(r.resolvida_em)}</div>`;
+      if(r.enviada_em) return `<span class="reimp-am">reimpressa · aguardando a Logística</span><div class="nota">${esc(quem(r.enviada_por))} · ${fHora(r.enviada_em)}</div>`;
+      return `<span class="cie-atraso">pendente · ${esc(r.motivo)}</span><div class="nota">${esc(quem(r.pedido_por))} · ${fHora(r.pedido_em)}</div>`; }}] : [];
+  new Tabela({alvo:'dTab', linhas:l, ordem:'emissao', desc:false, porPagina:100, aoPintar:raiz => ligaReimp(raiz, numero), colunas:[...colSel,
     {k:'doc', t:'NF', esq:true, cls:'forte', fmt:v => esc(String(v).replace(/^0+/, ''))},
     {k:'emissao', t:'Emissão', fmt:F.data},
     {k:'cliente', t:'Cliente', esq:true, html:cliSuf}, {k:'uf', t:'UF', fmt:v => esc(v || '—')},
@@ -243,12 +290,38 @@ async function abreDetalhe(numero){
     {k:'valor', t:'Valor (c/ IPI)', fmt:F.moeda, cls:'forte'},
     {k:'status', t:'Situação logística', html:n => n.status === 'ENTREGUE' ? `<span class="et et-ent">Entregue ${F.data(n.dt_entrega)}</span>`
         : `<span class="et et-tra">${ROT_ST[n.status] || 'Em trânsito / a expedir'}</span>`},
-    {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}]});
-  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'ACEITE' ? 'aceite da Logística no app' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
+    {k:'transportadora', t:'Transportadora', esq:true, fmt:v => esc(v || '—')}, ...colReimp]});
+  const ev = (h.data || []).map(e => `${fHora(e.em)} · ${e.acao === 'CIENCIA' ? 'ciência (botão)' : e.acao === 'CIENCIA_EMAIL' ? 'ciência pelo e-mail de notificação' : e.acao === 'ACEITE' ? 'aceite da Logística no app' : e.acao === 'ACEITE_PARCIAL' ? 'ACEITE PARCIAL — pedido de reimpressão' : e.acao === 'REIMPRESSAO_ENVIADA' ? 'reimpressão enviada pelo Fiscal' : e.acao === 'LEMBRETE_REIMP' ? 'lembrete de reimpressão ao Fiscal' : e.acao === 'LEMBRETE' ? 'lembrete por e-mail' : e.acao === 'ENVIO' ? 'envio' : e.acao === '2A_VIA' ? '2ª via do PDF' : esc(e.acao)} · ${esc(quem(e.usuario))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}`);
   const ls = leituras(p);
   $('dHist').innerHTML = (ls.length ? `<b>Ciência — quem leu (${ls.length}):</b><br>` + ls.map((l, i) => `${i + 1}º · ${esc(quem(l.usuario))} · ${fHora(l.em)} · ${l.via === 'EMAIL' ? 'confirmação de leitura do e-mail' : l.via === 'ACEITE' ? 'aceite da Logística no app' : 'botão Dar ciência na aba'}`).join('<br>') + '<br><br>' : '')
     + (ev.length ? '<b>Histórico:</b><br>' + ev.join('<br>') : '');
   $('detalhe').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function ligaReimp(raiz, numero){
+  raiz.querySelectorAll('[data-rsel]').forEach(c => c.onchange = () => {
+    c.checked ? REIMP.sel.add(c.dataset.rsel) : REIMP.sel.delete(c.dataset.rsel);
+    const ct = $('rCont'); if(ct) ct.textContent = REIMP.sel.size ? `${REIMP.sel.size} nota(s) marcada(s)` : ''; });
+  const ok = $('rOk'), canc = $('rCanc');
+  if(canc) canc.onclick = () => abreDetalhe(numero, null);
+  if(ok) ok.onclick = async () => {
+    if(!REIMP.sel.size) return alert('Marque ao menos uma nota.');
+    const notas = [...REIMP.sel].map(k => { const [filial, serie, doc] = k.split('|'); return {filial, serie, doc}; });
+    const lst = notas.map(n => n.doc.replace(/^0+/, '')).join(', ');
+    let r;
+    if(REIMP.modo === 'PEDIR'){
+      const m = $('rMot').value, obs = $('rObs').value.trim();
+      if(m === 'Outro' && !obs) return alert('Descreva o motivo no complemento.');
+      if(!confirm(`Registrar ACEITE PARCIAL do ${numero}?\n\nNF para reimpressão: ${lst}\nMotivo: ${m}${obs ? ' — ' + obs : ''}\n\nAs demais notas ficam aceitas e o Fiscal é avisado.`)) return;
+      ok.disabled = true;
+      r = await SB.rpc('prot_aceite_parcial', {p_numero: numero, p_notas: notas, p_motivo: m === 'Outro' ? obs : (obs ? `${m} — ${obs}` : m)});
+    } else {
+      if(!confirm(`Confirmar REIMPRESSÃO ENVIADA do ${numero}?\n\nNF: ${lst}\n\nA Logística é avisada para conferir e dar o aceite sem pendências.`)) return;
+      ok.disabled = true;
+      r = await SB.rpc('prot_reimp_enviada', {p_numero: numero, p_notas: notas});
+    }
+    if(r.error){ alert('Não foi possível registrar: ' + r.error.message); ok.disabled = false; return; }
+    await carrega(); pintar(); abreDetalhe(numero, null);
+  };
 }
 /* ---------------- etapa 2/3 (Silvio 20/10/2026): aptas, retidas e fila de complementares — só emissores */
 let APTAS = [], PEDIDOS = [], CARD_AP = '', TAB_AP, MARC = new Set();

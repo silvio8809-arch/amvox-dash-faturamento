@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.50** · 09/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.51** · 09/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -465,6 +465,22 @@ A leitura é só por funções do banco (`prot_lista`, `prot_notas`, `prot_histo
 `prot_pedidos`, `prot_solicitar`, `prot_cancelar_pedido`), que aplicam as regras acima — as tabelas não têm leitura direta.
 Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Cliente = **razão social** do cadastro (A1_NOME).
 
+### 15-A.1 Aceite parcial com pendência de reimpressão (09/11/2026, migração 026)
+
+Caso PROT-2026-029: o Fiscal aprovou e enviou o protocolo, mas não mandou todas as notas para a impressora da Logística.
+- **LOG — "Aceite c/ pendência"** (ao lado do "Dar aceite"): abre o detalhe do protocolo com caixas de seleção; a LOG marca
+  as notas que NÃO chegaram impressas, escolhe o motivo (NF não impressa · DANFE ilegível · Outro, com texto) e confirma
+  uma vez. O protocolo fica **"⚠ Aceite parcial — N NF p/ reimpressão"**; as demais notas ficam aceitas. Conta como aceite
+  da LOG (o lembrete à LOG para) e a cobrança passa ao Fiscal.
+- **Fiscal/Faturamento/Controladoria — "Reimpressão enviada"**: no detalhe, marca as notas reenviadas à impressora.
+- **LOG — "Aceito s/ pendências"**: ao receber a reimpressão. O **último status sobrepõe o anterior** → "sem pendências
+  (após reimpressão)".
+- A reimpressão fica **dentro do mesmo protocolo** (sem protocolo complementar — a nota não pode estar em dois protocolos).
+- Card **"Pendências de reimpressão"** (filtro); coluna **Reimpressão** no detalhe (pendente · reimpressa · recebida);
+  histórico com quem/quando de cada etapa. Travas no banco: só a LOG pede e dá o aceite; só emissores marcam a reimpressão.
+- Comunicados THOR (rotina da fila, 15 min): pedido → Para Fiscal, Cc LOG · reimpressão enviada → Para LOG, Cc Fiscal ·
+  lembrete ao Fiscal a cada 3 h, dias úteis 08h–16h59, enquanto houver nota sem reimpressão.
+
 ## 16. Em aberto — aguardando definição
 
 | Assunto | Situação |
@@ -513,6 +529,7 @@ Quem grava os protocolos é a rotina do protocolo (migrações 012 e 013). Clien
 | 1.48 | 06/11/2026 | **Protocolo**: o LEMBRETE só para com o **aceite do time de Logística** (1 aceite basta — botão DAR ACEITE ou confirmação de leitura de um e-mail da lista DESTINO_LOG); leitura do Fiscal não encerra; só cobra protocolos enviados à LOG. **Alerta de expedição só com ocorrência** (sem e-mail/PDF "sem ocorrências") | Silvio Amaral |
 | 1.49 | 06/11/2026 | **Protocolo**: marco `ACEITE_LOG_DESDE` = 04/11/2026 12h — protocolo enviado antes (PROT-2026-024) é DISPENSADO do aceite da LOG (vale a ciência do Fiscal); coluna Aceite LOG mostra "dispensado — vale a ciência do Fiscal" + quem deu a ciência | Silvio Amaral |
 | 1.50 | 09/11/2026 | **Botões de sessão** em todas as telas, inclusive a TV: **⇄ Mudar de módulo** (portal do app, que respeita os módulos do perfil) e **Sair** (seção 15) | Silvio Amaral |
+| 1.51 | 09/11/2026 | **Aceite parcial com pendência de reimpressão** na aba Protocolos (botões Aceite c/ pendência · Reimpressão enviada · Aceito s/ pendências; card e coluna de reimpressão; comunicados THOR de reimpressão) — migração 026 (seção 15-A.1) | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
