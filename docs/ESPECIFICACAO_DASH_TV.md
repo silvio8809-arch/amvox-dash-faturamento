@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.51** · 09/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.52** · 23/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -481,6 +481,15 @@ Caso PROT-2026-029: o Fiscal aprovou e enviou o protocolo, mas não mandou todas
 - Comunicados THOR (rotina da fila, 15 min): pedido → Para Fiscal, Cc LOG · reimpressão enviada → Para LOG, Cc Fiscal ·
   lembrete ao Fiscal a cada 3 h, dias úteis 08h–16h59, enquanto houver nota sem reimpressão.
 
+### 15-A.2 Venda retida por bonificação pendente (23/11/2026, migração 027 — NO AR; prévias dos comunicados aprovadas pelo Silvio)
+Pedido do Gerente Comercial (via Silvio): o cliente só aceita receber a compra **junto com a bonificação**.
+- **Regra:** NF de VENDA (origem FAT) não vai a protocolo enquanto o **mesmo cliente + loja** tiver pedido de BONIFICAÇÃO (todos os itens 5910/6910) aberto e sem decisão. Sem corte de data.
+- **Bonificação aprovada** = o 1º que acontecer: NF emitida para o pedido BON **ou** `C5_XAPRSTA = 'A'` (app Redes / SFA). **Pendente** = `C5_XAPRSTA 'P'` sem NF · **Reprovada** = `C5_XAPRSTA 'R'` ou `C5_XESTPED 'RP'` · cancelada (`CN`) não retém.
+- **Na aba (só emissores):** a nota fica no quadro **sem caixa de seleção** — "Venda c/ Bonf. Pendente Liberação Pedidos: X, Y" ou "Venda c/ Bonf. Reprovada — aguardando Comercial: Pedidos X"; entra no card "Retidas e seguradas". O banco recusa no `prot_solicitar` (só APTA) e no `prot_aprovar` (rascunho montado antes do pedido BON).
+- **Comunicados (rotina da fila, 15 min):** (a) 1º aviso à Controladoria — "falta você aprovar/reprovar"; (b) posição diária, dias úteis a partir das 09h, ao gerente do pedido de venda (`C5_XCODGER`; vazio → gerente do vendedor; sem gerente → Controladoria) com Cc LOG, só das notas avisadas à Controladoria no dia anterior ou antes; (c) aprovada → **protocolo automático** à LOG (origem `BONIF_LIBERADA`, sem aprovação do Fiscal) com o quadro "PODE LIBERAR" e a orientação de expedir junto com a NF de bonificação; (d) reprovada → gerente, Cc Afonso, Samuel e Fernanda (`BONIF_REPROV_CC`).
+- **Saída manual:** botão "Liberar" com justificativa (`prot_liberar_venda_bonif`) — os pedidos BON citados deixam de reter as vendas do cliente. Venda cancelada sai do quadro sozinha.
+- **Controle:** `prot_bonif_venda` (situação, pedidos, gerente e data de cada aviso). Parâmetros: `BONIF_VENDA_ATIVA`, `BONIF_AVISO_CONTROLADORIA`, `BONIF_REPROV_CC`, `BONIF_GERENTE_IGNORAR` (000021 REISTAR).
+
 ## 16. Em aberto — aguardando definição
 
 | Assunto | Situação |
@@ -530,6 +539,7 @@ Caso PROT-2026-029: o Fiscal aprovou e enviou o protocolo, mas não mandou todas
 | 1.49 | 06/11/2026 | **Protocolo**: marco `ACEITE_LOG_DESDE` = 04/11/2026 12h — protocolo enviado antes (PROT-2026-024) é DISPENSADO do aceite da LOG (vale a ciência do Fiscal); coluna Aceite LOG mostra "dispensado — vale a ciência do Fiscal" + quem deu a ciência | Silvio Amaral |
 | 1.50 | 09/11/2026 | **Botões de sessão** em todas as telas, inclusive a TV: **⇄ Mudar de módulo** (portal do app, que respeita os módulos do perfil) e **Sair** (seção 15) | Silvio Amaral |
 | 1.51 | 09/11/2026 | **Aceite parcial com pendência de reimpressão** na aba Protocolos (botões Aceite c/ pendência · Reimpressão enviada · Aceito s/ pendências; card e coluna de reimpressão; comunicados THOR de reimpressão) — migração 026 (seção 15-A.1) | Silvio Amaral |
+| 1.52 | 23/11/2026 | **Venda retida por bonificação pendente** (seção 15-A.2): situações BONIF_PENDENTE/BONIF_REPROVADA no quadro de aptas, protocolo automático na aprovação da bonificação, 4 comunicados THOR — migração 027 | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |

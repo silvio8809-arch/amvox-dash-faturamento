@@ -156,7 +156,7 @@ function ondeNF(x){
     if(pd) return `<span class="am">No pedido de protocolo nº ${pd.id} (${pd.status === 'AGUARDANDO_APROVACAO' ? 'rascunho do automático, aguardando aprovação' : pd.status === 'RODANDO' ? 'sendo processado' : 'na fila' + (pd.agendado_para ? ' — agendado para ' + fHora(pd.agendado_para) : '')}).</span>`;
     if(t) return `<span class="al">RETIDA manualmente por ${esc(quem(t.por))} em ${fHora(t.em)} — ${esc(t.motivo || 'sem motivo')}. Use "Liberar" no quadro de aptas.</span>`;
     if(a && a.situacao === 'APTA') return `<span class="am">APTA a liberar — entra no próximo protocolo${a.motivo ? ' · ' + esc(a.motivo) : ''}.</span>`;
-    if(a) return `<span class="al">${a.situacao === 'SEGURADA' ? 'SEGURADA (erro de emissão)' : 'RETIDA'}: ${esc(a.motivo || 'sem motivo')}.</span>`;
+    if(a) return `<span class="al">${a.situacao === 'SEGURADA' ? 'SEGURADA (erro de emissão)' : BONIF_SIT[a.situacao] ? BONIF_SIT[a.situacao].toUpperCase() : 'RETIDA'}: ${esc(a.motivo || 'sem motivo')}.</span>`;
     return '<span class="am">Fora do quadro de aptas: ainda sem DANFE autorizada, fora do universo do protocolo (devolução, remessa, transferência) ou emitida depois da última atualização do quadro — use "↻ Atualizar aptas agora".</span>';
   }
   return '<span class="am">Ainda não liberada para expedição pelo Faturamento.</span>';
@@ -327,6 +327,11 @@ function ligaReimp(raiz, numero){
 let APTAS = [], PEDIDOS = [], CARD_AP = '', TAB_AP, MARC = new Set();
 const chN = n => `${n.filial}|${n.serie}|${n.doc}`;
 const ROT_PED = {AGUARDANDO_APROVACAO:['Aguardando aprovação','et-dev'], PENDENTE:['Na fila','et-tra'], RODANDO:['Gerando…','et-tra'], ENVIADO:['Enviado','et-ent'], ERRO:['Erro','et-dev'], CANCELADO:['Cancelado','et-can']};
+/* VENDA RETIDA POR BONIFICAÇÃO (Silvio 23/11/2026, migração 027): o cliente só aceita receber a compra junto com a bonificação —
+   a NF de venda fica no quadro SEM permitir vínculo a protocolo até a decisão do pedido de bonificação do mesmo cliente/loja.
+   Aprovada → protocolo automático à LOG (rotina); reprovada → aguardando o Comercial; saída manual = "Liberar" com justificativa. */
+const BONIF_SIT = {BONIF_PENDENTE:'Venda c/ Bonf. Pendente', BONIF_REPROVADA:'Venda c/ Bonf. Reprovada'};
+const ehBonif = x => !!BONIF_SIT[x.situacao];
 async function carregaEmissor(){
   const [a, p, v] = await Promise.all([SB.rpc('prot_aptas'), SB.rpc('prot_pedidos'), SB.rpc('prot_bonif_alertas')]);
   if(a.error) throw a.error; if(p.error) throw p.error;
@@ -339,14 +344,15 @@ async function carregaEmissor(){
   MARC = new Set([...MARC].filter(k => APTAS.some(x => chN(x) === k && x.situacao === 'APTA' && !x.pedido)));
 }
 function pintaEmissor(){
-  const ap = APTAS.filter(x => x.situacao === 'APTA' && !x.pedido), ret = APTAS.filter(x => x.situacao === 'RETIDA' || x.situacao === 'SEGURADA'), fila = APTAS.filter(x => x.pedido);
+  const ap = APTAS.filter(x => x.situacao === 'APTA' && !x.pedido), ret = APTAS.filter(x => x.situacao === 'RETIDA' || x.situacao === 'SEGURADA' || ehBonif(x)), fila = APTAS.filter(x => x.pedido);
   const nSeg = ret.filter(x => x.situacao === 'SEGURADA').length;   // SEGURADA = erro de emissão marcado no app Redes (migração 017)
+  const nBv = ret.filter(ehBonif).length;                            // venda c/ bonificação pendente/reprovada (027)
   const tot = APTAS.reduce((s, x) => s + x.valor, 0) || 1, sm = l => l.reduce((s, x) => s + x.valor, 0);
   kpis('cardsAp', [
     {titulo:'Aptas a liberar', valor:F.int(ap.length), nota:`${F.curto(sm(ap))} · ${F.pct(100 * sm(ap) / tot)}`
        + (ap.filter(x => x.motivo && !x.retencao).length ? ` · ⚠️ ${F.int(ap.filter(x => x.motivo && !x.retencao).length)} com alerta (bonif. sem fat.)` : '')},
     {titulo:'Retidas e seguradas', valor:F.int(ret.length), alerta:ret.length > 0, nota:`${F.curto(sm(ret))} · ${F.pct(100 * sm(ret) / tot)}`
-       + (ret.length ? ` · ${F.int(ret.length - nSeg)} bonif. retida(s) · ${F.int(nSeg)} erro de emissão` : '')},
+       + (ret.length ? ` · ${F.int(ret.length - nSeg - nBv)} bonif. retida(s) · ${F.int(nBv)} venda c/ bonif. pendente · ${F.int(nSeg)} erro de emissão` : '')},
     {titulo:'Em pedido na fila', valor:F.int(fila.length), nota:`${F.curto(sm(fila))} · ${F.pct(100 * sm(fila) / tot)}`},
     {titulo:'Selecionadas', valor:F.int(MARC.size), nota:F.curto(sm(APTAS.filter(x => MARC.has(chN(x)))))},
   ]);
@@ -368,9 +374,11 @@ function pintaEmissor(){
        : x.pedido ? `<span class="et et-tra">${x.pedido_status === 'AGUARDANDO_APROVACAO' ? 'No rascunho do dia (aguardando aprovação)' : 'No pedido nº ' + x.pedido}</span>`
        : x.situacao === 'RETIDA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Retida</span><div class="nota">${esc(x.motivo || '')}</div>`
        : x.situacao === 'SEGURADA' ? `<span class="et et-dev" title="${esc(x.motivo || '')}">Segurada — erro de emissão</span><div class="nota">${esc(x.motivo || '')}</div>`
+       : ehBonif(x) ? `<span class="et et-dev" title="Não pode ir a protocolo até a decisão da bonificação">${BONIF_SIT[x.situacao]}</span><div class="nota">${esc(x.motivo || '')}</div>`
        : '<span class="et et-ent">Apta</span>' + (x.reprotocolar ? '<div class="nota">reenvio por exceção — constava em protocolo de teste</div>' : '')
          + (x.motivo ? `<div class="nota" style="color:#B45309" title="Bonificação sem faturamento: só ALERTA (28/10/2026) — a nota segue no protocolo; use Reter se for o caso">⚠️ ${esc(x.motivo)}</div>` : '')},
     {k:'_a', t:'', html:x => x.retencao ? `<button class="bt" data-libera="${esc(chN(x))}" title="Libera a retenção: a nota volta a ficar apta">Liberar</button>`
+       : ehBonif(x) ? `<button class="bt" data-libbv="${esc(chN(x))}" title="Libera a venda sem esperar a bonificação — justificativa obrigatória (ex.: Comercial confirmou com o cliente a entrega sem a bonificação)">Liberar</button>`
        : x.situacao === 'APTA' && !x.pedido ? `<button class="bt" data-reter="${esc(chN(x))}" title="Segura a nota fora de qualquer protocolo, com motivo (ex.: Comercial solicitou reter)">Reter</button>` : ''}];
   const liga = raiz => {
     raiz.querySelectorAll('input[data-k]').forEach(cb => cb.onchange = () => { cb.checked ? MARC.add(cb.dataset.k) : MARC.delete(cb.dataset.k); atualizaBotao(); pintaCardsSel(); });
@@ -385,7 +393,7 @@ function pintaEmissor(){
       if(!confirm(`Cancelar o pedido nº ${b.dataset.canc}?`)) return;
       const c = await SB.rpc('prot_cancelar_pedido', {p_id: +b.dataset.canc}); if(c.error) return alert(c.error.message);
       await carregaEmissor(); pintaEmissor(); }), colunas:[
-    {k:'id', t:'Nº', cls:'forte', html:x => `${x.id}<div class="nota">${x.origem === 'AUTOMATICO' ? 'automático do dia' : 'complementar'}</div>`},
+    {k:'id', t:'Nº', cls:'forte', html:x => `${x.id}<div class="nota">${x.origem === 'AUTOMATICO' ? 'automático do dia' : x.origem === 'BONIF_LIBERADA' ? 'automático — venda liberada (bonificação aprovada)' : 'complementar'}</div>`},
     {k:'criado_em', t:'Pedido em', fmt:fHora},
     {k:'criado_por', t:'Por', esq:true, html:x => esc(quem(x.criado_por)) + (x.aprovado_por ? `<div class="nota">aprovado por ${esc(quem(x.aprovado_por))} ${fHora(x.aprovado_em)}</div>` : '')},
     {k:'notas', t:'Notas', fmt:v => F.int((v || []).length)},
@@ -408,7 +416,7 @@ function notasRasc(){
   return (RASC ? RASC.notas || [] : []).map(n => { const a = naApt.get(chN(n));
     const e = String(n.emissao || ''), emissao = /^\d{8}$/.test(e) ? `${e.slice(0, 4)}-${e.slice(4, 6)}-${e.slice(6, 8)}` : e;   // AAAAMMDD → data
     return {...n, emissao, valor:+n.valor, tipo:n.origem === 'BON' ? 'BONIF.' : n.origem === 'REM' ? 'REMESSA V.O.' : 'VENDA', _k:chN(n),
-            _ret:a && a.situacao === 'RETIDA' ? (a.motivo || 'retida') : null, _manual:!!(a && a.retencao), _fora:!a && depois,
+            _ret:a && (a.situacao === 'RETIDA' || ehBonif(a)) ? (a.motivo || 'retida') : null, _manual:!!(a && a.retencao), _fora:!a && depois,
             _alerta:a && a.situacao === 'APTA' && !a.retencao ? a.motivo || null : null}; });   // 032: sem faturamento = só alerta
 }
 function pintaRascunho(){
@@ -484,6 +492,13 @@ function ligaRet(raiz){
     const r = await SB.rpc('prot_liberar_retencao', {p_filial:f, p_serie:s, p_doc:d, p_motivo:m});
     if(r.error) return alert('Não foi possível liberar: ' + r.error.message);
     await carregaEmissor(); pintaEmissor(); });
+  raiz.querySelectorAll('[data-libbv]').forEach(b => b.onclick = async ev => { ev.stopPropagation();   // 027
+    const [f, s, d] = b.dataset.libbv.split('|');
+    const m = prompt(`LIBERAR a NF de venda ${d.replace(/^0+/, '')} SEM esperar a bonificação?\nEla volta a ficar apta e os pedidos de bonificação citados deixam de reter as vendas deste cliente.\nJustificativa (obrigatória — fica registrada com seu e-mail e a hora):`, '');
+    if(m === null) return;
+    const r = await SB.rpc('prot_liberar_venda_bonif', {p_filial:f, p_serie:s, p_doc:d, p_motivo:m});
+    if(r.error) return alert('Não foi possível liberar: ' + r.error.message);
+    await carregaEmissor(); pintaEmissor(); });
 }
 function pintaCardsSel(){ const el = $('cardsAp').querySelectorAll('.kpi')[3]; if(!el) return;
   el.querySelector('.v').textContent = F.int(MARC.size); el.querySelector('.n').textContent = F.curto(APTAS.filter(x => MARC.has(chN(x))).reduce((s, x) => s + x.valor, 0)); }
@@ -503,7 +518,7 @@ function exportarSelecionadas(){
     [{t:'NF', w:12, val:x => String(x.doc).replace(/^0+/, '')}, {t:'SÉRIE', k:'serie', w:7}, {t:'FILIAL', k:'filial', w:9},
      {t:'EMISSÃO', k:'emissao', w:12}, {t:'CLIENTE', k:'cliente', w:40}, {t:'SUFRAMA', w:12, val:x => x.suframa ? 'SIM · ' + x.suframa : ''},
      {t:'MUNICÍPIO', k:'municipio', w:20}, {t:'UF', k:'uf', w:5}, {t:'DEP.', k:'depositos', w:8}, {t:'TIPO', k:'tipo', w:9},
-     {t:'VALOR (C/ IPI)', k:'valor', w:15, tipo:'n'}, {t:'SITUAÇÃO', w:14, val:x => x.situacao === 'APTA' ? 'Apta' : x.situacao},
+     {t:'VALOR (C/ IPI)', k:'valor', w:15, tipo:'n'}, {t:'SITUAÇÃO', w:14, val:x => x.situacao === 'APTA' ? 'Apta' : BONIF_SIT[x.situacao] || x.situacao},
      {t:'ALERTA', w:50, val:x => x.motivo || ''}], sel);
 }
 async function gerar(){
