@@ -99,6 +99,8 @@
   .ag tfoot td{background:#F7F9FC;font-weight:700;border-top:2px solid var(--borda)}
   .ag tfoot tr.pct td{background:var(--navy);color:#fff;font:600 11px var(--cond);letter-spacing:.1em}
   .ag .cj{font-weight:600} .ag .cc{color:var(--cinza)}
+  .ag tr.lin{cursor:pointer} .ag tbody tr.lin:hover td{background:#FFFAF0} .ag tr.rsel td{background:var(--am-suave)}
+  .ag-dh{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap} .ag-dh .bt{font-size:12px}
   .aba[hidden]{display:none}
   .cards9{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-top:16px}
   .cards9 .kpi{padding:12px 13px} .cards9 .kpi .v{font-size:28px} .cards9 .kpi .t{letter-spacing:.08em}
@@ -235,8 +237,8 @@
             <option value="orig">Valor original da NF</option><option value="saldo">Saldo em aberto</option></select></div>
           <div class="campo"><label>Motivo</label><select id="agMot">
             <option value="comp">Justificativa | complemento</option><option value="just">Só a justificativa</option></select></div>
-          <button class="bt" id="bXlsAging" title="Exporta o quadro do aging e a lista das notas (uma linha por NF)">Exportar aging</button>
-          <span class="ag-dica">mesmos filtros da fila · vencimento = vencimento real do título · clique num valor ou no motivo para listar as notas</span>
+          <button class="bt" id="bXlsAging" title="Exporta toda a base do aging (uma linha por NF, com os filtros da tela)">Exportar aging (base inteira)</button>
+          <span class="ag-dica">mesmos filtros da fila · vencimento = vencimento real do título · clique na linha para listar as notas do motivo · num valor, só as da faixa</span>
         </div>
       </div>
       <div class="ag-wrap" id="agTab"></div>
@@ -1001,20 +1003,24 @@ function pintarAging(){
     `<th rowspan="2">Total geral</th><th rowspan="2">%</th><th rowspan="2">NF</th></tr>` +
     `<tr>${cols.filter(c => c.grp).map(c => `<th>${c.rot}</th>`).join('')}</tr></thead><tbody>` +
     mots.map(m => { const o = g[m];
-      return `<tr class="${m === SEM_JUST ? 'semj' : ''}"><td class="esq${ehSel(m, '*') ? ' sel' : ''}" data-m="${escA(m)}" data-k="*" title="Listar as ${o.nt} notas deste motivo">${celMot(m)}</td>` +
+      return `<tr class="lin${m === SEM_JUST ? ' semj' : ''}${ehSel(m, '*') ? ' rsel' : ''}" data-m="${escA(m)}" title="Clique na linha para listar as ${o.nt} notas deste motivo; num valor, só as da faixa">` +
+        `<td class="esq${ehSel(m, '*') ? ' sel' : ''}" data-m="${escA(m)}" data-k="*">${celMot(m)}</td>` +
         cols.map(c => o.v[c.k] != null
           ? `<td class="v ${c.f || ''}${ehSel(m, c.k) ? ' sel' : ''}" data-m="${escA(m)}" data-k="${c.k}" title="${o.n[c.k]} NF · ${pc(o.v[c.k], o.t)} do motivo · clique para listar">${F.moeda(o.v[c.k])}</td>`
           : '<td></td>').join('') +
         `<td class="tot">${F.moeda(o.t)}</td><td class="pc">${pc(o.t, tot)}</td><td>${F.int(o.nt)}</td></tr>`; }).join('') +
-    `</tbody><tfoot><tr><td class="esq">Total geral</td>` +
+    `</tbody><tfoot><tr class="lin${ehSel('*', '*') ? ' rsel' : ''}" data-m="*" title="Clique para listar todas as notas do aging"><td class="esq" data-m="*" data-k="*">Total geral</td>` +
     cols.map(c => `<td class="v${ehSel('*', c.k) ? ' sel' : ''}" data-m="*" data-k="${c.k}" title="${nFx[c.k] || 0} NF · clique para listar">${nFx[c.k] ? F.moeda(totFx[c.k]) : ''}</td>`).join('') +
     `<td>${F.moeda(tot)}</td><td>100,0%</td><td>${F.int(nTot)}</td></tr>` +
     `<tr class="pct"><td class="esq">Percentual</td>${cols.map(c => `<td>${nFx[c.k] ? pc(totFx[c.k], tot) : ''}</td>`).join('')}<td>100,0%</td><td></td><td></td></tr>` +
     `</tfoot></table>`;
-  el.querySelectorAll('td[data-k]').forEach(td => td.onclick = () => {
-    const s = {m:td.dataset.m, k:td.dataset.k};
-    _agSel = _agSel && _agSel.m === s.m && _agSel.k === s.k ? null : s;   // 2º clique limpa
-    pintarAging(); });
+  // clique: num valor = motivo × faixa; em qualquer outro ponto da linha = a linha inteira (Silvio 27/11/2026); 2º clique limpa
+  el.querySelectorAll('tr.lin').forEach(tr => tr.onclick = ev => {
+    const td = ev.target.closest('td[data-k]');
+    const s = {m:tr.dataset.m, k:td && td.dataset.k !== '*' && td.classList.contains('v') && td.textContent.trim() ? td.dataset.k : '*'};
+    _agSel = _agSel && _agSel.m === s.m && _agSel.k === s.k ? null : s;
+    pintarAging();
+    if(_agSel) $('agDet').scrollIntoView({behavior:'smooth', block:'start'}); });
   pintarAgingDet();
 }
 function agFiltraSel(){ if(!_agSel) return [];
@@ -1025,8 +1031,9 @@ function pintarAgingDet(){
   const fx = _agSel.k === '*' ? 'todas as faixas' : AG_FX.find(c => c.k === _agSel.k).rot.toLowerCase();
   const tot = sel.reduce((t, o) => t + o.v, 0);
   box.style.display = '';
-  box.innerHTML = `<h2>${_agSel.m === '*' ? 'Todos os motivos' : escA(_agSel.m)} · ${fx} <span>${F.int(sel.length)} notas · ${F.moeda(tot)} · ` +
-    `clique de novo no valor para fechar</span></h2><div class="corpo" style="overflow-x:auto"><table class="tbl"><thead><tr>` +
+  box.innerHTML = `<h2 class="ag-dh"><span class="ag-dt">${_agSel.m === '*' ? 'Todos os motivos' : escA(_agSel.m)} · ${fx} <span>${F.int(sel.length)} notas · ${F.moeda(tot)} · ` +
+    `clique de novo na linha ou no valor para fechar</span></span><button class="bt" id="bXlsAgSel" title="Exporta só as notas desta seleção">Exportar seleção (Excel)</button></h2>` +
+    `<div class="corpo" style="overflow-x:auto"><table class="tbl"><thead><tr>` +
     `<th>NF</th><th>Emissão</th><th class="esq">Cliente</th><th>UF</th><th class="esq">Transportadora</th><th>Valor</th><th>Saldo em aberto</th>` +
     `<th>Vencimento</th><th>Dias vencidos</th><th class="esq">Responsável</th></tr></thead><tbody>` +
     sel.sort((a, b) => (b.v - a.v)).map(({x}) => { const dv = x.vencimento_real ? -diasAte(String(x.vencimento_real).slice(0,10)) : null;
@@ -1034,16 +1041,19 @@ function pintarAgingDet(){
         `<td class="esq">${escA(x.transportadora || '—')}</td><td>${F.moeda(x.valor_faturado)}</td><td>${F.moeda(x.saldo_aberto)}</td>` +
         `<td>${x.vencimento_real ? F.data(x.vencimento_real) : '—'}</td><td>${dv == null ? '—' : dv < 0 ? `vence em ${-dv} d` : `${dv} d`}</td>` +
         `<td class="esq">${escA(respEf(x) || '—')}</td></tr>`; }).join('') + `</tbody></table></div>`;
+  $('bXlsAgSel').onclick = () => exportarAging(sel, `${_agSel.m === '*' ? 'todos os motivos' : _agSel.m} · ${fx}`);
 }
-function exportarAging(){
-  const modoV = $('agVal').value;
-  const linhas = _agLinhas.map(o => { const x = o.x, j = JUST.porNF[chNF(x)] || {};
+function exportarAging(lista, selecao){
+  const modoV = $('agVal').value, base = Array.isArray(lista) ? lista : _agLinhas;
+  const linhas = base.map(o => { const x = o.x, j = JUST.porNF[chNF(x)] || {};
     const dv = x.vencimento_real ? -diasAte(String(x.vencimento_real).slice(0,10)) : null;
     return {mot:o.mot, just:rotJust(x), comp:j.complemento || '', fx:AG_FX.find(c => c.k === o.fx).rot, dv, nf:x.nf, serie:x.serie, filial:x.filial,
             emissao:x.emissao, cliente:x.cliente_nome, uf:x.uf, tr:x.transportadora, valor:x.valor_faturado, saldo:x.saldo_aberto,
             venc:x.vencimento_real, resp:respEf(x)}; });
-  exportarXLSX(`AMVOX_AGING_SEM_ENTREGA_${hojeArq()}.xlsx`, 'Notas sem data de entrega — aging por motivo',
-    `Uma linha por NF · faixa = dias desde o vencimento real · quadro do app em ${modoV === 'saldo' ? 'saldo em aberto' : 'valor original da NF'} · mesmos filtros da tela`,
+  exportarXLSX(`AMVOX_AGING_SEM_ENTREGA_${selecao ? 'SELECAO_' : ''}${hojeArq()}.xlsx`,
+    'Notas sem data de entrega — aging por motivo' + (selecao ? ' · seleção' : ''),
+    (selecao ? `Seleção: ${selecao} · ` : 'Base inteira do aging · ') +
+    `uma linha por NF · faixa = dias desde o vencimento real · quadro do app em ${modoV === 'saldo' ? 'saldo em aberto' : 'valor original da NF'} · mesmos filtros da tela`,
     [{t:'MOTIVO',k:'mot',w:48},{t:'JUSTIFICATIVA',k:'just',w:32},{t:'COMPLEMENTO',k:'comp',w:34},{t:'FAIXA',k:'fx',w:16},
      {t:'DIAS VENCIDOS',k:'dv',w:13},{t:'FILIAL',k:'filial',w:9},{t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:7},{t:'EMISSÃO',k:'emissao',w:12},
      {t:'CLIENTE',k:'cliente',w:36},{t:'UF',k:'uf',w:6},{t:'TRANSPORTADORA',k:'tr',w:28},{t:'VALOR ORIGINAL',k:'valor',w:16,tipo:'n'},
@@ -1576,7 +1586,7 @@ iniciarPagina(async () => {
   let _rz; addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(() => { if(!$('abaDash').hidden) pintarPlanoStatus(); }, 250); });
   pintar();
   $('agVal').onchange = $('agMot').onchange = () => { _agSel = null; pintarAging(); };
-  $('bXlsAging').onclick = exportarAging;
+  $('bXlsAging').onclick = () => exportarAging();
   abrirAba(location.hash === '#dash' ? 'dash' : location.hash === '#aging' ? 'aging' : 'fila');
 });
 </script></body></html>
