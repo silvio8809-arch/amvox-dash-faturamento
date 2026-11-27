@@ -61,6 +61,26 @@
   .abas button.on{color:var(--navy);border-bottom-color:var(--laranja)}
   .abas button:hover{color:var(--navy)}
   .abas .dica{margin-left:auto;align-self:center;font-size:12.5px;color:var(--cinza)}
+  /* AGING (27/11/2026) — motivo × faixa de vencimento */
+  .ag-ctrl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+  .ag-ctrl .ag-dica{font-size:12px;color:var(--cinza);margin-left:auto;align-self:center}
+  .ag-wrap{overflow-x:auto;padding:0 20px 18px}
+  .ag{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  .ag th{background:var(--navy);color:#fff;font:600 10.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;padding:8px 12px;text-align:right;white-space:nowrap}
+  .ag thead tr:first-child th{background:#2B3247}
+  .ag th.esq,.ag td.esq{text-align:left}
+  .ag th.grp{text-align:center;border-bottom:2px solid var(--laranja)}
+  .ag th.av{background:#3A6B52} .ag th.sv{background:#5B6478}
+  .ag td{padding:8px 12px;border-bottom:1px solid var(--linha);text-align:right;white-space:nowrap}
+  .ag td.esq{white-space:normal;min-width:260px;max-width:520px;cursor:pointer}
+  .ag td.v{cursor:pointer} .ag td.v:hover,.ag td.esq:hover{background:var(--am-suave)}
+  .ag td.sel{background:var(--am-suave);box-shadow:inset 0 0 0 2px var(--laranja)}
+  .ag td.tot{font-weight:600} .ag td.pc{color:var(--cinza);font-weight:600}
+  .ag td.f3{color:#9A5B00} .ag td.f4{color:var(--vermelho);font-weight:600}
+  .ag tr.semj td.esq{color:var(--cinza);font-style:italic}
+  .ag tfoot td{background:#F7F9FC;font-weight:700;border-top:2px solid var(--borda)}
+  .ag tfoot tr.pct td{background:var(--navy);color:#fff;font:600 11px var(--cond);letter-spacing:.1em}
+  .ag .cj{font-weight:600} .ag .cc{color:var(--cinza)}
   .aba[hidden]{display:none}
   .cards9{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-top:16px}
   .cards9 .kpi{padding:12px 13px} .cards9 .kpi .v{font-size:28px} .cards9 .kpi .t{letter-spacing:.08em}
@@ -182,8 +202,30 @@
   <nav class="abas" role="tablist">
     <button role="tab" data-aba="fila" class="on">Fila de ação</button>
     <button role="tab" data-aba="dash">Dash</button>
+    <button role="tab" data-aba="aging">Aging</button>
     <span class="dica" id="dicaAba"></span>
   </nav>
+    <span class="dica" id="dicaAba"></span>
+  </nav>
+
+  <!-- ============ AGING (Silvio 27/11/2026): motivo × faixa de vencimento, no modelo da planilha da Logística ============ -->
+  <div class="aba" id="abaAging" hidden>
+    <div class="painel" style="margin-top:18px">
+      <h2>Aging das notas sem entrega — motivo × vencimento <span id="agSub"></span></h2>
+      <div class="corpo" style="padding-bottom:6px">
+        <div class="ag-ctrl">
+          <div class="campo"><label>Valor</label><select id="agVal">
+            <option value="orig">Valor original da NF</option><option value="saldo">Saldo em aberto</option></select></div>
+          <div class="campo"><label>Motivo</label><select id="agMot">
+            <option value="comp">Justificativa | complemento</option><option value="just">Só a justificativa</option></select></div>
+          <button class="bt" id="bXlsAging" title="Exporta o quadro do aging e a lista das notas (uma linha por NF)">Exportar aging</button>
+          <span class="ag-dica">mesmos filtros da fila · vencimento = vencimento real do título · clique num valor ou no motivo para listar as notas</span>
+        </div>
+      </div>
+      <div class="ag-wrap" id="agTab"></div>
+    </div>
+    <div class="painel" id="agDet" style="margin-top:18px;display:none"></div>
+  </div>
 
   <!-- ============ ÁREA DASH (Silvio 01/10/2026): os gráficos saíram da fila ============ -->
   <div class="aba" id="abaDash" hidden>
@@ -820,6 +862,101 @@ function pintar(){
 
   pintarRegra();
   pintarVo();
+  pintarAging();
+}
+
+/* ---- AGING (Silvio 27/11/2026) — notas sem entrega por MOTIVO × FAIXA DE VENCIMENTO, no modelo da planilha da Logística
+   (motivo = justificativa | complemento; colunas = a vencer · vencidos 0–30 · 31–60 · 61–90 · acima de 90 · sem vencimento).
+   Base = a mesma da fila (filtros do topo + seleções), sem as canceladas. Visual no padrão do dash; só as aberturas vêm do modelo.
+   Dias vencidos = hoje − vencimento real do título (vence hoje = 0 = vencido 0–30, como na planilha). */
+const AG_FX = [
+  {k:'av',  rot:'A vencer',      cls:'av'},
+  {k:'0',   rot:'0 a 30 dias',   grp:1},
+  {k:'31',  rot:'31 a 60 dias',  grp:1},
+  {k:'61',  rot:'61 a 90 dias',  grp:1, f:'f3'},
+  {k:'91',  rot:'Acima de 90 dias', grp:1, f:'f4'},
+  {k:'sv',  rot:'Sem vencimento', cls:'sv'}];
+const agFxDe = x => { if(!x.vencimento_real) return 'sv';
+  const d = -diasAte(String(x.vencimento_real).slice(0,10));
+  return d < 0 ? 'av' : d <= 30 ? '0' : d <= 60 ? '31' : d <= 90 ? '61' : '91'; };
+const agMotDe = (x, modo) => { const j = JUST.porNF[chNF(x)] || {}, base = rotJust(x), c = (j.complemento || '').trim();
+  return modo === 'comp' && c && base !== SEM_JUST ? `${base} | ${c}` : (modo === 'comp' && c ? c : base); };
+let _agSel = null, _agLinhas = [];
+function pintarAging(){
+  const el = $('agTab'); if(!el) return;
+  const modoV = $('agVal').value, modoM = $('agMot').value;
+  const val = x => modoV === 'saldo' ? (+x.saldo_aberto || 0) : (+x.valor_faturado || 0);
+  const l = filtraSel(filtrar());
+  _agLinhas = l.map(x => ({x, mot:agMotDe(x, modoM), fx:agFxDe(x), v:val(x)}));
+  const g = {}, totFx = {}, nFx = {}; let tot = 0, nTot = 0;
+  _agLinhas.forEach(o => { const m = g[o.mot] ||= {v:{}, n:{}, t:0, nt:0};
+    m.v[o.fx] = (m.v[o.fx] || 0) + o.v; m.n[o.fx] = (m.n[o.fx] || 0) + 1; m.t += o.v; m.nt++;
+    totFx[o.fx] = (totFx[o.fx] || 0) + o.v; nFx[o.fx] = (nFx[o.fx] || 0) + 1; tot += o.v; nTot++; });
+  // só mostra "A vencer" e "Sem vencimento" quando há nota nelas (o modelo só tem vencidos)
+  const cols = AG_FX.filter(c => c.grp || nFx[c.k]);
+  const nGrp = cols.filter(c => c.grp).length;
+  const mots = Object.keys(g).sort((a, b) => (a === SEM_JUST) - (b === SEM_JUST) || a.localeCompare(b, 'pt-BR'));
+  $('agSub').textContent = `${F.int(nTot)} notas · ${F.curto(tot)} · ${modoV === 'saldo' ? 'saldo em aberto' : 'valor original da NF'}`;
+  if(!nTot){ el.innerHTML = '<div class="vazio">Nenhuma nota com estes filtros.</div>'; $('agDet').style.display = 'none'; return; }
+  const pc = (v, t) => t ? (100 * v / t).toFixed(1).replace('.', ',') + '%' : '—';
+  const celMot = m => { const [j, ...c] = m.split(' | ');
+    return c.length ? `<span class="cj">${escA(j)}</span> <span class="cc">| ${escA(c.join(' | '))}</span>` : `<span class="cj">${escA(m)}</span>`; };
+  const ehSel = (m, k) => _agSel && _agSel.m === m && _agSel.k === k;
+  el.innerHTML = `<table class="ag"><thead>` +
+    `<tr><th class="esq" rowspan="2">Motivo</th>` +
+    cols.filter(c => !c.grp && c.k === 'av').map(c => `<th class="av" rowspan="2">${c.rot}</th>`).join('') +
+    `<th class="grp" colspan="${nGrp}">Vencidos</th>` +
+    cols.filter(c => c.k === 'sv').map(c => `<th class="sv" rowspan="2">${c.rot}</th>`).join('') +
+    `<th rowspan="2">Total geral</th><th rowspan="2">%</th><th rowspan="2">NF</th></tr>` +
+    `<tr>${cols.filter(c => c.grp).map(c => `<th>${c.rot}</th>`).join('')}</tr></thead><tbody>` +
+    mots.map(m => { const o = g[m];
+      return `<tr class="${m === SEM_JUST ? 'semj' : ''}"><td class="esq${ehSel(m, '*') ? ' sel' : ''}" data-m="${escA(m)}" data-k="*" title="Listar as ${o.nt} notas deste motivo">${celMot(m)}</td>` +
+        cols.map(c => o.v[c.k] != null
+          ? `<td class="v ${c.f || ''}${ehSel(m, c.k) ? ' sel' : ''}" data-m="${escA(m)}" data-k="${c.k}" title="${o.n[c.k]} NF · ${pc(o.v[c.k], o.t)} do motivo · clique para listar">${F.moeda(o.v[c.k])}</td>`
+          : '<td></td>').join('') +
+        `<td class="tot">${F.moeda(o.t)}</td><td class="pc">${pc(o.t, tot)}</td><td>${F.int(o.nt)}</td></tr>`; }).join('') +
+    `</tbody><tfoot><tr><td class="esq">Total geral</td>` +
+    cols.map(c => `<td class="v${ehSel('*', c.k) ? ' sel' : ''}" data-m="*" data-k="${c.k}" title="${nFx[c.k] || 0} NF · clique para listar">${nFx[c.k] ? F.moeda(totFx[c.k]) : ''}</td>`).join('') +
+    `<td>${F.moeda(tot)}</td><td>100,0%</td><td>${F.int(nTot)}</td></tr>` +
+    `<tr class="pct"><td class="esq">Percentual</td>${cols.map(c => `<td>${nFx[c.k] ? pc(totFx[c.k], tot) : ''}</td>`).join('')}<td>100,0%</td><td></td><td></td></tr>` +
+    `</tfoot></table>`;
+  el.querySelectorAll('td[data-k]').forEach(td => td.onclick = () => {
+    const s = {m:td.dataset.m, k:td.dataset.k};
+    _agSel = _agSel && _agSel.m === s.m && _agSel.k === s.k ? null : s;   // 2º clique limpa
+    pintarAging(); });
+  pintarAgingDet();
+}
+function agFiltraSel(){ if(!_agSel) return [];
+  return _agLinhas.filter(o => (_agSel.m === '*' || o.mot === _agSel.m) && (_agSel.k === '*' || o.fx === _agSel.k)); }
+function pintarAgingDet(){
+  const box = $('agDet'), sel = agFiltraSel();
+  if(!_agSel || !sel.length){ box.style.display = 'none'; return; }
+  const fx = _agSel.k === '*' ? 'todas as faixas' : AG_FX.find(c => c.k === _agSel.k).rot.toLowerCase();
+  const tot = sel.reduce((t, o) => t + o.v, 0);
+  box.style.display = '';
+  box.innerHTML = `<h2>${_agSel.m === '*' ? 'Todos os motivos' : escA(_agSel.m)} · ${fx} <span>${F.int(sel.length)} notas · ${F.moeda(tot)} · ` +
+    `clique de novo no valor para fechar</span></h2><div class="corpo" style="overflow-x:auto"><table class="tbl"><thead><tr>` +
+    `<th>NF</th><th>Emissão</th><th class="esq">Cliente</th><th>UF</th><th class="esq">Transportadora</th><th>Valor</th><th>Saldo em aberto</th>` +
+    `<th>Vencimento</th><th>Dias vencidos</th><th class="esq">Responsável</th></tr></thead><tbody>` +
+    sel.sort((a, b) => (b.v - a.v)).map(({x}) => { const dv = x.vencimento_real ? -diasAte(String(x.vencimento_real).slice(0,10)) : null;
+      return `<tr><td>${escA(x.nf)}</td><td>${F.data(x.emissao)}</td><td class="esq">${escA(x.cliente_nome || '—')}</td><td>${escA(x.uf || '')}</td>` +
+        `<td class="esq">${escA(x.transportadora || '—')}</td><td>${F.moeda(x.valor_faturado)}</td><td>${F.moeda(x.saldo_aberto)}</td>` +
+        `<td>${x.vencimento_real ? F.data(x.vencimento_real) : '—'}</td><td>${dv == null ? '—' : dv < 0 ? `vence em ${-dv} d` : `${dv} d`}</td>` +
+        `<td class="esq">${escA(respEf(x) || '—')}</td></tr>`; }).join('') + `</tbody></table></div>`;
+}
+function exportarAging(){
+  const modoV = $('agVal').value;
+  const linhas = _agLinhas.map(o => { const x = o.x, j = JUST.porNF[chNF(x)] || {};
+    const dv = x.vencimento_real ? -diasAte(String(x.vencimento_real).slice(0,10)) : null;
+    return {mot:o.mot, just:rotJust(x), comp:j.complemento || '', fx:AG_FX.find(c => c.k === o.fx).rot, dv, nf:x.nf, serie:x.serie, filial:x.filial,
+            emissao:x.emissao, cliente:x.cliente_nome, uf:x.uf, tr:x.transportadora, valor:x.valor_faturado, saldo:x.saldo_aberto,
+            venc:x.vencimento_real, resp:respEf(x)}; });
+  exportarXLSX(`AMVOX_AGING_SEM_ENTREGA_${hojeArq()}.xlsx`, 'Notas sem data de entrega — aging por motivo',
+    `Uma linha por NF · faixa = dias desde o vencimento real · quadro do app em ${modoV === 'saldo' ? 'saldo em aberto' : 'valor original da NF'} · mesmos filtros da tela`,
+    [{t:'MOTIVO',k:'mot',w:48},{t:'JUSTIFICATIVA',k:'just',w:32},{t:'COMPLEMENTO',k:'comp',w:34},{t:'FAIXA',k:'fx',w:16},
+     {t:'DIAS VENCIDOS',k:'dv',w:13},{t:'FILIAL',k:'filial',w:9},{t:'NF',k:'nf',w:12},{t:'SÉRIE',k:'serie',w:7},{t:'EMISSÃO',k:'emissao',w:12},
+     {t:'CLIENTE',k:'cliente',w:36},{t:'UF',k:'uf',w:6},{t:'TRANSPORTADORA',k:'tr',w:28},{t:'VALOR ORIGINAL',k:'valor',w:16,tipo:'n'},
+     {t:'SALDO EM ABERTO',k:'saldo',w:16,tipo:'n'},{t:'VENCIMENTO',k:'venc',w:13},{t:'RESPONSÁVEL',k:'resp',w:24}], linhas);
 }
 
 /* painel "Justificativa logística": saldo em aberto por motivo, com % sobre o saldo da fila inteira */
@@ -1341,14 +1478,16 @@ iniciarPagina(async () => {
   // abas Fila × Dash — a aba aberta fica no endereço (#dash) para voltar nela ao recarregar
   const abrirAba = a => {
     document.querySelectorAll('.abas button').forEach(b => b.classList.toggle('on', b.dataset.aba === a));
-    $('abaFila').hidden = a !== 'fila'; $('abaDash').hidden = a !== 'dash';
-    history.replaceState(null, '', a === 'dash' ? '#dash' : location.pathname + location.search);
+    $('abaFila').hidden = a !== 'fila'; $('abaDash').hidden = a !== 'dash'; $('abaAging').hidden = a !== 'aging';
+    history.replaceState(null, '', a === 'dash' || a === 'aging' ? '#' + a : location.pathname + location.search);
     pintarDica();
     if(a === 'dash') pintarPlanoStatus();          // colunas medem a largura do painel: redesenhar ao abrir o Dash
   };
   document.querySelectorAll('.abas button').forEach(b => b.onclick = () => abrirAba(b.dataset.aba));
   let _rz; addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(() => { if(!$('abaDash').hidden) pintarPlanoStatus(); }, 250); });
   pintar();
-  abrirAba(location.hash === '#dash' ? 'dash' : 'fila');
+  $('agVal').onchange = $('agMot').onchange = () => { _agSel = null; pintarAging(); };
+  $('bXlsAging').onclick = exportarAging;
+  abrirAba(location.hash === '#dash' ? 'dash' : location.hash === '#aging' ? 'aging' : 'fila');
 });
 </script></body></html>
