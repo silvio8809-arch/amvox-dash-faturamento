@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.53** · 24/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.54** · 27/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -141,12 +141,26 @@ data de entrega continua "em trânsito"; a devolução aparece na coluna *Devolu
 ### 7.1 Plano de ação (Justificativa + Observações + Anexos)
 
 - Na fila, a seção **Plano de ação** tem três campos por nota (Silvio 01/10/2026):
-  - **Justificativa** — lista com os principais motivos (em rota, agendamento confirmado, entregue com
-    baixa disponível no TOTVS, funcionário com baixa disponível, NF não enviada para a Logística, faturada
-    sem a nota de remessa, refaturamento aguardando canhoto, devolvida, aguardando devolução, tratativa
-    comercial, faturamento contra o transportador (sinistro/avaria), NF cancelada e outros) e um
-    **complemento** curto. Alguns motivos **pedem complemento** (agendamento, refaturamento, devolvida,
-    tratativa comercial, outros): a tela avisa quando ele falta, mas não impede a gravação.
+  - **Justificativa** — **só a lista suspensa padronizada** (Silvio 27/11/2026, migração 028): **AG.EXPEDIÇÃO ·
+    AG.CANCELAMENTO · AG.TRATATIVA COMERCIAL · AG.TRATATIVA FINANCEIRA · EM ROTA DE ENTREGA · ENTREGA REALIZADA ·
+    FATURAMENTO TRANSPORTADOR · NFS NÃO ENVIADA PARA LOGÍSTICA**. Não há mais texto livre no campo (o detalhe vai em
+    Observações). Na padronização, as 200 justificativas existentes foram convertidas pelo de-para aprovado (ex.: agendamento
+    confirmado → AG.EXPEDIÇÃO; aguardando devolução/devolvida/tratativa → AG.TRATATIVA COMERCIAL; sinistro/avaria → FATURAMENTO
+    TRANSPORTADOR; "outros" pelo texto do complemento) e o **texto cortado (motivo antigo + complemento) ficou no histórico**
+    imutável da nota, com o usuário "padronização da lista (Silvio 27/11/2026)". Até 26/11/2026 valia a lista anterior de 13
+    motivos com complemento (versões 1.6 a 1.53).
+    - **Cadastro da lista** — botão **⚙ Justificativas** no topo da tela, visível só para a **coordenadora e o gerente de
+      Logística** (parâmetro `JUST_CADASTRADORES`) e o papel ADM: cadastrar, desativar e reativar. Nada é apagado — a
+      justificativa desativada continua aparecendo na nota que já a tinha ("(desativada)") e no histórico. Trava no banco
+      (funções `dash_just_cadastrar` / `dash_just_ativar`; a tabela não aceita escrita direta), registro em
+      `dash_justificativa_opcao_log`.
+    - **NFS NÃO ENVIADA PARA LOGÍSTICA × protocolo on-line** — toda nota com essa justificativa é conferida no protocolo de
+      liberação para expedição (seção 15-A) pela rotina da fila, a cada 15 min, e a tela mostra o resultado embaixo da
+      justificativa: **⚠ consta no PROT-AAAA-NNN** (com aceite de quem e quando — a Logística recebeu: rever a classificação) ·
+      **consta em protocolo enviado só ao Fiscal** (antes de 04/11/2026, quando a Logística ainda não recebia) · **✓ não consta
+      em protocolo**. Reclassificar = nova conferência. No primeiro caso, comunicado THOR ao time de Logística ("a NF X foi
+      classificada como NÃO ENVIADA À LOG, mas consta no protocolo on-line Y, cujo aceite foi dado por … em …; favor rever a
+      classificação") — liga pelo parâmetro `JUST_NAO_ENVIADA_COMUNICA`. O Excel leva a coluna CONFERÊNCIA NO PROTOCOLO.
   - **Responsável** — nome da pessoa que a Logística indica para realizar a ação (texto livre; a tela sugere
     os nomes já usados).
     **Padrão: Ingride Soares**, responsável geral da Logística (Silvio 05/10/2026): toda nota sem responsável informado é dela —
@@ -541,6 +555,7 @@ Pedido do Gerente Comercial (via Silvio): o cliente só aceita receber a compra 
 | 1.51 | 09/11/2026 | **Aceite parcial com pendência de reimpressão** na aba Protocolos (botões Aceite c/ pendência · Reimpressão enviada · Aceito s/ pendências; card e coluna de reimpressão; comunicados THOR de reimpressão) — migração 026 (seção 15-A.1) | Silvio Amaral |
 | 1.52 | 23/11/2026 | **Venda retida por bonificação pendente** (seção 15-A.2): situações BONIF_PENDENTE/BONIF_REPROVADA no quadro de aptas, protocolo automático na aprovação da bonificação, 4 comunicados THOR — migração 027 | Silvio Amaral |
 | 1.53 | 24/11/2026 | Protocolo automático da **venda liberada por bonificação aprovada** passa a aparecer no **quadro de protocolos**, com aceite, confirmação de leitura e lembrete iguais aos demais (só não passa pela aprovação do Fiscal); PROT-2026-046 e 047 carregados na central (seção 15-A.2) | Silvio Amaral |
+| 1.54 | 27/11/2026 | Justificativa da fila sem entrega = lista suspensa padronizada de 8 itens, sem texto livre (existentes convertidas; texto cortado no histórico); cadastro da lista pela coordenadora/gerente de Logística (botão ⚙ Justificativas); NFS NÃO ENVIADA PARA LOGÍSTICA conferida no protocolo on-line (marca na tela + comunicado THOR à LOG, ligável) — seção 7.1, migração 028 | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
