@@ -32,6 +32,24 @@
   .just .quem{font-size:10.5px;color:var(--cinza);white-space:nowrap}
   .just .quem.ok{color:#14603F} .just .quem.err{color:var(--vermelho)}
   .just .falta{border-color:var(--laranja)}
+  /* 027/028 (Silvio 27/11/2026): lista padronizada · conferência NFS NÃO ENVIADA × protocolo · cadastro pela LOG */
+  .just .cprot{font-size:10.5px;line-height:1.35;border-radius:5px;padding:3px 6px}
+  .just .cprot.alerta{background:#FCE9E9;color:var(--vinho);font-weight:600}
+  .just .cprot.info{background:#EEF1F6;color:var(--cinza)}
+  .just .cprot.ok{background:#E6F4EE;color:#14603F}
+  #justFundo{position:fixed;inset:0;background:rgba(18,18,20,.55);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:6vh 12px}
+  #justFundo.aberto{display:flex}
+  #justCaixa{background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:84vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+  #justCaixa header{position:sticky;top:0;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:14px 18px;
+    background:#fff;color:var(--navy);height:auto;border-bottom:1px solid var(--borda);border-radius:12px 12px 0 0;z-index:2}
+  #justCaixa h3{font:600 15px var(--cond);letter-spacing:.08em;text-transform:uppercase;margin:0}
+  #justCaixa header span{display:block;font-size:12px;color:var(--cinza);margin-top:2px}
+  #justCaixa .corpo{padding:14px 18px}
+  #justCaixa .linha{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #EEF1F6;font-size:13px}
+  #justCaixa .linha.inativa span{color:var(--cinza);text-decoration:line-through}
+  #justCaixa .novo{display:flex;gap:8px;margin-top:14px}
+  #justCaixa .novo input{flex:1;padding:7px 9px;border:1px solid var(--borda);border-radius:6px;font:13px var(--texto)}
+  #justMsg{font-size:12px;margin-top:8px;min-height:16px}
   /* histórico da justificativa (Silvio 29/09/2026 — migração 006: antes × depois, quem, quando) */
   .just .rodape{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .just .bhist{border:0;background:none;padding:0;font:600 10.5px var(--texto);color:var(--navy);text-decoration:underline;
@@ -186,6 +204,7 @@
 <header>
   <a class="voltar" href="index.html">← Painel</a>
   <div class="ic">SE</div><h1>Notas sem data de entrega</h1>
+  <button class="bt" id="bJustCad" style="display:none;margin-left:auto;margin-right:14px" title="Cadastrar, desativar ou reativar justificativas da lista (coordenadora e gerente de Logística)">⚙ Justificativas</button>
   <div class="dir">Última atualização: <b id="atualizado">—</b><br><span id="rotPeriodo">Fila desde jan/2025</span></div>
 </header>
 <div class="filtros">
@@ -203,8 +222,6 @@
     <button role="tab" data-aba="fila" class="on">Fila de ação</button>
     <button role="tab" data-aba="dash">Dash</button>
     <button role="tab" data-aba="aging">Aging</button>
-    <span class="dica" id="dicaAba"></span>
-  </nav>
     <span class="dica" id="dicaAba"></span>
   </nav>
 
@@ -331,14 +348,13 @@ const marca = r => r.venda_ordem ? '<span class="tag tag-vo">venda à ordem</spa
    O time informa, NF a NF, por que a nota ainda está sem data de entrega e o que está sendo feito.
    Tudo é escrito pelas pessoas (o ETL não toca) e quem/quando é carimbado pelo banco (gatilho).
    Histórico único e imutável (migração 006): antes × depois de cada mudança, inclusive anexos. */
-const JUST = {ok:false, v007:false, v008:false, opcoes:[], porCod:{}, porNF:{}};
+const JUST = {ok:false, v007:false, v008:false, opcoes:[], porCod:{}, porNF:{}, conf:{}, podeCad:false};
 const ANX = {ok:false, porNF:{}};
 const BUCKET = 'dash-anexos', ANX_MAX = 10 * 1024 * 1024;      // 10 MB por arquivo (limite também no banco)
 let ENVIANDO = 0;                                               // anexos/gravações em andamento
 /* o recarregamento automático (painel.js) espera: nada sendo enviado, nenhum texto sem salvar, histórico fechado */
 window.telaOcupada = () => ENVIANDO > 0 || !!document.querySelector('#histFundo.aberto') ||
   [...document.querySelectorAll('.obs textarea')].some(t => t.value.trim() !== (JUST.porNF[t.closest('.obs').dataset.ch]?.observacoes || '')) ||
-  [...document.querySelectorAll('.just input')].some(i => !i.disabled && i.value.trim() !== (JUST.porNF[i.closest('.just').dataset.ch]?.complemento || '')) ||
   [...document.querySelectorAll('.resp input')].some(i => i.value.trim() !== ((JUST.porNF[i.closest('.resp').dataset.ch]?.responsavel || '').trim() || RESP_PADRAO));
 const chNF = r => `${r.filial}|${r.nf}|${r.serie}`;
 /* RESPONSÁVEL PADRÃO (Silvio 05/10/2026): a Ingride é a responsável geral da Logística — toda nota sem responsável informado
@@ -351,19 +367,23 @@ const temJust = x => !!(JUST.porNF[chNF(x)] || {}).justificativa;
 const rotJust = r => { const j = JUST.porNF[chNF(r)]; return j && j.justificativa ? (JUST.porCod[j.justificativa]?.descricao || j.justificativa) : SEM_JUST; };
 async function carregarJustificativas(){
   const [op, js, v7, ax, v8, hi] = await Promise.all([
-    SB.from('dash_justificativa_opcao').select('*').eq('ativo', true).order('ordem'),
+    SB.from('dash_justificativa_opcao').select('*').order('ordem'),          // 028: TODAS (o histórico lê o nome das desativadas)
     tudo('dash_justificativa_logistica', '*', 'filial,nf,serie').catch(e => ({erro:e})),
     SB.from('dash_justificativa_logistica').select('observacoes').limit(1),
     tudo('dash_plano_anexo', '*', 'id').catch(e => ({erro:e})),
     SB.from('dash_justificativa_logistica').select('responsavel,prazo').limit(1),
     tudo('dash_justificativa_hist', 'id,filial,nf,serie,acao,usuario,em,anexo', 'id').catch(e => ({erro:e}))]);
   if(op.error || js.erro){ JUST.ok = false; return; }     // migração 005 ainda não rodada
-  JUST.ok = true; JUST.opcoes = op.data;
+  JUST.ok = true; JUST.opcoes = op.data.filter(o => o.ativo);            // combo = só as ativas (lista padronizada 028)
   JUST.v007 = !v7.error;                                  // migração 007: observações
   JUST.v008 = !v8.error;                                  // migração 008: responsável + prazo
   JUST.porCod = Object.fromEntries(op.data.map(o => [o.codigo, o]));
   JUST.porNF  = Object.fromEntries(js.map(j => [chNF(j), j]));
   JUST.hist   = hi && !hi.erro ? hi : [];                 // gráfico de atividade do plano (05/10/2026)
+  // 028: conferência "NFS NÃO ENVIADA PARA LOGÍSTICA" × protocolo on-line (gravada pela rotina da fila) + quem cadastra justificativa
+  try { const cf = await tudo('dash_just_conf_protocolo', '*', 'filial,nf,serie,justificativa_em');
+        JUST.conf = {}; (cf || []).forEach(c => { JUST.conf[chNF(c) + '|' + new Date(c.justificativa_em).getTime()] = c; }); } catch(e) { JUST.conf = {}; }
+  try { JUST.podeCad = (await SB.rpc('dash_pode_cadastrar_justificativa')).data === true; } catch(e) { JUST.podeCad = false; }
   ANX.ok = !ax.erro;                                      // migração 007: anexos
   ANX.porNF = {};
   if(ANX.ok) ax.filter(a => !a.removido_em).forEach(a => (ANX.porNF[chNF(a)] = ANX.porNF[chNF(a)] || []).push(a));
@@ -380,15 +400,77 @@ function celJust(r){
   if(!JUST.ok) return indisp('005_justificativa_logistica.sql');
   const j = JUST.porNF[chNF(r)], cod = j && j.justificativa || '';
   const op = JUST.porCod[cod];
-  const falta = op && op.pede_complemento && !(j.complemento||'').trim();
+  // 028: SÓ a lista suspensa padronizada (o texto livre saiu — o que existia está no histórico); justificativa desativada
+  // continua aparecendo na nota que já a tinha, marcada "(desativada)"
+  const extra = cod && op && !op.ativo ? `<option value="${escA(cod)}" selected>${escA(op.descricao)} (desativada)</option>` : '';
   return `<div class="just" data-ch="${escA(chNF(r))}">` +
-    `<select class="${cod?'':'vazia'}"><option value="">— informar —</option>` +
+    `<select class="${cod?'':'vazia'}"><option value="">— informar —</option>` + extra +
       JUST.opcoes.map(o => `<option value="${escA(o.codigo)}" ${o.codigo===cod?'selected':''}>${escA(o.descricao)}</option>`).join('') +
-    `</select>` +
-    `<input class="${falta?'falta':''}" maxlength="300" ${cod?'':'disabled'} value="${escA(j?.complemento)}" ` +
-      `placeholder="${op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)'}">` +
+    `</select>` + celConfProt(r, j) +
     `<div class="rodape"><span class="quem">${quemTxt(j)}</span>` +
     `<button type="button" class="bhist" title="Quem incluiu, alterou ou excluiu — antes e depois (justificativa, responsável, prazo, observações e anexos)">histórico</button></div></div>`;
+}
+/* 028: resultado da conferência no protocolo on-line para "NFS NÃO ENVIADA PARA LOGÍSTICA" (rotina da fila, a cada 15 min) */
+const COD_NAO_ENVIADA = 'NFS_NAO_ENVIADA_LOG';
+function celConfProt(r, j){
+  if(!j || j.justificativa !== COD_NAO_ENVIADA) return '';
+  const c = JUST.conf[chNF(r) + '|' + new Date(j.updated_at).getTime()];
+  if(!c) return '<div class="cprot info">conferência no protocolo on-line: em até 15 min</div>';
+  const dp = c.data_protocolo ? dataBrIso(c.data_protocolo) : '';
+  if(c.situacao === 'PROTOCOLADA_LOG')
+    return `<div class="cprot alerta" title="A Logística recebeu este protocolo — rever a classificação">⚠ consta no ${escA(c.protocolo)} de ${dp}` +
+      (c.aceite_por ? ` · aceite de ${escA(c.aceite_por)} em ${dtHora(c.aceite_em)}` : ' · sem aceite registrado') +
+      (c.comunicado_em ? ` · LOG avisada em ${dtHora(c.comunicado_em)}` : '') + '</div>';
+  if(c.situacao === 'PROTOCOLADA_SO_FISCAL')
+    return `<div class="cprot info">consta no ${escA(c.protocolo)} de ${dp}, enviado só ao Fiscal (antes de a Logística receber os protocolos)</div>`;
+  return `<div class="cprot ok">✓ conferido: não consta em protocolo on-line</div>`;
+}
+/* 028: cadastro da lista pela coordenadora / gerente de Logística (RPC com trava no banco) */
+function fecharJustCad(){ const f = document.getElementById('justFundo'); if(f) f.classList.remove('aberto'); }
+function abrirJustCad(){
+  let f = document.getElementById('justFundo');
+  if(!f){
+    f = document.createElement('div'); f.id = 'justFundo';
+    f.innerHTML = '<div id="justCaixa" role="dialog" aria-modal="true"><header><div><h3 style="margin:0">Justificativas da lista</h3>' +
+      '<span style="font-size:12px">cadastrar · desativar · reativar — nada é apagado (o histórico continua lendo o nome)</span></div>' +
+      '<button class="bt" id="justFechar">Fechar</button></header><div class="corpo"><div id="justLista"></div>' +
+      '<div class="novo"><input id="justNova" maxlength="80" placeholder="nova justificativa (ex.: AG.AGENDAMENTO DO CLIENTE)">' +
+      '<button class="bt pri" id="justAdd">Cadastrar</button></div><div id="justMsg"></div></div></div>';
+    document.body.appendChild(f);
+    f.onclick = ev => { if(ev.target === f) fecharJustCad(); };
+    document.getElementById('justFechar').onclick = fecharJustCad;
+    document.addEventListener('keydown', ev => { if(ev.key === 'Escape') fecharJustCad(); });
+    document.getElementById('justAdd').onclick = async () => {
+      const d = document.getElementById('justNova').value.trim(), msg = document.getElementById('justMsg');
+      if(d.length < 3){ msg.style.color = 'var(--vermelho)'; msg.textContent = 'Informe a descrição (mínimo 3 caracteres).'; return; }
+      msg.style.color = ''; msg.textContent = 'cadastrando…';
+      const res = await SB.rpc('dash_just_cadastrar', {p_descricao: d});
+      if(res.error){ msg.style.color = 'var(--vermelho)'; msg.textContent = 'não cadastrou — ' + res.error.message; return; }
+      document.getElementById('justNova').value = ''; msg.style.color = '#14603F'; msg.textContent = '✓ cadastrada';
+      await recarregarOpcoes();
+    };
+  }
+  desenharJustCad(); f.classList.add('aberto');
+}
+function desenharJustCad(){
+  // a lista antiga (anterior à padronização 028, sem criado_por) não aparece aqui — não deve voltar ao combo
+  const todas = Object.values(JUST.porCod).filter(o => o.ativo || o.criado_por).sort((a, b) => (b.ativo - a.ativo) || (a.ordem - b.ordem));
+  const uso = c => Object.values(JUST.porNF).filter(j => j.justificativa === c).length;
+  document.getElementById('justLista').innerHTML = todas.map(o =>
+    `<div class="linha${o.ativo ? '' : ' inativa'}"><span>${escA(o.descricao)} <small style="color:var(--cinza)">· ${uso(o.codigo)} nota(s)</small></span>` +
+    `<button class="bt" data-c="${escA(o.codigo)}" data-a="${o.ativo ? 0 : 1}">${o.ativo ? 'Desativar' : 'Reativar'}</button></div>`).join('');
+  document.querySelectorAll('#justLista button').forEach(b => b.onclick = async () => {
+    const msg = document.getElementById('justMsg'); msg.style.color = ''; msg.textContent = 'gravando…';
+    const res = await SB.rpc('dash_just_ativar', {p_codigo: b.dataset.c, p_ativo: b.dataset.a === '1'});
+    if(res.error){ msg.style.color = 'var(--vermelho)'; msg.textContent = 'não gravou — ' + res.error.message; return; }
+    msg.style.color = '#14603F'; msg.textContent = '✓ ' + (b.dataset.a === '1' ? 'reativada' : 'desativada'); await recarregarOpcoes();
+  });
+}
+async function recarregarOpcoes(){
+  const op = await SB.from('dash_justificativa_opcao').select('*').order('ordem');
+  if(op.error) return;
+  JUST.porCod = Object.fromEntries(op.data.map(o => [o.codigo, o])); JUST.opcoes = op.data.filter(o => o.ativo);
+  montaFiltroJust(); desenharJustCad(); pintar();   // fila redesenhada com a lista nova
 }
 /* ---- responsável e prazo (migração 008, Silvio 01/10/2026) ----
    Responsável = nome que a Logística indica para realizar a ação (texto livre, com sugestão dos nomes já usados).
@@ -571,7 +653,7 @@ async function salvarPlano(ch, origem){
   const cj = tr?.querySelector('.just'), co = tr?.querySelector('.obs');
   if(!cj) return;
   const [filial, nf, serie] = ch.split('|');
-  const sel = cj.querySelector('select'), inp = cj.querySelector('input'), quem = cj.querySelector('.quem');
+  const sel = cj.querySelector('select'), inp = cj.querySelector('input') || {value:'', disabled:false, classList:{toggle(){}}}, quem = cj.querySelector('.quem');
   const ta = co ? co.querySelector('textarea') : null, qObs = co ? co.querySelector('.quem') : null;
   const cr = tr.querySelector('.resp'), cp = tr.querySelector('.prz');
   const ir = cr ? cr.querySelector('input') : null, ip = cp ? cp.querySelector('input') : null;
@@ -589,7 +671,7 @@ async function salvarPlano(ch, origem){
   try {
   if(vazio) res = await SB.from('dash_justificativa_logistica').delete().match({filial, nf, serie});
   else {
-    const reg = {filial, nf, serie, justificativa: cod || null, complemento: compl || null};
+    const reg = {filial, nf, serie, justificativa: cod || null, complemento: null};   // 028: sem texto livre na justificativa
     if(JUST.v007) reg.observacoes = obs || null;
     if(JUST.v008){ reg.responsavel = resp || null; reg.prazo = prazo || null; }
     res = await SB.from('dash_justificativa_logistica').upsert(reg, {onConflict:'filial,nf,serie'}).select().single();
@@ -606,8 +688,10 @@ async function salvarPlano(ch, origem){
   const op = JUST.porCod[cod];
   sel.classList.toggle('vazia', !cod);
   inp.classList.toggle('falta', !!(op && op.pede_complemento && !compl));
-  inp.placeholder = op && op.pede_complemento ? 'complemento obrigatório: data, nº do chamado, NF…' : 'complemento (opcional)';
   quem.className = 'quem ok';
+  // 028: reclassificou como NFS NÃO ENVIADA → nova conferência no protocolo (a rotina da fila grava em até 15 min)
+  const cpAnt = cj.querySelector('.cprot'); if(cpAnt) cpAnt.remove();
+  const cpNovo = celConfProt({filial, nf, serie}, vazio ? null : res.data); if(cpNovo) sel.insertAdjacentHTML('afterend', cpNovo);
   quem.textContent = vazio ? '✓ plano removido' : `✓ salvo · ${res.data.usuario||''} · ${dtHora(res.data.updated_at)}`;
   for(const q of Object.values(qMap)) if(q && q !== alvoQuem){ q.className = 'quem'; q.textContent = ''; }
   if(alvoQuem && alvoQuem !== quem){ alvoQuem.className = 'quem ok'; alvoQuem.textContent = '✓ salvo'; }
@@ -672,7 +756,6 @@ function ligarAnx(c){
 function ligarJust(raiz){
   raiz.querySelectorAll('.just').forEach(c => {
     c.querySelector('select').onchange = () => salvarPlano(c.dataset.ch, 'just');
-    c.querySelector('input').onchange = () => salvarPlano(c.dataset.ch, 'just');
     c.querySelector('.bhist').onclick = () => abrirHistorico(c.dataset.ch);
   });
   raiz.querySelectorAll('.obs textarea').forEach(t => t.onchange = () => salvarPlano(t.closest('.obs').dataset.ch, 'obs'));
@@ -685,6 +768,14 @@ function ligarJust(raiz){
    Migração 006/007: cada inclusão, troca ou exclusão com ANTES e DEPOIS, quem e quando — inclusive
    observações e anexos. Gravado pelo banco (gatilho), imutável; a tela só lê. */
 const descJ = c => c ? (JUST.porCod[c]?.descricao || c) : '';
+function montaFiltroJust(){
+  const atual = $('fJust').value;
+  $('fJust').innerHTML = '<option value="">Todas</option><option value="__sem">Sem justificativa</option>'+
+    '<option value="__com">Com justificativa</option><option value="__anx">Com anexo</option>' +
+    (JUST.v008 ? '<option value="__venc">Prazo vencido</option><option value="__semresp">Responsável padrão (não informado)</option>' : '') +
+    JUST.opcoes.map(o => `<option value="${escA(o.codigo)}">${escA(o.descricao)}</option>`).join('');
+  if([...$('fJust').options].some(o => o.value === atual)) $('fJust').value = atual;
+}
 function eventosHist(linhas){
   // linhas de uma NF em ordem de id. Registros anteriores à 006 não têm o "antes": vem do evento anterior.
   let prev = null;
@@ -1414,10 +1505,8 @@ function pintarSubVo(maes){
 iniciarPagina(async () => {
   await Promise.all([carregarVendaOrdem(), carregarJustificativas()]);
   $('fFaixa').innerHTML = '<option value="">Todas</option>' + FAIXAS.map(f => `<option value="${f.k}">${f.rot}</option>`).join('');
-  $('fJust').innerHTML = '<option value="">Todas</option><option value="__sem">Sem justificativa</option>'+
-    '<option value="__com">Com justificativa</option><option value="__anx">Com anexo</option>' +
-    (JUST.v008 ? '<option value="__venc">Prazo vencido</option><option value="__semresp">Responsável padrão (não informado)</option>' : '') +
-    JUST.opcoes.map(o => `<option value="${escA(o.codigo)}">${escA(o.descricao)}</option>`).join('');
+  montaFiltroJust();
+  if(JUST.podeCad){ $('bJustCad').style.display = ''; $('bJustCad').onclick = abrirJustCad; }   // 028: só coordenadora/gerente LOG (+ ADM)
   const sem = CACHE.nfs.filter(x => x.faixa_entrega);
   $('fUf').innerHTML = '<option value="">Todas</option>' +
     [...new Set(sem.map(x=>x.uf).filter(Boolean))].sort().map(u=>`<option>${u}</option>`).join('');
@@ -1445,7 +1534,7 @@ iniciarPagina(async () => {
      {t:'MOTIVO DO ALERTA',w:44,val:r => 'romaneio' in r ? alertaRot(r).motivo : ''},
      {t:'ROMANEIO',w:12,val:r => r.romaneio ? r.romaneio + (r.romaneio_origem ? ' (' + r.romaneio_origem + ')' : '') : ''},
      {t:'PLANO DE AÇÃO · JUSTIFICATIVA',w:44,val:r => temJust(r) ? rotJust(r) : ''},
-     {t:'COMPLEMENTO',w:36,val:r => JUST.porNF[chNF(r)]?.complemento || ''},
+     {t:'CONFERÊNCIA NO PROTOCOLO',w:44,val:r => { const j = JUST.porNF[chNF(r)]; const h = celConfProt(r, j); return h ? h.replace(/<[^>]+>/g, '') : ''; }},
      {t:'RESPONSÁVEL',w:28,val:r => JUST.ok && JUST.v008 ? respEf(r) : ''},
      {t:'RESPONSÁVEL DEFINIDO?',w:20,val:r => JUST.ok && JUST.v008 ? (respInformado(r) ? 'informado' : 'padrão (responsável geral)') : ''},
      {t:'PRAZO',w:12,val:r => JUST.porNF[chNF(r)]?.prazo || ''},
