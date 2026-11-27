@@ -568,8 +568,17 @@ SB.auth.onAuthStateChange((evento, sessao) => {
 });
 
 iniciar();
-setInterval(iniciar, 5*60*1000);          // refaz a leitura a cada 5 min
-setInterval(()=>location.reload(), 60*60*1000);  // recarrega a página de hora em hora
+setInterval(iniciar, 5*60*1000);          // redesenha a cada 5 min com o que já está em memória (não rebaixa a base)
+/* 🔴 TRÁFEGO (Silvio 27/11/2026, REGRA DURA): a TV não recarrega mais de hora em hora por relógio — a cada 2 min só pergunta
+   "houve carga nova?" (última linha OK de dash_refresh_log) e recarrega quando houver; fora do horário da carga não baixa nada. */
+setInterval(async () => {
+  try {
+    if(!CACHE || !CACHE.logs || !CACHE.logs.data || !CACHE.logs.data[0]) return;
+    const r = await SB.from('dash_refresh_log').select('finished_at').eq('ok', true).order('finished_at', {ascending:false}).limit(1);
+    if(!r.error && r.data && r.data[0] && new Date(r.data[0].finished_at) > new Date(CACHE.logs.data[0].finished_at)
+       && $('login').style.display !== 'flex') location.reload();
+  } catch(_){}
+}, 2*60*1000);
 </script>
 <script>
 /* aba Protocolos (Silvio 20/10/2026): o atalho só aparece para quem o banco libera (na homologação, Controladoria e Faturamento) */

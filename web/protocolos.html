@@ -579,5 +579,7 @@ iniciarPagina(async () => {
   $('bAplicar').onclick = aplicar; $('fPer').onchange = pintar;
   ['fNF', 'fCli'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') aplicar(); }));
   await pintar();
+  // tráfego (27/11/2026): sem recarga por relógio — a cada 10 min relê só a central (RPCs pequenas), não a base de notas
+  window.recargaLeve = async () => { await carrega(); if(EMISSOR){ await carregaEmissor(); pintaEmissor(); } await pintar(); };
 });
 </script></body></html>

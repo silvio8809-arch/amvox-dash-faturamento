@@ -627,16 +627,36 @@ async function abrir(){
    input/textarea/select) nem quando a página avisa que está ocupada (`window.telaOcupada()`: envio de
    anexo em andamento, texto ainda não salvo, histórico aberto). Vencidos os 10 min, tenta a cada minuto
    até a tela ficar livre. */
-const _carregadaEm = Date.now();
-setInterval(() => {
-  if(Date.now() - _carregadaEm < 10*60*1000) return;
-  const l = $('login');
-  if(l && l.style.display === 'flex') return;
-  const a = document.activeElement;
-  if(a && a.matches && a.matches('input,textarea,select')) return;
-  if(typeof window.telaOcupada === 'function' && window.telaOcupada()) return;
-  location.reload();
-}, 60*1000);
+/* 🔴 TRÁFEGO (Silvio 27/11/2026, REGRA DURA — cota de egress do Supabase estourada): a tela NÃO rebaixa a base por relógio.
+   A cada 2 min só pergunta "houve carga nova?" (última linha OK de dash_refresh_log — poucos bytes) e só recarrega quando
+   houver (o ETL grava ~9×/dia). Antes: recarga completa a cada 10 min = a base inteira de notas (≈ 20 MB) por tela aberta.
+   Página com dado que muda FORA da carga (ex.: Protocolos — aceites, pedidos) define window.recargaLeve(): a cada 10 min ela
+   relê só o que é dela (RPCs pequenas), sem rebaixar a base. Continua valendo: não recarrega com a tela de login aberta, com
+   campo em edição nem com a página ocupada (window.telaOcupada) — tenta de novo na próxima checagem. */
+let _cargaNovaPendente = false, _ultLeve = Date.now();
+const _telaLivre = () => {
+  const l = $('login'); if(l && l.style.display === 'flex') return false;
+  const a = document.activeElement; if(a && a.matches && a.matches('input,textarea,select')) return false;
+  return !(typeof window.telaOcupada === 'function' && window.telaOcupada());
+};
+async function _houveCargaNova(){
+  if(!CACHE.atualizado) return false;
+  const r = await SB.from('dash_refresh_log').select('finished_at').eq('ok', true).order('finished_at', {ascending:false}).limit(1);
+  return !r.error && r.data && r.data[0] && new Date(r.data[0].finished_at).getTime() > CACHE.atualizado.getTime();
+}
+setInterval(async () => {
+  if(document.hidden) return;                                   // aba em segundo plano não consulta nada
+  try { if(!_cargaNovaPendente) _cargaNovaPendente = await _houveCargaNova(); } catch(_){}
+  if(!_telaLivre()) return;
+  if(_cargaNovaPendente) { location.reload(); return; }
+  if(typeof window.recargaLeve === 'function' && Date.now() - _ultLeve >= 10*60*1000){
+    _ultLeve = Date.now(); try { await window.recargaLeve(); } catch(_){}
+  }
+}, 2*60*1000);
+document.addEventListener('visibilitychange', async () => {       // voltou para a aba: confere na hora (sem esperar 2 min)
+  if(document.hidden) return;
+  try { if(await _houveCargaNova() && _telaLivre()) location.reload(); } catch(_){}
+});
 
 function iniciarPagina(fn){
   _pagina = fn;

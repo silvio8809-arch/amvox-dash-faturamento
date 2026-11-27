@@ -1,6 +1,6 @@
 # Especificação — Dashboard TV Faturamento & Logística (AMVOX)
 
-**Versão 1.54** · 27/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
+**Versão 1.55** · 27/11/2026 · Dono das definições: Silvio Amaral (Controladoria) · Mantido por: Claude
 
 > Documento de consulta e de validação. Descreve **o que cada número do painel significa e como é
 > calculado**. Toda definição nova aprovada pelo Silvio gera uma nova versão deste documento, com a
@@ -402,7 +402,7 @@ as mães das remessas daquele pedido.
 
 ## 14. Atualização automática
 
-- **Tela:** cada tela do painel se recarrega sozinha a cada 10 minutos, para a TV e os usuários sempre verem o último retrato gravado. O recarregamento zera filtros e rolagem escolhidos na tela; com a tela de login aberta ele não acontece.
+- **Tela:** 🔴 **só recarrega quando há carga nova** (Silvio 27/11/2026 — REGRA DURA de tráfego: a cota de tráfego do banco estourou). A cada 2 minutos a tela pergunta só "houve carga nova?" (última atualização gravada) e recarrega quando houver — a TV e todas as telas passam a ver o retrato novo poucos minutos depois de cada carga, sem rebaixar a base inteira por relógio (antes: a cada 10 min nas telas e de hora em hora na TV). A aba Protocolos relê só os protocolos e as notas aptas a cada 10 min (dado que muda fora da carga). Aba em segundo plano não consulta; ao voltar para ela, confere na hora. O recarregamento zera filtros e rolagem; não acontece com a tela de login aberta, com campo em edição ou com a página ocupada.
 
 - **Quando:** de hora em hora das 09h às 16h e uma rodada final às 16h30, em dias úteis. Fora disso a
   TV mostra o último retrato, sempre com a data e a hora dele.
@@ -556,6 +556,7 @@ Pedido do Gerente Comercial (via Silvio): o cliente só aceita receber a compra 
 | 1.52 | 23/11/2026 | **Venda retida por bonificação pendente** (seção 15-A.2): situações BONIF_PENDENTE/BONIF_REPROVADA no quadro de aptas, protocolo automático na aprovação da bonificação, 4 comunicados THOR — migração 027 | Silvio Amaral |
 | 1.53 | 24/11/2026 | Protocolo automático da **venda liberada por bonificação aprovada** passa a aparecer no **quadro de protocolos**, com aceite, confirmação de leitura e lembrete iguais aos demais (só não passa pela aprovação do Fiscal); PROT-2026-046 e 047 carregados na central (seção 15-A.2) | Silvio Amaral |
 | 1.54 | 27/11/2026 | Justificativa da fila sem entrega = lista suspensa padronizada de 8 itens, sem texto livre (existentes convertidas; texto cortado no histórico); cadastro da lista pela coordenadora/gerente de Logística (botão ⚙ Justificativas); NFS NÃO ENVIADA PARA LOGÍSTICA conferida no protocolo on-line (marca na tela + comunicado THOR à LOG, ligável) — seção 7.1, migração 028 | Silvio Amaral |
+| 1.55 | 27/11/2026 | **Tráfego:** telas e TV deixam de recarregar por relógio — só quando há carga nova (consulta mínima a cada 2 min); Protocolos relê só a central a cada 10 min (seção 14). Regra dura para todo desenvolvimento novo | Silvio Amaral |
 | 1.31 | 28/10/2026 | Aba **Protocolos**: bonificação **sem faturamento** deixa de ser retida automaticamente — vira **ALERTA** (fica apta e segue no protocolo); **retida** só com RETER indicado pelo gestor ou venda do 1º pedido cancelada — migração 032 (seção 15-A) | Silvio Amaral |
 | 1.30 | 22/10/2026 | Aba **Protocolos**: fim do modo teste; **reenvio por exceção** (REPROTOCOLAR); **Liberar** vale na hora; filtros NF/cliente valem também para as aptas — migração 020 (seção 15-A) | Silvio Amaral |
 | 1.29 | 22/10/2026 | Aba **Protocolos**: **confirmação de leitura** como ciência pelo e-mail de notificação, **lembrete** só sem nenhuma confirmação, **modo teste** de e-mail — migração 019 (seção 15-A) | Silvio Amaral |
